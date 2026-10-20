@@ -1,0 +1,31 @@
+{
+  "log": { "level": "info", "timestamp": true },
+  "dns": {
+    "servers": [
+      { "type": "https", "tag": "dns-cn", "server": "${DNS_CN}", "path": "/dns-query", "detour": "direct" },
+      { "type": "https", "tag": "dns-remote", "server": "${DNS_REMOTE}", "path": "/dns-query", "detour": "${PROXY_TAG}" }
+    ],
+    "rules": [
+      { "rule_set": "geosite-cn", "server": "dns-cn" },
+      { "server": "dns-remote" }
+    ],
+    "final": "dns-remote"
+  },
+  "inbounds": [
+__INBOUNDS__
+  ],
+  "outbounds": [
+__OUTBOUNDS__
+  ],
+  "route": {
+    "rule_set": [
+__RULESETS__
+    ],
+    "rules": [
+__RULES__
+    ],
+    "final": "${PROXY_TAG}",
+    "auto_detect_interface": ${AUTO_DETECT_INTERFACE},
+    "default_domain_resolver": { "server": "dns-remote" }
+  }
+}

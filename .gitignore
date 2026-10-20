@@ -1,0 +1,4 @@
+.archify/
+.build/
+data/
+.playwright-mcp/

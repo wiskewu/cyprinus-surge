@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "578daf79-e617-4fc8-a80d-438ec73591c9",
+  "status": "current",
+  "command": "deliver",
+  "type": "lifecycle",
+  "input": "E:\\githubrefs\\cyprinus-surge\\.archify\\lifecycle-failover-20261019-144000\\candidate.json",
+  "output": "E:\\githubrefs\\cyprinus-surge\\docs\\diagrams\\03-failover-lifecycle.html",
+  "specification": {
+    "sha256": "e96c2e3e35153d411dba951d7fcbf2da3faa62629e4897ef5afc09eba70aab53",
+    "bytes": 4589
+  },
+  "artifact": {
+    "sha256": "e9fe15527a922bf3f921e524315ae58e269d4887bd0f7f5216c526638152c9f2",
+    "bytes": 765487
+  }
+}

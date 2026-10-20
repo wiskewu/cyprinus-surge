@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "a776fab8-a149-4fc6-9a1a-87c31edb0f52",
+  "status": "current",
+  "command": "deliver",
+  "type": "workflow",
+  "input": "E:\\githubrefs\\cyprinus-surge\\.archify\\workflow-rollout-20261019-144000\\candidate.json",
+  "output": "E:\\githubrefs\\cyprinus-surge\\docs\\diagrams\\04-rollout-workflow.html",
+  "specification": {
+    "sha256": "29911fa466743bc527dfa67db88165d35f857e75b04eb9f6646df39f37158c01",
+    "bytes": 6196
+  },
+  "artifact": {
+    "sha256": "3a16d0c083d115b34bcc343f848e7015a2532ee9daec341c18bbecc912a63fca",
+    "bytes": 764279
+  }
+}

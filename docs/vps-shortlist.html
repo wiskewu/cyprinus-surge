@@ -1,0 +1,593 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>服务器入门采购清单（2026-10）· 自建科研网络方案</title>
+<style>
+  :root {
+    --p-bg: #f6f7f9; --p-surface: #fff; --p-ink: #14181f; --p-ink-2: #47505f; --p-ink-3: #6b7482;
+    --p-line: #e3e7ed; --p-line-2: #eef1f5; --p-accent: #0f6f5c; --p-accent-soft: #e8f4f1;
+    --p-warn: #a1590a; --p-warn-soft: #fdf3e6; --p-danger: #a32036; --p-danger-soft: #fdeef0;
+    --p-info: #1d4ed8; --p-info-soft: #eef2ff;
+    --p-radius: 12px; --p-shadow: 0 1px 2px rgba(16,24,40,.04), 0 8px 24px -16px rgba(16,24,40,.18);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--p-bg); color: var(--p-ink);
+    font-family: "PingFang SC","Microsoft YaHei","Hiragino Sans GB",system-ui,-apple-system,"Segoe UI",sans-serif;
+    font-size: 15px; line-height: 1.75; -webkit-font-smoothing: antialiased; }
+  .p-shell { max-width: 1280px; margin: 0 auto; padding: 0 24px; }
+  .p-prose { max-width: 1000px; }
+  code, .p-mono { font-family: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size: .88em; }
+  code { background: var(--p-line-2); border: 1px solid var(--p-line); border-radius: 5px; padding: .1em .38em; }
+  a { color: var(--p-accent); text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--p-accent) 30%, transparent); }
+  a:hover { border-bottom-color: var(--p-accent); }
+
+  .p-hero { background: linear-gradient(180deg,#fff 0%,#f1f5f4 100%); border-bottom: 1px solid var(--p-line); }
+  .p-hero-in { padding: 40px 0 28px; }
+  .p-kicker { font-size: 12.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--p-accent); font-weight: 600; }
+  .p-hero h1 { font-size: 31px; line-height: 1.28; margin: 10px 0 8px; letter-spacing: -.01em; }
+  .p-hero p.p-lede { font-size: 16px; color: var(--p-ink-2); max-width: 900px; margin: 0 0 18px; }
+  .p-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .p-chip { font-size: 12.5px; padding: 4px 10px; border-radius: 999px; background: #fff; border: 1px solid var(--p-line); color: var(--p-ink-2); }
+  .p-chip b { color: var(--p-ink); font-weight: 600; }
+  .p-chip.is-ok { background: var(--p-accent-soft); border-color: #cfe7e1; color: #0b5c4c; }
+  .p-chip.is-warn { background: var(--p-warn-soft); border-color: #f2dfc4; color: #7a4408; }
+
+  nav.p-toc { position: sticky; top: 0; z-index: 20; background: rgba(255,255,255,.92); backdrop-filter: blur(8px); border-bottom: 1px solid var(--p-line); }
+  nav.p-toc ol { display: flex; flex-wrap: wrap; gap: 4px 18px; list-style: none; margin: 0; padding: 11px 0; font-size: 13.5px; }
+  nav.p-toc a { border: 0; color: var(--p-ink-2); }
+  nav.p-toc a:hover { color: var(--p-accent); }
+
+  section.p-sec { padding: 44px 0 8px; }
+  .p-sec h2 { font-size: 24px; margin: 0 0 6px; letter-spacing: -.01em; }
+  .p-sec h2 .p-num { color: var(--p-accent); font-variant-numeric: tabular-nums; margin-right: 10px; }
+  .p-sec h3 { font-size: 17px; margin: 30px 0 10px; }
+  .p-sub { color: var(--p-ink-3); font-size: 14px; margin: 0 0 18px; }
+
+  .p-grid { display: grid; gap: 14px; }
+  .p-grid.c2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+  .p-grid.c3 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .p-card { background: var(--p-surface); border: 1px solid var(--p-line); border-radius: var(--p-radius); padding: 18px 20px; box-shadow: var(--p-shadow); }
+  .p-card h4 { margin: 0 0 6px; font-size: 15.5px; display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
+  .p-card p { margin: 0 0 8px; font-size: 14px; color: var(--p-ink-2); }
+  .p-card ul { margin: 6px 0 0; padding-left: 18px; font-size: 13.8px; color: var(--p-ink-2); }
+  .p-card li { margin: 4px 0; }
+  .p-card.is-ok { border-left: 3px solid var(--p-accent); }
+  .p-card.is-warn { border-left: 3px solid #d99a3c; background: linear-gradient(180deg,#fffdf9,#fff); }
+  .p-card.is-danger { border-left: 3px solid #cf5b70; background: linear-gradient(180deg,#fffbfc,#fff); }
+  .p-card.is-info { border-left: 3px solid #6b8afd; background: linear-gradient(180deg,#fbfcff,#fff); }
+  .p-price { font-size: 20px; font-weight: 650; letter-spacing: -.01em; }
+  .p-price small { font-size: 12.5px; font-weight: 500; color: var(--p-ink-3); }
+  .p-tag { display: inline-block; font-size: 11.5px; padding: 1px 7px; border-radius: 5px; font-weight: 600; letter-spacing: .02em; }
+  .p-tag.official { background: var(--p-info-soft); color: var(--p-info); }
+  .p-tag.community { background: var(--p-warn-soft); color: var(--p-warn); }
+  .p-tag.infer { background: #eef1f5; color: var(--p-ink-2); }
+  .p-tag.ok { background: var(--p-accent-soft); color: #0b5c4c; }
+  .p-tag.no { background: var(--p-danger-soft); color: var(--p-danger); }
+  .p-tag.maybe { background: var(--p-warn-soft); color: var(--p-warn); }
+
+  .p-tablewrap { overflow-x: auto; border: 1px solid var(--p-line); border-radius: var(--p-radius); background: #fff; box-shadow: var(--p-shadow); }
+  table.p-t { border-collapse: collapse; width: 100%; font-size: 13.6px; }
+  table.p-t th, table.p-t td { text-align: left; padding: 10px 13px; border-bottom: 1px solid var(--p-line-2); vertical-align: top; }
+  table.p-t thead th { background: #f8fafb; font-size: 12.3px; letter-spacing: .03em; color: var(--p-ink-3); text-transform: uppercase; font-weight: 600; white-space: nowrap; }
+  table.p-t tbody tr:last-child td { border-bottom: 0; }
+  table.p-t tbody tr:hover { background: #fcfdfd; }
+  table.p-t b { font-weight: 650; }
+  table.p-t td.p-y { color: var(--p-accent); font-weight: 700; text-align: center; }
+  table.p-t td.p-n { color: #b9c0cb; text-align: center; }
+  table.p-t td.p-m { color: var(--p-warn); text-align: center; }
+
+  ul.p-check { list-style: none; padding: 0; margin: 6px 0 0; font-size: 14px; color: var(--p-ink-2); }
+  ul.p-check li { position: relative; padding-left: 26px; margin: 6px 0; }
+  ul.p-check li::before { content: "☐"; position: absolute; left: 4px; top: -1px; color: var(--p-ink-3); font-size: 15px; }
+
+  .p-note { border-left: 3px solid var(--p-accent); background: var(--p-accent-soft); padding: 12px 16px; border-radius: 0 var(--p-radius) var(--p-radius) 0; font-size: 14px; color: #0b4b3f; margin: 16px 0; }
+  .p-note.is-warn { border-color: #d99a3c; background: var(--p-warn-soft); color: #6f3f08; }
+  .p-note.is-danger { border-color: #cf5b70; background: var(--p-danger-soft); color: #7d1a2c; }
+  .p-note b { font-weight: 650; }
+
+  .p-flow { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
+  .p-step { flex: 1 1 190px; background: #fff; border: 1px solid var(--p-line); border-radius: 10px; padding: 12px 14px; font-size: 13.5px; box-shadow: var(--p-shadow); }
+  .p-step b { display: block; font-size: 13px; color: var(--p-accent); letter-spacing: .04em; margin-bottom: 2px; }
+  .p-step span { color: var(--p-ink-2); }
+
+  footer.p-foot { margin-top: 50px; border-top: 1px solid var(--p-line); background: #fff; padding: 26px 0 40px; font-size: 13.5px; color: var(--p-ink-2); }
+  @media (max-width: 720px) { .p-hero h1 { font-size: 24px; } .p-shell { padding: 0 14px; } }
+  @media print { nav.p-toc { position: static; } body { background: #fff; } .p-card, .p-tablewrap { box-shadow: none; } }
+</style>
+</head>
+<body>
+
+<header class="p-hero">
+  <div class="p-shell p-hero-in">
+    <div class="p-kicker">服务器入门采购清单 · 2026-10</div>
+    <h1>满足「下单前逐条打勾」的入门服务器：6 家 + 8 个机型</h1>
+    <p class="p-lede">筛选口径直接来自方案第 4 节：<b>CN2 GIA / AS9929 / CMIN2 级优化线路、1C1G 起、≥500GB/月、独立 IPv4、可换 IP 或按小时计费、可重装系统</b>，并叠加你的支付条件——<b>Visa / Google Pay / 支付宝 任一可用</b>。价格与库存随时变，下单前请以官网结账页为准。</p>
+    <div class="p-chips">
+      <span class="p-chip is-ok">最低门槛 <b>≈￥16/月（月付）· ￥0.05/时（按小时）</b></span>
+      <span class="p-chip is-ok">甜点预算 <b>￥300–700/年</b></span>
+      <span class="p-chip is-warn">Google Pay <b>这批里没有官方支持，用 Visa / 支付宝</b></span>
+      <span class="p-chip">支付事实 <b>支付宝 7/7 · Visa 5/7 · 微信 4/7</b></span>
+    </div>
+  </div>
+</header>
+
+<nav class="p-toc">
+  <div class="p-shell">
+    <ol>
+      <li><a href="#filter">1 筛选标准</a></li>
+      <li><a href="#pick">2 推荐清单</a></li>
+      <li><a href="#table">3 横向对比</a></li>
+      <li><a href="#bytevirt">3+ ByteVirt 实测</a></li>
+      <li><a href="#pay">4 按支付方式选</a></li>
+      <li><a href="#avoid">5 不建议买</a></li>
+      <li><a href="#how">6 采购三步</a></li>
+      <li><a href="#src">7 来源与口径</a></li>
+    </ol>
+  </div>
+</nav>
+
+<main>
+
+<!-- 1 -->
+<section class="p-sec" id="filter">
+  <div class="p-shell">
+    <header class="p-prose">
+      <h2><span class="p-num">01</span>先把「逐条打勾」翻译成可筛选的条件</h2>
+      <p class="p-sub">下面 7 条是硬门槛，任何一条不满足就直接放弃——尤其是第 1 条，它决定了 TUN 模式能不能开。</p>
+    </header>
+    <div class="p-tablewrap">
+      <table class="p-t">
+        <thead><tr><th>#</th><th>条件</th><th>为什么是门槛</th><th>怎么在下单页确认</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td><b>KVM 虚拟化（不接受 OpenVZ / LXC）</b></td><td>OpenVZ 共享内核，通常<b>无法启用 TUN</b>，本方案的 sing-box TUN 全局代理直接不可用</td><td>套餐页写 KVM / 独立内核；装系统后 <code>ls /dev/net/tun</code> 存在</td></tr>
+          <tr><td>2</td><td><b>优化线路</b>：CN2 GIA / AS9929 / CMIN2 / 软银</td><td>延迟与晚高峰抖动由线路决定，1C1G 的性能对代理完全够用</td><td>套餐名含 CN2 GIA / Pro / 9929；看回程是否全程 59.43（GIA）</td></tr>
+          <tr><td>3</td><td><b>独立 IPv4</b>（非 NAT 共享）</td><td>共享 IP 直接违反 IP 纯净度门禁；且换 IP 不可能</td><td>套餐写 1 × IPv4 / dedicated IP；避开「NAT」「共享 IP」字样</td></tr>
+          <tr><td>4</td><td><b>流量 ≥500GB/月</b></td><td>4K YouTube + 日常科研的底线；很多入门款只有 250GB</td><td>看流量是单向还是双向计费（In+Out 要打折看）</td></tr>
+          <tr><td>5</td><td><b>可换 IP 或按小时计费</b></td><td>IP 整段被封时，换协议无效，只能换 IP；按小时可低成本试错</td><td>面板是否有「更换 IP / 重建 / 按小时计费」；或工单政策</td></tr>
+          <tr><td>6</td><td><b>可重装系统 / 有 root</b></td><td>要自己装 sing-box、改 sysctl、签证书</td><td>有 SolusVM / 自研面板的重装功能</td></tr>
+          <tr><td>7</td><td><b>支付：Visa / Google Pay / 支付宝 任一</b></td><td>你的付款条件</td><td>结账页 Payment Method 下拉里能选到</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="p-note is-warn"><b>关于 Google Pay：</b>这批候选里<b>没有一家官方明确支持 Google Pay</b>（Vultr 官方文档明确写了不支持 Apple Pay / Google Pay，2026-04 更新）。Google Pay 一般只在 Stripe 收银台里偶然出现，不能当依赖。所以下表按<b>支付宝</b>和 <b>Visa 卡</b>两个真实可用的渠道来标注。</div>
+  </div>
+</section>
+
+<!-- 2 -->
+<section class="p-sec" id="pick">
+  <div class="p-shell">
+    <header class="p-prose">
+      <h2><span class="p-num">02</span>推荐清单：按预算分三档</h2>
+      <p class="p-sub">「入门」不等于「最便宜」：先用 A 档按小时试错（几十块），确认线路和 IP 干净后，再上 B 档年付长期用。C 档是「不想折腾」的答案。</p>
+    </header>
+
+    <h3>A 档 · 试错机（按小时 / 月付，先验证线路与 IP）</h3>
+    <div class="p-grid c3">
+      <div class="p-card is-ok">
+        <h4>狗云 DogYun <span class="p-tag ok">支付宝</span></h4>
+        <div class="p-price">￥16 起<small> / 月（经典云 512M）· 弹性云 ￥0.049/时起</small></div>
+        <ul>
+          <li>美国 LA / 圣何塞 <b>CN2 GIA</b>、香港（KC/MG/CLD）、日本大阪</li>
+          <li>入门款 512M–1G / 10–20G SSD / <b>600GB 起</b> / 50Mbps（1G 约 ￥29/月）</li>
+          <li><b>按小时计费 + 可暂停 + 自助付费换 IP</b>——本方案最看重的两条都在</li>
+          <li>支付：支付宝 / 微信（<b>不收 Visa</b>）</li>
+        </ul>
+        <p style="margin-top:8px"><b>坑：</b>国人商家、规模小；低价款带宽只有 50Mbps，跑不满 4K 多路；退款有渠道费。</p>
+        <p><b>适合：</b>预算最紧、想先测「你这条线路晚高峰到底稳不稳」。</p>
+      </div>
+
+      <div class="p-card is-ok">
+        <h4>AkileCloud <span class="p-tag ok">支付宝</span></h4>
+        <div class="p-price">≈$69.99 起<small> / 年 · 香港原生 IP 约 ￥60/月</small></div>
+        <ul>
+          <li>香港 / 美国，CN2 GIA、AS9929 等回国优化；香港 HK-OPT 标「<b>原生 IP</b>」</li>
+          <li>HKOPT-Lite：1C1G / 5G / 500GB（In+Out）/ 200Mbps</li>
+          <li><b>支持按小时或按月</b>，面板可重装 / 快照</li>
+          <li>支付：支付宝 / 微信 / 信用卡 / 加密货币</li>
+        </ul>
+        <p style="margin-top:8px"><b>坑：</b>2023 年起的品牌，运营历史短；退款只退余额；5G 硬盘偏小（够跑代理，不够跑其他服务）。</p>
+        <p><b>适合：</b>想要亚洲低延迟 + 原生 IP 属性，又不想年付锁死。</p>
+      </div>
+
+      <div class="p-card is-info">
+        <h4>Vultr <span class="p-tag ok">Visa</span><span class="p-tag ok">支付宝</span></h4>
+        <div class="p-price">$5–6<small> / 月 · 按小时，销毁即换 IP</small></div>
+        <ul>
+          <li>东京 / 首尔 / 洛杉矶，<b>国际 BGP 普通线路</b>（不是 CN2 GIA）</li>
+          <li>1C1G / 25G / 1TB，<b>按小时计费</b>，随时销毁重建 = 免费换 IP</li>
+          <li>支付：Visa / Mastercard / Amex / JCB、<b>支付宝</b>、银联、PayPal</li>
+        </ul>
+        <p style="margin-top:8px"><b>坑：</b>普通线路，晚高峰延迟与抖动明显高于 CN2 GIA；中国大陆访问体验一般。它只能做「试错机」，不适合当长期主线路 <span class="p-tag infer">推断</span>。</p>
+        <p><b>适合：</b>手上只有 Visa 卡、想 10 分钟就买到一台能测的机器。</p>
+      </div>
+    </div>
+
+    <h3>B 档 · 甜点（年付 $40–90，长期用）</h3>
+    <div class="p-grid c3">
+      <div class="p-card is-ok">
+        <h4>HostDare · CN2 GIA KVM <span class="p-tag ok">支付宝</span></h4>
+        <div class="p-price">$40.99 起<small> / 年（CSSD0）· CSSD1 约 $50–60/年</small></div>
+        <ul>
+          <li>洛杉矶 CERA，电信 <b>CN2 GIA</b>、联通 9929、移动 CMIN2（三网回程优化）</li>
+          <li>CSSD0：1C / <b>0.75G</b> / 10G NVMe / <b>250GB</b>（<span style="color:#a1590a">流量不达标</span>）</li>
+          <li>CSSD1：1C / 1G / 25G NVMe / <b>500GB</b> ← 买这档</li>
+          <li>支付：支付宝 / 微信；可选中文工单</li>
+        </ul>
+        <p style="margin-top:8px"><b>坑：</b>同品牌还有 <b>OpenVZ</b> 系列，<b>必须确认选 KVM</b>，否则开不了 TUN；入门款带宽常见 30–50Mbps；换 IP 走工单、收费。</p>
+        <p><b>适合：</b>预算压到最低但坚持要 CN2 GIA + KVM 的人。</p>
+      </div>
+
+      <div class="p-card is-ok">
+        <h4>DMIT · LAX Pro <span class="p-tag ok">支付宝</span></h4>
+        <div class="p-price">$88 起<small> / 年 · LAX.T1 国际线 $36.9/年</small></div>
+        <ul>
+          <li>洛杉矶 <b>三网 CN2 GIA</b>（Pro 系列），AMD EPYC + 企业级 SSD</li>
+          <li>Pro 入门约 1C1G / 20G / 1TB / 1Gbps；<b>原生 IP</b></li>
+          <li>自有上游线路（不是转售），路由稳定性好于纯转售商</li>
+          <li>支付：支付宝 / 微信 / PayPal / 信用卡 / 加密货币</li>
+        </ul>
+        <p style="margin-top:8px"><b>坑：</b>常年缺货、补货靠蹲；贵；香港/日本价格更高；换 IP 需工单或加购 IP。</p>
+        <p><b>适合：</b>愿意为「晚高峰不抖」多付一倍钱。</p>
+      </div>
+
+      <div class="p-card is-info">
+        <h4>ByteVirt · CN2 GIA <span class="p-tag ok">支付宝</span><span class="p-tag no">无 Visa</span></h4>
+        <div class="p-price">$8 起<small> / 月（1C1G / 1TB）· CN2 GIA $12/月</small></div>
+        <ul>
+          <li>洛杉矶 CN2 GIA 系列：1C / 512M / 15G / <b>500GB</b> / 起步价 $5.5/月</li>
+          <li>另有 ISP VPS、日本软银、AS4837 等产品线</li>
+          <li>支付：支付宝 / USDT</li>
+        </ul>
+        <p style="margin-top:8px"><b>坑：</b>2023 年成立，超售与口碑需自测；线路分档多（CN2 GIA &gt; Elite &gt; Signature &gt; 普通），<b>别看错档位</b>；换 IP 政策需开工单确认。</p>
+        <p><b>适合：</b>想用最少的钱拿到 CN2 GIA 标称线路，且接受自己承担实测风险。</p>
+        <p><a href="#bytevirt">→ 已实测到具体套餐与结账页，见下方「附 · ByteVirt 具体套餐」</a></p>
+      </div>
+    </div>
+
+    <h3>C 档 · 稳定优先（贵，但省心）</h3>
+    <div class="p-grid c2">
+      <div class="p-card is-ok">
+        <h4>搬瓦工 · CN2 GIA-E（DC6 / DC9） <span class="p-tag ok">支付宝</span><span class="p-tag ok">Visa</span></h4>
+        <div class="p-price">$49.99<small> / 季 · $169.99/年（1C1G / 20G / 1TB / 2.5Gbps）</small></div>
+        <ul>
+          <li>三网直连 CN2 GIA，晚高峰抖动通常最小</li>
+          <li><b>KiwiVM 可自由迁移机房</b>（DC6 / DC9 / 香港 / 日本之间切），线路不满意不用退机</li>
+          <li>支持付费换 IP；老牌厂商，跑路风险最低</li>
+          <li>支付：支付宝 / 微信 / 银联 / PayPal / 信用卡；常用循环优惠码约 6.7% 折扣</li>
+        </ul>
+        <p style="margin-top:8px"><b>坑：</b>贵——是 HostDare 的 3 倍；$49.99/年的 KVM 是 <b>CN2 GT 普通优化</b>，不是 GIA，别买错；特价 GIA 常年缺货。</p>
+      </div>
+
+      <div class="p-card is-warn">
+        <h4>怎么在 B/C 之间选（一句话）</h4>
+        <p>把 <b>晚高峰 20:00–23:00 的抖动</b>当作唯一标准：</p>
+        <ul>
+          <li>能接受「偶尔抖一下」→ <b>HostDare CSSD1</b>（约 $55/年，最省钱的三网优化）</li>
+          <li>要「基本不抖」且能等补货 → <b>DMIT LAX Pro</b>（$88/年，自有上游）</li>
+          <li>要「不满意就换机房」这条保险 → <b>搬瓦工 CN2 GIA-E</b>（$49.99/季，可迁移）</li>
+        </ul>
+        <p style="margin-top:8px">先用 A 档按小时机测 3 个晚上，再决定把钱付给谁——这笔钱省得最值。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 3 -->
+<section class="p-sec" id="table">
+  <div class="p-shell">
+    <header class="p-prose">
+      <h2><span class="p-num">03</span>横向对比（按方案第 4 节的 7 条门槛）</h2>
+      <p class="p-sub">价格是 2026-10 的公开/社区核对值，只用于排序参考。✅ = 支持，❌ = 不支持，⚠️ = 需工单或条件成立。</p>
+    </header>
+    <div class="p-tablewrap">
+      <table class="p-t">
+        <thead>
+          <tr><th>厂商 / 机型</th><th>线路</th><th>入门配置 / 流量</th><th>参考价</th><th>KVM</th><th>支付宝</th><th>Visa</th><th>按小时 / 换 IP</th><th>定位</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><b>狗云</b> 弹性云 · 美国 LA</td><td>CN2 GIA</td><td>512M–1G / 10–20G / <b>600GB</b> / 50Mbps</td><td>≈￥16–29/月<br>￥0.049/时起</td>
+            <td class="p-y">✅</td><td class="p-y">✅</td><td class="p-n">❌</td><td class="p-y">✅ / ✅</td><td>A 试错</td>
+          </tr>
+          <tr>
+            <td><b>AkileCloud</b> HKOPT-Lite</td><td>香港三网优化 / 原生 IP</td><td>1C1G / 5G / <b>500GB</b>（In+Out）/ 200Mbps</td><td>≈￥60/月<br>$69.99/年起</td>
+            <td class="p-y">✅</td><td class="p-y">✅</td><td class="p-y">✅</td><td class="p-y">✅ / ⚠️</td><td>A 低延迟</td>
+          </tr>
+          <tr>
+            <td><b>Vultr</b> Cloud Compute</td><td>普通国际 BGP</td><td>1C1G / 25G / <b>1TB</b> / 共享</td><td>$5–6/月</td>
+            <td class="p-y">✅</td><td class="p-y">✅</td><td class="p-y">✅</td><td class="p-y">✅ / ✅ 销毁重建</td><td>A 试错（非优化线路）</td>
+          </tr>
+          <tr>
+            <td><b>HostDare</b> CSSD1</td><td>CN2 GIA + 9929 + CMIN2</td><td>1C1G / 25G NVMe / <b>500GB</b> / 30–50Mbps</td><td>≈$50–60/年<br>（CSSD0 $40.99 仅 250GB）</td>
+            <td class="p-y">✅</td><td class="p-y">✅</td><td class="p-m">⚠️</td><td class="p-m">❌ / ⚠️ 工单</td><td>B 最省钱</td>
+          </tr>
+          <tr>
+            <td><b>DMIT</b> LAX.Pro</td><td>三网 CN2 GIA（自有上游）</td><td>1C1G / 20G / <b>1TB</b> / 1Gbps · 原生 IP</td><td>$88/年起<br>（T1 国际线 $36.9）</td>
+            <td class="p-y">✅</td><td class="p-y">✅</td><td class="p-y">✅</td><td class="p-m">❌ / ⚠️ 加购 IP</td><td>B 稳</td>
+          </tr>
+          <tr>
+            <td><b>ByteVirt</b> CN2 GIA</td><td>CN2 GIA（分档）</td><td>1C / <b>512M</b> / 15G / <b>500GB</b></td><td>$5.5/月起</td>
+            <td class="p-y">✅</td><td class="p-y">✅</td><td class="p-m">⚠️</td><td class="p-m">⚠️ / ⚠️</td><td>B 便宜试水</td>
+          </tr>
+          <tr>
+            <td><b>搬瓦工</b> CN2 GIA-E</td><td>三网 CN2 GIA（DC6/DC9）</td><td>1C1G / 20G / <b>1TB</b> / 2.5Gbps</td><td>$49.99/季<br>$169.99/年</td>
+            <td class="p-y">✅</td><td class="p-y">✅</td><td class="p-y">✅</td><td class="p-m">❌ / ✅ 付费 + 免费迁机房</td><td>C 稳定优先</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="p-note"><b>为什么把「按小时 / 换 IP」单独列：</b>方案里 IP 整段被封是「中概率、高影响」风险，而<b>换协议对整段封锁无效</b>。能换 IP 或按小时重建的厂商，把这件事的成本从「换一家服务商」降到「点一下重建」。</div>
+  </div>
+</section>
+
+<!-- 3+ ByteVirt -->
+<section class="p-sec" id="bytevirt">
+  <div class="p-shell">
+    <header class="p-prose">
+      <h2><span class="p-num">附</span>ByteVirt 具体到套餐（店铺实测 2026-10-19）</h2>
+      <p class="p-sub">直接在店铺页拉了全部在售机型，并在真实结账页确认了付款方式。下面只留「KVM + 独立 IPv4 + ≥500GB/月 + 优化线路 + <b>有货</b> + <b>支持月付</b>」的行。</p>
+    </header>
+
+    <div class="p-note is-danger"><b>先确认支付能不能过：</b>实测 ByteVirt 结账页的「付款方式」只有三项——<b>支付宝 / USDT(TRC20) / 银联云闪付</b>，<b>没有 Visa，也没有 Google Pay</b>。所以：只接受支付宝/银联时就选它；只有 Visa 卡就跳过这家。</div>
+
+    <h3>符合条件的机型（全部有货、均支持月付）</h3>
+    <div class="p-tablewrap">
+      <table class="p-t">
+        <thead><tr><th>型号（pid）</th><th>线路档</th><th>配置</th><th>流量 / 端口</th><th>月付</th><th>年付</th><th>库存</th><th>定位</th></tr></thead>
+        <tbody>
+          <tr style="background:#f4fbf9">
+            <td><b>VPS-1024-KVM-CN2 GIA LA</b><br><span style="color:#6b7482">pid 330</span></td>
+            <td><b>CN2 GIA</b>（最高档）</td><td>1C / 1G / 20G SSD<br>+ 3 快照 + 1 备份</td><td><b>1TB</b> @ 300 Mbps</td>
+            <td><b>$12</b></td><td>$100<br><span style="color:#0f6f5c">省 31%</span></td><td>有货</td><td><b>首推</b></td>
+          </tr>
+          <tr>
+            <td><b>VPS-1024-KVM-Elite-LA</b><br><span style="color:#6b7482">pid 249</span></td>
+            <td>精英 Elite（次高档）</td><td>1C / 1G / 20G SSD</td><td><b>1TB</b> @ <b>500 Mbps</b></td>
+            <td><b>$8</b></td><td>$80</td><td>有货</td><td>性价比 / 先试</td>
+          </tr>
+          <tr>
+            <td><b>VPS-1024-KVM-Premium-SG</b><br><span style="color:#6b7482">pid 198</span></td>
+            <td>中国优化（第三档）</td><td>1C / 1G / <b>30G</b> SSD</td><td><b>1TB</b> @ <b>800 Mbps</b></td>
+            <td><b>$10</b></td><td>$100</td><td>有货</td><td>新加坡 / 带宽最好</td>
+          </tr>
+          <tr>
+            <td><b>VPS-1024-KVM-ISP-HK</b><br><span style="color:#6b7482">pid 306</span></td>
+            <td>ISP（IP 属性）</td><td>1C / 1G / 20G SSD</td><td><b>1TB</b> @ 500 Mbps</td>
+            <td><b>$10</b></td><td>$88</td><td>有货</td><td>可做 AI 出口备选</td>
+          </tr>
+          <tr>
+            <td><b>VPS-1024-KVM-ISP-JP</b></td>
+            <td>ISP（IP 属性）</td><td>1C / 1G / 20G SSD</td><td><b>1TB</b> @ 300 Mbps</td>
+            <td><b>$10</b></td><td>$100</td><td>有货</td><td>日本低延迟</td>
+          </tr>
+          <tr>
+            <td><b>VPS-2048-KVM-Premium-LA</b><br><span style="color:#6b7482">pid 145</span></td>
+            <td>中国优化</td><td>2C / 2G / 20G SSD</td><td><b>4TB</b> @ 800 Mbps</td>
+            <td><b>$8</b></td><td>$80</td><td style="color:#a1590a"><b>仅剩 1</b></td><td>捡漏（别当主选）</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>为什么首推 VPS-1024-KVM-CN2 GIA LA</h3>
+    <div class="p-grid c3">
+      <div class="p-card is-ok">
+        <h4>它是唯一「四项全中」的机型</h4>
+        <ul>
+          <li>1C1G（方案的最低配置）✓</li>
+          <li>1TB/月，远超 500GB 门槛 ✓</li>
+          <li><b>CN2 GIA</b>，全站最高线路档 ✓</li>
+          <li><b>支持月付 $12</b>，不需要年付锁死 ✓</li>
+        </ul>
+        <p style="margin-top:8px">侧栏还带 3 快照 + 1 备份，改配置前可以一键回滚——比大多数入门机省事。</p>
+      </div>
+      <div class="p-card is-info">
+        <h4>周期怎么选（实测价）</h4>
+        <ul>
+          <li>月付 <b>$12</b> → 折算 $12/月</li>
+          <li>季付 <b>$30</b> → 折算 $10/月（省 17%）</li>
+          <li>年付 <b>$100</b> → 折算 <b>$8.33/月</b>（省 31%）</li>
+        </ul>
+        <p style="margin-top:8px"><b>建议：</b>先月付 $12 测两个晚高峰；确认不抖，再改年付（相当于用 $12 买一次「验货权」）。</p>
+      </div>
+      <div class="p-card is-warn">
+        <h4>三个必须知道的实测细节</h4>
+        <ul>
+          <li>端口 <b>300 Mbps</b>（比 Elite 的 500M 低，但 4K 只需 ~25M，够用）</li>
+          <li>流量超了不是停机，而是<b>限速到 1 Mbps</b>——不会突然断网</li>
+          <li><b>没有按小时计费</b>，最短就是月付；换 IP 需开工单（政策未公开）</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>怎么选：三句话决策</h3>
+    <div class="p-flow">
+      <div class="p-step"><b>想最稳 → CN2 GIA</b><span>VPS-1024-KVM-CN2 GIA LA，月付 $12。线路档最高，代价是端口 300M。</span></div>
+      <div class="p-step"><b>想最划算 → Elite</b><span>VPS-1024-KVM-Elite-LA，月付 $8，同样 1TB 但端口 500M。先买这个测两晚，不满意再升级。</span></div>
+      <div class="p-step"><b>要亚洲低延迟 / 800M → SG 或 HK</b><span>Premium-SG $10（30G 硬盘 + 800M）或 ISP-HK $10（ISP 属性 IP，适合当 AI 出口备选，但需实测 ChatGPT）。</span></div>
+    </div>
+
+    <div class="p-note"><b>买之前就能测：</b>产品页给了 Looking Glass —— <code>lg.bytevirt.com/node?id=us-lax-cn2-gia</code>。下单前先在上面从你所在城市 ping / 跑 mtr，比买完再后悔便宜得多。</div>
+
+    <h3>优惠码：热门码实测（2026-10-19，结账页实际验证）</h3>
+    <div class="p-tablewrap">
+      <table class="p-t">
+        <thead><tr><th>优惠码</th><th>网上流传的力度</th><th>实测结果（本购物车 = VPS-1024-KVM-CN2 GIA LA 月付）</th></tr></thead>
+        <tbody>
+          <tr><td><code>4XCFWA2AC3</code></td><td>全场 8 折</td><td style="color:#a32036"><b>❌ 结账页提示「优惠码已过期」</b></td></tr>
+          <tr><td><code>WELCOME25</code></td><td>首单 75 折</td><td style="color:#a32036"><b>❌ 已过期</b></td></tr>
+          <tr><td><code>BV2026</code></td><td>年付 8 折</td><td style="color:#a32036"><b>❌ 已过期</b></td></tr>
+          <tr><td><code>M4I17KBXVJ</code></td><td>Signature 系列 8 折</td><td style="color:#a1590a">⚠️ 未在 CN2 GIA 购物车生效（系列限定，需买 Signature 才可能用）</td></tr>
+          <tr><td><code>2TA4LYI7RD</code></td><td>三周年全场 9 折</td><td style="color:#a1590a">⚠️ 未生效（周年活动已结束）</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="p-note is-warn"><b>结论：现在没有可用的公开通用码。</b>ByteVirt 真正稳定能拿到的折扣是<b>周期折扣</b>——季付 -17%、年付 -31%（这是价格表里直接算好的，不需要码）。优惠码要蹲官方 Telegram <code>@bytevirt</code> 的新品发布，而且几乎每个码都<b>限定某个系列或某个新品</b>，通用码很少。<br>
+    输入位置：结账页「优惠码 → 验证 &gt;&gt;」；验证失败不影响下单，不会产生订单。</div>
+
+    <h3>账单信息怎么填（英文全字段）</h3>
+    <p class="p-sub" style="max-width:1000px">必须填<b>你自己的真实信息</b>——结账页会记录 IP 并做欺诈筛查，账单姓名与支付渠道（支付宝/银联）不一致时，退款和工单都会对不上。下面只给<b>字段格式规则</b>和占位示例，不是可用的身份信息。</p>
+    <div class="p-tablewrap">
+      <table class="p-t">
+        <thead><tr><th>表单字段</th><th>填什么</th><th>示例（占位）</th><th>规则</th></tr></thead>
+        <tbody>
+          <tr><td>First Name / 名字</td><td>名的拼音</td><td><code>San</code></td><td>不加空格；复姓/双字名连写，如 <code>Xiaoming</code></td></tr>
+          <tr><td>Last Name / 姓氏</td><td>姓的拼音</td><td><code>Zhang</code></td><td>与支付渠道一致</td></tr>
+          <tr><td>Phone / 手机号</td><td>中国手机号</td><td><code>+86 138 0000 0000</code></td><td>国家选 China 后前缀自动变 +86；不要填 +1</td></tr>
+          <tr><td>Company / 公司</td><td>可留空</td><td><code>—</code> 或 <code>XX University</code></td><td>选填，个人购买留空即可</td></tr>
+          <tr><td>Address 1 / 街道地址</td><td>门牌 + 路名 + 号</td><td><code>Room 1201, Building 3, 88 Zhongshan Road</code></td><td>从小到大；路名用拼音，如 <code>Zhongshan Road</code></td></tr>
+          <tr><td>Address 2 / 第二行</td><td>楼栋/楼层/房间，或留空</td><td><code>Haidian District</code></td><td>选填；区域也可写这里</td></tr>
+          <tr><td>City / 城市</td><td>市</td><td><code>Beijing</code></td><td>直辖市就填市名</td></tr>
+          <tr><td>Country / 国家</td><td><code>China</code></td><td><code>China</code></td><td>不要默认选 United States</td></tr>
+          <tr><td>State / 省（州）</td><td>省/自治区</td><td><code>Beijing</code> / <code>Guangdong</code></td><td>选 China 后会变成文本框，直接填拼音</td></tr>
+          <tr><td>Postcode / 邮编</td><td>真实邮编</td><td><code>100080</code></td><td>6 位数字；不要用 00000</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="p-note"><b>两个容易卡住的地方：</b>① 表单默认国家是 United States，所以会弹出「州」下拉和 +1 前缀——<b>先把 Country 改成 China</b>，后面两项会变成文本框。② 密码要求 8–64 位，且必须勾选服务条款，否则提交会被拦（实测提示「您必须接受我们的服务条款」）。</div>
+
+    <h3>下单注意</h3>
+    <div class="p-grid c2">
+      <div class="p-card">
+        <ul>
+          <li>进场先选「<b>独立IP VPS</b>」标签，避开「共享IP VPS（NAT）」——NAT 直接违反门禁</li>
+          <li>系列别点错：<b>标准型 / 轻量型不是优化线路</b>，晚高峰会抖；要选「中国优化·KVM·CN2 GIA / 精英 / Signature / 中国优化」</li>
+          <li>系统镜像选 Debian 13 或 Ubuntu 24/26，方案里的命令按 Debian/Ubuntu 写</li>
+        </ul>
+      </div>
+      <div class="p-card">
+        <ul>
+          <li>结账表单含<b>州 / 邮编</b>字段，注册时先确认「国家」选项，避免卡在地址校验</li>
+          <li>下单后先跑方案第 7 节的 <b>5 分钟 IP 门禁</b>（IPQS ≤20 + ChatGPT 实测），不过关就退/换</li>
+          <li>年付前务必先月付测一轮 20:00–23:00</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 4 -->
+<section class="p-sec" id="pay">
+  <div class="p-shell">
+    <header class="p-prose">
+      <h2><span class="p-num">04</span>按你手上的支付方式反选</h2>
+      <p class="p-sub">别为了支付方式妥协线路；下表按「你只有这一种支付方式」给出最短路径。</p>
+    </header>
+    <div class="p-grid c3">
+      <div class="p-card is-ok">
+        <h4>只有支付宝</h4>
+        <ul>
+          <li><b>要按小时试错</b> → 狗云（美国 CN2 GIA）</li>
+          <li><b>要最低年付</b> → HostDare CSSD1（$50–60/年，KVM）</li>
+          <li><b>要稳</b> → DMIT LAX Pro（$88/年，蹲补货）</li>
+          <li><b>要能迁机房</b> → 搬瓦工 CN2 GIA-E（$49.99/季）</li>
+        </ul>
+        <p>7 家候选全部支持支付宝，这条最容易满足。</p>
+      </div>
+      <div class="p-card is-info">
+        <h4>只有 Visa / 信用卡</h4>
+        <ul>
+          <li><b>立刻能买、按小时</b> → Vultr（$5–6/月，但普通线路）</li>
+          <li><b>要 CN2 GIA</b> → 搬瓦工（信用卡直付，最省事）</li>
+          <li><b>备选</b> → DMIT（Visa / PayPal）、AkileCloud（信用卡）</li>
+        </ul>
+        <p>国外卡走搬瓦工 / DMIT 的结账流程最顺，且都支持退款与工单。</p>
+      </div>
+      <div class="p-card is-warn">
+        <h4>只有 Google Pay</h4>
+        <ul>
+          <li>这批厂商<b>没有一家官方支持 Google Pay</b></li>
+          <li>Google Pay 绑定的本质是卡：把它当 <b>Visa 卡号</b>用即可</li>
+          <li>或直接用支付宝（狗云 / HostDare / DMIT / 搬瓦工）</li>
+        </ul>
+        <p>不建议为此专门去找「支持 Google Pay」的小众商家——支付渠道越偏，退款与售后越难。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 5 -->
+<section class="p-sec" id="avoid">
+  <div class="p-shell">
+    <header class="p-prose">
+      <h2><span class="p-num">05</span>这些「更便宜」的选项，别买</h2>
+      <p class="p-sub">便宜但会在 IP 门禁或 TUN 阶段直接卡死，等于白花钱。</p>
+    </header>
+    <div class="p-grid c2">
+      <div class="p-card is-danger">
+        <h4>OpenVZ / LXC 的廉价年付机</h4>
+        <p>常见于 $10–20/年 的超低价套餐。共享内核，<b>通常无法启用 TUN</b>，只能用系统代理模式，Android 端体验直接崩。买之前必须确认 KVM。</p>
+      </div>
+      <div class="p-card is-danger">
+        <h4>NAT 共享 IP / 无独立 IPv4</h4>
+        <p>IP 与人共享，Fraud Score 与你无关地波动，ChatGPT 风控随机触发；且无法换 IP。直接违反门禁第 1、3 条。</p>
+      </div>
+      <div class="p-card is-danger">
+        <h4>大厂香港轻量（阿里云 / 腾讯云国际站）</h4>
+        <p>支付宝方便、价格低，但 IP 段被大量滥用，<b>Fraud Score 与 AI 解锁普遍不理想</b>，且轻量套餐多为峰值带宽限制。适合建站，不适合做 AI 出口 <span class="p-tag infer">推断</span>。</p>
+      </div>
+      <div class="p-card is-danger">
+        <h4>只标「原生 IP」不说线路的机器</h4>
+        <p>「原生 IP」只说明注册地属性，<b>不等于干净</b>，也不等于晚高峰不抖。原生 IP + 普通线路的组合，延迟照样能到 200ms+ 且抖动大。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 6 -->
+<section class="p-sec" id="how">
+  <div class="p-shell">
+    <header class="p-prose">
+      <h2><span class="p-num">06</span>采购三步：先花小钱，再花大钱</h2>
+      <p class="p-sub">对应方案第 9 节的阶段 0–1。顺序不能颠倒。</p>
+    </header>
+    <div class="p-flow">
+      <div class="p-step"><b>第 1 步 · 按小时试错（￥5–30）</b><span>买 A 档按小时机（狗云 / Vultr），今晚 20:00–23:00 跑 <code>mtr</code> + 下载测速，看抖动而不是看峰值。</span></div>
+      <div class="p-step"><b>第 2 步 · 5 分钟 IP 门禁（免费）</b><span>IPQS 看 <code>fraud_score ≤20</code>、proxy/vpn/recent_abuse 是否 false；再实测 ChatGPT 能否登录对话。不过关就重建换 IP。</span></div>
+      <div class="p-step"><b>第 3 步 · 再上年付</b><span>线路与 IP 都过关，才买 B/C 档年付。年付前确认：KVM、独立 IPv4、≥500GB、能不能换 IP。</span></div>
+    </div>
+    <div class="p-note"><b>一个省钱技巧：</b>HostDare、DMIT、搬瓦工都常有 5–7% 的循环优惠码；狗云有 7–8 折活动码。优惠码只影响价格，<b>不影响线路与 IP 门禁</b>——先把机器测通，再考虑折扣。</div>
+    <div class="p-note is-warn"><b>关于「便宜能不能用」：</b>本页只按方案第 4 节的 7 条门槛做筛选，<b>不保证任何一家的 IP 一定干净</b>。同一个机房的 IP 段里，干净与脏的机器是随机分布的，只有门禁实测能回答。预算有限时，正确的顺序是「<b>先测后买</b>」，而不是「买最便宜的赌一把」。</div>
+  </div>
+</section>
+
+<!-- 7 -->
+<section class="p-sec" id="src">
+  <div class="p-shell">
+    <header class="p-prose">
+      <h2><span class="p-num">07</span>来源与口径</h2>
+      <p class="p-sub">价格、库存、支付方式都会变；下表是核对依据，下单前请再点一次官网。</p>
+    </header>
+    <div class="p-tablewrap">
+      <table class="p-t">
+        <thead><tr><th>项目</th><th>核对依据</th><th>性质</th></tr></thead>
+        <tbody>
+          <tr><td>搬瓦工套餐与支付宝/银联/PayPal 支付</td><td><a href="https://bandwagonchina.com/all-plans.php">套餐价格页</a>、<a href="https://www.banwagongzw.com/2.html">支付宝/银联购买教程</a></td><td>社区整理 + 官网</td></tr>
+          <tr><td>DMIT 支付宝/微信/PayPal 与 LAX Pro 价格</td><td><a href="https://www.dmit.io/pages/pricing">DMIT Pricing</a>、<a href="https://github.com/dsypwg/dmit-lax-pro-guide">LAX Pro 套餐对照</a></td><td>官网 + 社区</td></tr>
+          <tr><td>HostDare CN2 GIA 机型与支付宝</td><td><a href="https://www.hostdare.com/cn2giavps.html">CN2 GIA 产品页</a>、<a href="https://price-watch.xielevi.cc/zh/vps/hostdare/">2026-10 价格核对</a></td><td>官网 + 第三方核对</td></tr>
+          <tr><td>狗云按小时计费、换 IP、支付宝/微信</td><td><a href="https://www.dogyun.com/product/cloud">弹性云产品页</a></td><td>官网</td></tr>
+          <tr><td>ByteVirt 线路分档与支付</td><td><a href="https://bytevirt.com/index.php?m=bvstore">Buy Cloud Servers</a></td><td>官网</td></tr>
+          <tr><td>AkileCloud 支付宝/信用卡、按小时、香港原生 IP</td><td><a href="https://digvps.com/review/akile">机型与价格整理</a>、<a href="https://souhaoji.com/merchant/akile">支付与退款政策</a></td><td>社区核验</td></tr>
+          <tr><td>Vultr 支付方式（明确不支持 Google Pay）</td><td><a href="https://docs.vultr.com/support/platform/billing/are-apple-pay-or-google-pay-accepted-on-vultr">Vultr 官方文档</a>、<a href="https://www.vultr.com/resources/faq/">Vultr FAQ</a></td><td>官方</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="p-note is-warn" style="margin-top:18px"><b>免责：</b>本页是采购参考，不是报价承诺。价格/库存/支付方式以官网结账页为准；「Fraud Score ≤20」与「AI 解锁」必须由你自己在下单后 5 分钟内实测（方案第 7 节）。仅限本人自用科研学习，遵守所在地法律法规与服务条款。</div>
+    <p style="margin-top:18px"><a href="index.html">← 回到方案可视化首页</a>　·　<a href="方案.md">完整文字方案</a>　·　<a href="README.md">目录</a></p>
+  </div>
+</section>
+
+</main>
+
+<footer class="p-foot">
+  <div class="p-shell">
+    <p><b>与主方案的关系：</b>本页只覆盖方案第 4 节「服务器选项」和第 9 节「阶段 0–1」。买完机器后的部署、协议、分流、IP 门禁与验收，见 <a href="index.html">方案可视化</a> 与 <a href="方案.md">方案.md</a>。</p>
+  </div>
+</footer>
+
+</body>
+</html>

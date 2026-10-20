@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "265d0213-dd73-4c6f-8dc2-c5cde8af344d",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "E:\\githubrefs\\cyprinus-surge\\.archify\\architecture-network-20261019-144000\\candidate.json",
+  "output": "E:\\githubrefs\\cyprinus-surge\\docs\\diagrams\\01-architecture.html",
+  "specification": {
+    "sha256": "cea40a02e2d820baeafbade32eed65a0cdac4cd7a4d3680c52cb4a193f477c5a",
+    "bytes": 6171
+  },
+  "artifact": {
+    "sha256": "4d7d3703cd2961a322e5d8ab07c4da557895b16a4fc3e2bb1353c70c0b191611",
+    "bytes": 769128
+  }
+}

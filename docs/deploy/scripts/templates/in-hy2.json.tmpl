@@ -1,0 +1,16 @@
+    {
+      "type": "hysteria2",
+      "tag": "hy2-in",
+      "listen": "::",
+      "listen_port": ${HY2_PORT},
+      "up_mbps": ${HY2_UP_MBPS},
+      "down_mbps": ${HY2_DOWN_MBPS},
+      "obfs": { "type": "salamander", "password": "${OBFS_PASSWORD}" },
+      "users": [{ "name": "me", "password": "${HY2_PASSWORD}" }],
+      "tls": {
+        "enabled": true,
+        "server_name": "${DOMAIN}",
+        "certificate_path": "${CERT_DIR}/cert.pem",
+        "key_path": "${CERT_DIR}/key.pem"
+      }
+    }

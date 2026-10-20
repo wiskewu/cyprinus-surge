@@ -1,0 +1,8 @@
+      { "action": "sniff" },
+      { "protocol": "dns", "action": "hijack-dns" },
+      { "ip_is_private": true, "action": "route", "outbound": "direct" },
+      { "rule_set": "geosite-openai", "action": "route", "outbound": "${AI_OUT_TAG}" },
+      { "domain_suffix": [".openai.com", "chatgpt.com", ".anthropic.com", ".claude.ai", "gemini.google.com"],
+        "action": "route", "outbound": "${AI_OUT_TAG}" },
+      { "rule_set": ["geosite-cn", "geoip-cn"], "action": "route", "outbound": "direct" },
+      { "action": "route", "outbound": "${PROXY_TAG}" }

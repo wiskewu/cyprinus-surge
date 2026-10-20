@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "d1ba7c9b-7daf-4a94-a96c-38b2fbdaa5c6",
+  "status": "current",
+  "command": "deliver",
+  "type": "sequence",
+  "input": "E:\\githubrefs\\cyprinus-surge\\.archify\\sequence-ai-request-20261019-144000\\candidate.json",
+  "output": "E:\\githubrefs\\cyprinus-surge\\docs\\diagrams\\02-ai-request-path.html",
+  "specification": {
+    "sha256": "42214b4bc78057f5a145df98215cd25c9fd43eea6b6ef674f24207095aa95565",
+    "bytes": 3986
+  },
+  "artifact": {
+    "sha256": "f7e36c6050767fe542841111bbfb98624ad8f45cc964438b3debe4a0e3f137e8",
+    "bytes": 756173
+  }
+}

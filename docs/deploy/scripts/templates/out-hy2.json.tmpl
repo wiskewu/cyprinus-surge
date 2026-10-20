@@ -1,0 +1,13 @@
+    {
+      "type": "hysteria2",
+      "tag": "proxy-hy2",
+      "server": "${SERVER_IP}",
+      "server_port": ${HY2_PORT},
+      "server_ports": ["${HY2_HOP_RANGE}"],
+      "hop_interval": "30s",
+      "up_mbps": 50,
+      "down_mbps": 200,
+      "password": "${HY2_PASSWORD}",
+      "obfs": { "type": "salamander", "password": "${OBFS_PASSWORD}" },
+      "tls": { "enabled": true, "server_name": "${DOMAIN}" }
+    }

@@ -1,0 +1,14 @@
+    {
+      "type": "vless",
+      "tag": "proxy",
+      "server": "${SERVER_IP}",
+      "server_port": ${VLESS_PORT},
+      "uuid": "${UUID}",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "${REALITY_SERVER_NAME}",
+        "utls": { "enabled": true, "fingerprint": "chrome" },
+        "reality": { "enabled": true, "public_key": "${REALITY_PUBLIC_KEY}", "short_id": "${SHORT_ID}" }
+      }
+    }

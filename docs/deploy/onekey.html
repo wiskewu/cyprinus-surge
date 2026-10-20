@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>一键脚本 · 自建节点部署手册</title>
+<style>
+:root{--ink:#161a21;--ink2:#4a5361;--ink3:#6f7886;--line:#e4e8ee;--line2:#f0f3f7;--bg:#f7f8fa;--card:#fff;--acc:#0d6b58;--acc2:#e9f5f2;--warn:#9a5608;--warn2:#fdf4e7;--bad:#a21f36;--bad2:#fdeef1;--info:#1d4ed8;--info2:#eef2ff;--r:10px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.75 "PingFang SC","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1040px;margin:0 auto;padding:0 20px}
+a{color:var(--acc);text-decoration:none;border-bottom:1px solid rgba(13,107,88,.28)}
+a:hover{border-bottom-color:var(--acc)}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.88em;background:var(--line2);border:1px solid var(--line);border-radius:4px;padding:.05em .35em}
+.top{background:#fff;border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;align-items:baseline;gap:12px;padding:12px 20px}
+.top .home{font-weight:700;border:0}
+.top .crumb{color:var(--ink3);font-size:13px}
+.nav{background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:9}
+.nav .wrap{display:flex;gap:6px;overflow-x:auto;padding:8px 20px;font-size:13.5px}
+.nav a{padding:4px 10px;border-radius:999px;border:0;color:var(--ink2);white-space:nowrap}
+.nav a:hover{background:var(--line2)}
+.nav a[aria-current="page"]{background:var(--acc);color:#fff}
+main{padding:28px 0 60px}
+h1{font-size:26px;margin:6px 0 10px;letter-spacing:-.01em}
+h2{font-size:20px;margin:34px 0 10px;padding-top:10px;border-top:1px solid var(--line)}
+h2:first-of-type{border-top:0;padding-top:0}
+h3{font-size:16px;margin:22px 0 8px}
+p{margin:8px 0}
+.lede{color:var(--ink2);font-size:15.5px;margin-bottom:16px}
+ul,ol{margin:8px 0;padding-left:22px}
+li{margin:4px 0}
+pre{position:relative;background:#0f172a;color:#e2e8f0;border-radius:var(--r);padding:14px 16px;overflow-x:auto;font:13px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;margin:10px 0}
+pre code{background:none;border:0;padding:0;color:inherit;font-size:inherit}
+pre .copy{position:absolute;top:8px;right:8px;background:#1e293b;color:#cbd5e1;border:1px solid #334155;border-radius:6px;font-size:12px;padding:2px 8px;cursor:pointer}
+pre .copy:hover{background:#334155}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;margin:12px 0}
+.card h3{margin-top:0}
+.note,.warn,.bad{border-radius:0 var(--r) var(--r) 0;padding:11px 15px;margin:12px 0;font-size:14px;border-left:3px solid}
+.note{background:var(--acc2);border-color:var(--acc);color:#0a4a3d}
+.warn{background:var(--warn2);border-color:#d79a3f;color:#6b3d06}
+.bad{background:var(--bad2);border-color:#cf5b70;color:#7c1a2c}
+.note b,.warn b,.bad b{font-weight:650}
+table{border-collapse:collapse;width:100%;font-size:13.8px;background:#fff;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line2);vertical-align:top}
+th{background:#f8fafb;font-size:12.4px;color:var(--ink3);text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+.tw{overflow-x:auto;margin:12px 0}
+.tag{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:5px;background:var(--line2);color:var(--ink2)}
+.tag.ok{background:var(--acc2);color:var(--acc)}
+.tag.warn{background:var(--warn2);color:var(--warn)}
+.tag.bad{background:var(--bad2);color:var(--bad)}
+.tag.info{background:var(--info2);color:var(--info)}
+.steps{counter-reset:s;list-style:none;padding:0}
+.steps>li{counter-increment:s;position:relative;padding-left:38px;margin:14px 0}
+.steps>li::before{content:counter(s);position:absolute;left:0;top:1px;width:24px;height:24px;border-radius:50%;background:var(--acc);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.kv{display:grid;grid-template-columns:140px 1fr;gap:2px 12px;font-size:14px;margin:8px 0}
+.kv dt{color:var(--ink3)}
+.kv dd{margin:0}
+details{margin:10px 0;border:1px solid var(--line);border-radius:var(--r);background:#fff}
+details>summary{cursor:pointer;padding:10px 14px;font-weight:600;font-size:14px;color:var(--acc)}
+details[open]>summary{border-bottom:1px solid var(--line)}
+details .body{padding:4px 14px 14px}
+.foot{border-top:1px solid var(--line);background:#fff;padding:20px 0 40px;font-size:13px;color:var(--ink3)}
+@media(max-width:640px){h1{font-size:22px}.kv{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap"><a class="home" href="index.html">自建节点部署手册</a><span class="crumb">一键</span></div></header>
+<nav class="nav"><div class="wrap"><a href="index.html">0 · 总览与准备</a><a href="01-init.html">1 · 系统初始化</a><a href="02-install.html">2 · 安装与密钥</a><a href="03-server.html">3 · 服务端配置</a><a href="04-hy2.html">4 · 可选 Hysteria2</a><a href="05-client.html">5 · 客户端</a><a href="06-ops.html">6 · 验收与备份</a><a href="onekey.html" aria-current="page">一键</a><a href="troubleshooting.html">排查</a></div></nav>
+<main class="wrap">
+<h1>一键脚本</h1>
+<p class="lede"><code>deploy.sh</code> 把 6 个步骤串起来：先扫描每一步是否已配置，再让你决定「复用 / 覆盖 / 跳过」。它由 <code>build-onekey.sh</code> 自动生成，内容就是 <code>lib.sh</code> + <code>steps/*.sh</code> + 驱动逻辑。</p>
+
+<h2>快速开始</h2>
+<pre><code>scp -r docs/deploy/scripts root@你的服务器IP:/root/deploy
+ssh root@你的服务器IP
+cd /root/deploy &amp;&amp; bash deploy.sh</code></pre>
+<p>不带参数就是交互模式。想先看看它会做什么：<code>bash deploy.sh --dry-run</code>。</p>
+
+<h2>交互模式长什么样</h2>
+<pre><code>步骤     状态   可选 说明
+--------------------------------------------------------------
+system     已配置 no     系统初始化（依赖 / BBR / swap / 时间同步 / 防火墙）
+install    已配置 no     安装 sing-box（固定版本 + systemd）
+secrets    未配置 no     生成密钥（deploy.env / client.env）
+server     未配置 no     渲染服务端配置并启动（双入口）
+--------------------------------------------------------------
+  [system] 已配置（系统初始化…）
+      (r) 复用已存在配置  (o) 覆盖重跑  (s) 跳过   [r]
+将执行：secrets server
+确认开始？[Y/n]</code></pre>
+<p>已配置的步骤默认「复用」——只有你选 <code>o</code> 才会重跑并覆盖。</p>
+
+<h2>参数</h2>
+<div class="tw">
+<table>
+<thead><tr><th>参数</th><th>作用</th></tr></thead>
+<tbody>
+<tr><td><code>--reuse</code></td><td>已配置的步骤一律复用，不提问</td></tr>
+<tr><td><code>--overwrite</code></td><td>已配置的步骤一律重跑并覆盖</td></tr>
+<tr><td><code>--only a,b</code></td><td>只跑指定步骤（<code>system,install,secrets,server,hy2,porthop</code>）</td></tr>
+<tr><td><code>--skip a,b</code></td><td>跳过指定步骤</td></tr>
+<tr><td><code>--yes</code></td><td>不再确认（配合 <code>--reuse</code> 可全自动）</td></tr>
+<tr><td><code>--dry-run</code></td><td>只打印计划和将执行的步骤</td></tr>
+<tr><td><code>--status</code></td><td>只看每一步的状态</td></tr>
+<tr><td><code>--uninstall</code></td><td>卸载，保留 <code>deploy.env</code> 与证书</td></tr>
+<tr><td><code>--purge</code></td><td>卸载并删除 <code>deploy.env</code> / 证书</td></tr>
+<tr><td><code>--reinstall</code></td><td>卸载并重装（等价于 <code>--purge</code> 后全量覆盖）</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>步骤与依赖</h2>
+<div class="tw">
+<table>
+<thead><tr><th>步骤</th><th>文件</th><th>可选</th><th>已配置的判定</th></tr></thead>
+<tbody>
+<tr><td><code>system</code></td><td>steps/10-system.sh</td><td>否</td><td>sysctl 文件存在 + ufw 已启用 + BBR 已开</td></tr>
+<tr><td><code>install</code></td><td>steps/20-install.sh</td><td>否</td><td>二进制与 systemd 单元都在</td></tr>
+<tr><td><code>secrets</code></td><td>steps/30-secrets.sh</td><td>否</td><td><code>deploy.env</code> 与 <code>client.env</code> 都存在</td></tr>
+<tr><td><code>server</code></td><td>steps/40-server.sh</td><td>否</td><td><code>config.json</code> 存在且服务在运行</td></tr>
+<tr><td><code>hy2</code></td><td>steps/50-hy2.sh</td><td>是</td><td>证书存在且 <code>ENABLE_HY2=1</code></td></tr>
+<tr><td><code>porthop</code></td><td>steps/60-porthop.sh</td><td>是</td><td>iptables 里已有重定向规则</td></tr>
+</tbody>
+</table>
+</div>
+<p>两个可选步骤只在 <code>ENABLE_HY2=1</code> 时执行；否则自动跳过并说明原因。</p>
+
+<h2>卸载会删什么</h2>
+<ul>
+<li>停用并删除 sing-box 服务、二进制、systemd 单元、<code>/var/lib/sing-box</code></li>
+<li>删除 <code>config.json</code>、证书、Hysteria2 的 iptables 规则</li>
+<li>删除本项目加的 ufw 规则（443、8443-8447）与 <code>sysctl.d</code> 优化文件</li>
+<li><code>--purge</code> 额外删除 <code>deploy.env</code> / <code>client.env</code></li>
+</ul>
+<div class="note"><b>不会动的东西：</b>SSH 端口的 ufw 规则、ufw 的启用状态、swap、<code>/root/backups</code> 里的备份。卸载后仍保持 SSH 可登录。</div>
+
+<h2>改步骤后重新生成</h2>
+<pre><code># 改 steps/*.sh 或 onekey/driver.sh 之后
+bash docs/deploy/scripts/build-onekey.sh
+# 生成 deploy.sh（会自动做 bash -n 语法检查）</code></pre>
+<p><code>deploy.sh</code> 是生成物，不要手改；单步入口（<code>00-bootstrap.sh</code> 等）也调用同一份 <code>steps/*.sh</code>，所以两条路径的行为永远一致。</p>
+
+<h2>常见用法</h2>
+<pre><code># 只重做服务端配置（改完 REALITY_DEST 之类）
+bash deploy.sh --only server --overwrite --yes
+
+# 有域名后补开 Hysteria2
+DOMAIN=vps.example.com CF_TOKEN=xxx ACME_EMAIL=me@example.com \
+  bash deploy.sh --only hy2,server --overwrite --yes
+
+# 完全重装（连密钥一起换）
+bash deploy.sh --reinstall --yes
+
+# 怀疑环境被污染，先卸载干净再来
+bash deploy.sh --purge --yes &amp;&amp; bash deploy.sh --yes</code></pre>
+
+<p style="margin-top:24px"><a href="index.html">← 总览</a>　·　<a href="troubleshooting.html">排查手册</a></p>
+
+</main>
+<footer class="foot"><div class="wrap">
+本手册与 <a href="../index.html">方案总览</a> · <a href="../vps-shortlist.html">服务器采购</a> 配套。命令在 Debian 12/13、Ubuntu 22.04/24.04 上验证；配置已用 sing-box 1.14.3 校验。仅限本人自用科研学习，遵守所在地法律法规与服务条款。
+</div></footer>
+<script>
+document.querySelectorAll('pre').forEach(function(pre){
+  var b=document.createElement('button');b.className='copy';b.type='button';b.textContent='复制';
+  b.onclick=function(){
+    var t=pre.innerText.replace(/复制$|已复制$/,'');
+    var done=function(){b.textContent='已复制';setTimeout(function(){b.textContent='复制'},1200)};
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(done,function(){fallback(t,done)})}
+    else{fallback(t,done)}
+  };
+  function fallback(t,cb){var ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');cb()}catch(e){}document.body.removeChild(ta)}
+  pre.appendChild(b);
+});
+</script>
+</body>
+</html>
