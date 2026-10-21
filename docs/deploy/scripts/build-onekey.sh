@@ -24,7 +24,7 @@ done
   printf 'STEPS=(%s)\n' "${STEPS[*]}"
   echo
   echo '# ---------------------------- lib.sh ----------------------------'
-  sed '1{/^#!/d}' lib.sh
+  sed '1{/^#!/d;}' lib.sh    # 用 BSD sed 也认的写法（macOS 本地重算 deploy.sh 不至于卡住）
   for f in steps/*.sh; do
     echo
     echo "# ---------------------------- $(basename "$f") ----------------------------"

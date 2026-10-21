@@ -50,13 +50,20 @@ gen_key() { openssl rand -base64 32 | tr -d '\n'; }
 # ===== SSH 端口探测 =====
 # 云厂商给的新机器常是随机端口，不是 22。凭「SSH_PORT 默认 22」去删 ufw 规则，
 # 会删一条不存在的规则然后报告成功——端口纹丝不动。所以一律先探测。
-# 与 deploy 的 system_detect_ssh_ports() 同一套三路：当前连接 → sshd 监听 → sshd_config
+# 与 deploy 的 system_detect_ssh_ports() 同一套：当前连接 → sshd 监听 → ssh.socket → sshd_config
 
 ssh_detect_ports() {
   local p=""
   [ -n "${SSH_CONNECTION:-}" ] && p="$(printf '%s' "$SSH_CONNECTION" | awk '{print $4}')"
   if command -v ss >/dev/null 2>&1; then
     p="$p $(ss -tlnpH 2>/dev/null | awk '/sshd/ {print $4}' | sed 's/.*://' | grep -E '^[0-9]+$' | sort -u | paste -sd' ' -)"
+  fi
+  # sshd 由 socket 激活时（ssh.socket），监听套接字是 systemd 的、进程名不叫 sshd，
+  # 按进程名 grep 会整个拿不到，只能问 systemd 要 ListenStream
+  if command -v systemctl >/dev/null 2>&1; then
+    p="$p $(systemctl show ssh.socket -p Listen --value 2>/dev/null \
+      | awk '{for(i=1;i<=NF;i++) if ($i ~ /:[0-9]+$/) {n=split($i,a,":"); print a[n]}}' \
+      | sort -u | paste -sd' ' -)"
   fi
   if [ -r /etc/ssh/sshd_config ]; then
     p="$p $(awk 'tolower($1)=="port"{print $2}' /etc/ssh/sshd_config 2>/dev/null | sort -u | paste -sd' ' -)"

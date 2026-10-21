@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ===========================================================================
 # deploy.sh —— 一键脚本（自动生成，勿手改）
-#   生成时间：2026-10-21T11:29:38Z
+#   生成时间：2026-10-21T15:09:25Z
 #   来源：lib.sh + steps/*.sh + onekey/driver.sh
 #   重新生成：bash build-onekey.sh
 # ===========================================================================
@@ -153,6 +153,13 @@ system_detect_ssh_ports() {
   if command -v ss >/dev/null 2>&1; then
     p="$p $(ss -tlnpH 2>/dev/null | awk '/sshd/ {print $4}' | sed 's/.*://' | grep -E '^[0-9]+$' | sort -u | paste -sd' ' -)"
   fi
+  # sshd 由 socket 激活时（ssh.socket），监听套接字是 systemd 的、进程名不叫 sshd，
+  # 上面那条按进程名 grep 会整个拿不到，只能问 systemd 要 ListenStream
+  if command -v systemctl >/dev/null 2>&1; then
+    p="$p $(systemctl show ssh.socket -p Listen --value 2>/dev/null \
+      | awk '{for(i=1;i<=NF;i++) if ($i ~ /:[0-9]+$/) {n=split($i,a,":"); print a[n]}}' \
+      | sort -u | paste -sd' ' -)"
+  fi
   if [ -r /etc/ssh/sshd_config ]; then
     p="$p $(awk 'tolower($1)=="port"{print $2}' /etc/ssh/sshd_config 2>/dev/null | sort -u | paste -sd' ' -)"
   fi
@@ -161,7 +168,7 @@ system_detect_ssh_ports() {
 
 system_run() {
   local VLESS_PORT="${VLESS_PORT:-443}" HY2_PORT="${HY2_PORT:-8443}"
-  local HY2_HOP_END="${HY2_HOP_END:-8447}" SWAP_MB="${SWAP_MB:-1024}" SSH_PORTS
+  local HY2_HOP_END="${HY2_HOP_END:-8447}" SWAP_MB="${SWAP_MB:-1024}" SSH_PORTS DETECTED_SSH_PORTS
   export DEBIAN_FRONTEND=noninteractive
 
   log "1/8 安装基础软件"
@@ -243,8 +250,17 @@ SSHEOF
   fi
 
   log "7/8 防火墙（绝不假设 SSH 是 22）"
-  SSH_PORTS="$(printf '%s\n%s\n' "${SSH_PORT:-}" "$(system_detect_ssh_ports)" | grep -E '^[0-9]+$' | sort -un | paste -sd' ' -)"
+  DETECTED_SSH_PORTS="$(system_detect_ssh_ports)"
+  SSH_PORTS="$(printf '%s\n%s\n' "${SSH_PORT:-}" "$DETECTED_SSH_PORTS" | grep -E '^[0-9]+$' | sort -un | paste -sd' ' -)"
   [ -n "$SSH_PORTS" ] || SSH_PORTS=22
+  if [ -z "$DETECTED_SSH_PORTS" ]; then
+    warn "    探测不到 sshd 在听哪个端口（从云控制台/VNC 登录、或 sshd 由 socket 激活都会这样）"
+    warn "    下面只按 SSH_PORT='${SSH_PORT:-}' 放行。先确认它就是真实端口，否则这次 ufw 一开，下次就登不进来了："
+    warn "      ss -tlnp | grep -E 'sshd|:22'　或　sshd -T | grep -i '^port'"
+  elif [ -n "${SSH_PORT:-}" ] && ! printf '%s\n' $DETECTED_SSH_PORTS | grep -qx "$SSH_PORT"; then
+    warn "    SSH_PORT=${SSH_PORT} 不在本机监听列表里（实际：${DETECTED_SSH_PORTS}），两个都会放行"
+    warn "    这是给「sshd 监听多个端口」留的口子；如果 ${SSH_PORT} 不是你真实端口，记得别把真端口那条删了"
+  fi
   log "    SSH 端口：${SSH_PORTS}"
   ufw default deny incoming >/dev/null
   ufw default allow outgoing >/dev/null

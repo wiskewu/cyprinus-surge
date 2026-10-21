@@ -13,18 +13,60 @@ bash 00-bootstrap.sh
 # SSH 不是 22 端口时：
 SSH_PORT=你的端口 bash 00-bootstrap.sh</code></pre>
 
+<p><code>SSH_PORT</code> 是「额外放行」，不是「只放行」：脚本会自己探测 sshd 的真实端口（当前连接 → <code>ss</code> 监听 → <code>ssh.socket</code> → <code>sshd_config</code>），探测到的一律放行。但<b>从云控制台 / VNC 登录</b>（没有 <code>SSH_CONNECTION</code>）或 socket 激活的 sshd 又拿不到监听信息时，防火墙就<b>只</b>按 <code>SSH_PORT</code> 开——填错就是把自己关在门外。日志里会出现「探测不到 sshd 在听哪个端口」的警告，看到就先核实：</p>
+<pre><code>ss -tlnp | grep -E 'sshd|:22'        # 实际监听（socket 激活时看 systemctl cat ssh.socket）
+sshd -T | grep -i '^port'</code></pre>
+
 <p>它会装依赖、开 BBR、加 1G swap、开时间同步、把 SSH 收成仅公钥登录，并把防火墙收成「只放行 SSH 端口、443/tcp、8443-8447/udp」。幂等，可以重复跑。</p>
 
 <h3>SSH 加固的一处细节</h3>
 <p>脚本会写 <code>/etc/ssh/sshd_config.d/99-proxy.conf</code> 关闭密码登录，但 Ubuntu 镜像自带一个 <code>50-cloud-init.conf</code>，里面写着 <code>PasswordAuthentication yes</code>——而 sshd 对每个关键字取<b>第一个出现的值</b>，<code>50</code> 排在 <code>99</code> 前面，会赢。所以脚本同时会就地改掉那个文件（原文件备份为 <code>.orig</code>）。改完用 <code>sshd -t</code> 验证，通过才重启；不通过就回滚本步改动。</p>
 <div class="warn"><b>没有公钥就不会关密码。</b>脚本先检查 <code>authorized_keys</code>，没有就跳过加固并提示你——先 <code>ssh-copy-id</code> 装好公钥，再重跑这一步。否则一台还没配过密钥的机器会被直接锁死。</div>
 
+<h3>被跳过 SSH 加固了？三步补上（不是死循环）</h3>
+<p>跳过的含意就是<b>密码登录还开着</b>，所以你现在进得来，装公钥也进得来。整套动作从<b>你自己的电脑</b>开始：</p>
+<pre><code># 1) 把本机公钥装到服务器（端口换成你的实际端口）
+ssh-copy-id -p 你的SSH端口 root@服务器IP
+
+# 2) 另开一个新会话验证：只允许公钥也得能进
+ssh -o PreferredAuthentications=publickey -o PasswordAuthentication=no -p 你的SSH端口 root@服务器IP true &amp;&amp; echo 公钥OK
+
+# 3) 回服务器重跑本步
+cd /root/deploy &amp;&amp; SSH_PORT=你的SSH端口 bash 00-bootstrap.sh</code></pre>
+<p>看到 <code>[+]     已生效：passwordauthentication no</code> 就成了，可用 <code>sshd -T | grep -i '^passwordauthentication'</code> 复核。<b>不要</b>先手动关密码登录再跑脚本——那才是真死循环。</p>
+<p>只能用云控制台（本地没有 ssh 客户端）时，把公钥贴进去也一样管用：</p>
+<pre><code>mkdir -p ~/.ssh &amp;&amp; chmod 700 ~/.ssh
+echo 'ssh-ed25519 AAAAC3Nza... 你备注' &gt;&gt; ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys</code></pre>
+
+<h3>要把 SSH 挪到非 22 端口（可选）</h3>
+<p>脚本<b>不会</b>改 sshd 的端口，只会放行。挪端口一律「先开新、再关旧」：</p>
+<pre><code># 1) 两层都先放行新端口：ufw + 云厂商安全组
+ufw allow 4061/tcp
+
+# 2) 改 sshd（没有 Port 行就追加到末尾）
+sed -i 's/^#*Port .*/Port 4061/' /etc/ssh/sshd_config
+grep -qi '^Port' /etc/ssh/sshd_config || echo 'Port 4061' &gt;&gt;/etc/ssh/sshd_config
+sshd -t &amp;&amp; systemctl restart ssh
+
+# sshd 由 socket 激活时（systemctl cat ssh.socket 有 ListenStream=22）还要改 socket：
+#   mkdir -p /etc/systemd/system/ssh.socket.d
+#   printf '[Socket]\nListenStream=\nListenStream=4061\n' &gt; /etc/systemd/system/ssh.socket.d/override.conf
+#   systemctl daemon-reload &amp;&amp; systemctl restart ssh.socket
+
+# 3) 另开一个终端确认能进（当前会话先别关）
+ssh -p 4061 root@服务器IP
+
+# 4) 确认无误再关旧端口：ufw delete allow 22/tcp，安全组里删 22</code></pre>
+<div class="warn">已经把自己挡在外面了？从云控制台 VNC / 串口进去 <code>ufw allow 你的端口/tcp</code>（应急可先 <code>ufw disable</code>），具体见<a href="troubleshooting.html">排查手册</a>的「SSH 端口连不上」。</div>
+
 <h2>确认</h2>
 <pre><code>systemd-detect-virt                 # kvm
 test -c /dev/net/tun &amp;&amp; echo TUN-OK # TUN-OK
 sysctl net.ipv4.tcp_congestion_control   # bbr
 sshd -T | grep -i '^passwordauthentication'   # passwordauthentication no
-ufw status                          # 里面有你的 SSH 端口和 443</code></pre>
+ss -tlnp | grep -E 'sshd|:22'       # sshd 真实在听哪个端口
+ufw status                          # 里面有你的 SSH 端口和 443，端口对得上上面那条</code></pre>
 
 <h2>还有第二层防火墙：云厂商安全组</h2>
 <div class="bad"><b>ufw 只是里层。云厂商控制台里的安全组 / 云防火墙是外层，脚本碰不到。</b>典型症状：443 通但 8443 超时，或者反过来——同一个服务不同端口表现不一致。这时不是配置错，是外层还没放行。</div>
