@@ -84,8 +84,9 @@ bash 40-check-server.sh</code></pre>
 <pre><code># 名字 凭据 平台 —— 一台设备一行
 main   af2358a4-df32-419c-9774-63a44c540970  desktop
 phone  9b2c1d70-3e44-4a1b-8c02-7e5d9f10a333  android</code></pre>
-<p>一台设备一个凭据，同时当 VLESS 的 uuid 和 Hysteria2 的 password 用——所以<b>删一行就是吊销那台</b>，两条入口同时失效，不会漏一边。名单建议纳入 git。</p>
-<div class="note">改凭据请用 <a href="#devices"><code>device.sh</code></a>，别手改名单：它会顺手重渲染服务端并重新生成那台的客户端配置。</p></div>
+<p>一台设备一个凭据，同时当 VLESS 的 uuid 和 Hysteria2 的 password 用——所以<b>删一行就是吊销那台</b>，两条入口同时失效，不会漏一边。</p>
+<div class="warn"><b>这份名单就是全部设备的凭据。</b>别提交到公开仓库：要版本管理就放私有仓库或加密后存；随手的本地副本用完删掉。</div>
+<div class="note">改凭据请用 <a href="#devices"><code>device.sh</code></a>，别手改名单：它会顺手重渲染服务端并重新生成那台的客户端配置。</div>
 
 <h2>常用</h2>
 <pre><code>DRY_RUN=1 bash 30-render-server.sh   # 只生成配置，不动系统
@@ -104,6 +105,19 @@ sudo bash device.sh render laptop                       # 只重渲染客户端�
 <pre><code>scp root@服务器:/etc/sing-box/clients/sing-box-client-laptop-desktop.json laptop@机器:~/</code></pre>
 <div class="warn"><b>每台设备只发它自己那一份。</b>整个 <code>devices.list</code> 落到任何一台机器上，就等于把所有设备的凭据都给了它。名单本身也要进 <code>.gitignore</code> 或单独加密存放。</div>
 <div class="bad"><b>add / rotate / revoke 都会重启 sing-box。</b>当前活跃会话不会断（连接已建立），但新连接会短暂受影响。</div>
+
+<h3>跑完之后做什么</h3>
+<ol>
+<li><b>确认产物</b>：<code>ls -l /etc/sing-box/clients/</code>。文件名里的平台就是这台设备的平台。</li>
+<li><b>只发那一份</b>：上面那条 <code>scp</code>。<b>客户端机器不需要</b> <code>client.env</code>、<code>devices.list</code> 或密钥包。</li>
+<li><b>导入</b>：按平台操作见 <a href="05-client.html#import">第 5 页</a>的导入表；Android 用 <code>-android.json</code>，iOS 用 <code>-ios.json</code>。</li>
+<li><b>验收</b>：在客户端机器上（不带 <code>client.env</code>，只给两个变量）：<br>
+<code>SERVER_IP=你的服务器IP VLESS_PORT=443 bash docs/deploy/scripts/60-verify-client.sh</code><br>
+见 <a href="06-ops.html">第 6 页</a>。</li>
+<li><b>以后要换/要删</b>：<code>rotate</code> → 重新 <code>scp</code> → 客户端重新导入（旧 JSON 的凭据当场失效）；<code>revoke</code> 之后别忘了把对方机器上那份 JSON 删掉。换设备不改名单时，客户端那份旧 JSON 照样能用。</li>
+</ol>
+<p>一台设备要出<b>多份</b>（比如笔记本同时要桌面与安卓版）：<code>device.sh</code> 只按名单里记的那个平台出一份，多份直接用渲染脚本——在服务器上跑，<code>--device</code> 会替它自己取凭据：</p>
+<pre><code>sudo OUTDIR=/etc/sing-box/clients bash 50-render-client.sh /etc/sing-box/client.env --device laptop desktop android</code></pre>
 
 <p style="margin-top:24px"><a href="02-install.html">← 上一步</a>　·　<a href="04-hy2.html">下一步（可选）→</a>　·　<a href="05-client.html">跳过 Hysteria2 →</a></p>
 

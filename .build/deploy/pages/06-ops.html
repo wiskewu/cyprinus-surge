@@ -5,12 +5,24 @@
 <p>退出码：<code>0</code> 全过 / <code>1</code> 有失败项 / <code>2</code> 本地代理没起来（后面的检查已跳过）。<br>
 用 GUI.for.SingBox 时端口不同，要显式指定：<code>PROXY=socks5h://127.0.0.1:GUI端口 bash ...</code></p>
 
+<h3>用 <code>device.sh</code> 管设备时：不传 <code>client.env</code></h3>
+<p>走 <a href="03-server.html#devices">第 3 页的设备流程</a>时，客户端拿到的只有服务器发过去的那份 JSON。<b><code>client.env</code> 不要发过去</b>：里面是 <code>main</code> 的凭据加密钥包，与“一台设备一份凭据”相背。
+验收脚本真正读的只有 <code>SERVER_IP</code> 与 <code>VLESS_PORT</code>，直接给变量就行：</p>
+<pre><code>SERVER_IP=你的服务器IP VLESS_PORT=443 bash docs/deploy/scripts/60-verify-client.sh
+
+# 用 GUI.for.SingBox 且端口不同时，两个变量一起给
+SERVER_IP=你的服务器IP PROXY=socks5h://127.0.0.1:20122 bash docs/deploy/scripts/60-verify-client.sh</code></pre>
+<p>没 env 文件时脚本会打一行提示后继续（<code>VLESS_PORT</code> 默认 443）；<code>SERVER_IP</code> 也不给才会报错退出。<code>SERVER_IP</code> 不是凭据，全设备通用，回服务器看一眼就知道：</p>
+<pre><code>grep SERVER_IP /etc/sing-box/client.env     # 只是取 IP，不是拷走凭据
+sudo bash device.sh list                   # 确认这台在名单里</code></pre>
+<div class="warn"><b>手机那份配置跑不了这个脚本。</b><code>-android.json</code> / <code>-ios.json</code> 只有 TUN，没有本地 <code>2080</code> 端口，第一项就 exit 2。手机只能在 App 里直接开浏览器自查（国内站点、Google、ChatGPT 各开一个）；要用回环脚本就把桌面那份导进来测。</div>
+
 <h2>备份（服务器）</h2>
 <pre><code>cd /root/deploy
 bash 70-backup.sh backup     # 备份到 /root/backups/
 bash 70-backup.sh list
 bash 70-backup.sh restore /root/backups/sing-box-日期.tgz</code></pre>
-<p>备份含私钥，等同机器凭据，别放网盘或仓库。</p>
+<p>备份含私钥，等同机器凭据，别放网盘或仓库。<code>/etc/sing-box</code> 整个目录都会进包，所以 <b><code>devices.list</code> 与 <code>clients/*.json</code> 也在里面</b>——一份备份等于全部设备的凭据，泄露就得挨个 <code>device.sh rotate</code>。</p>
 
 <h2>日常三条</h2>
 <pre><code>vnstat -m                              # 本月流量（套餐 1TB/月，超了限速 1Mbps）

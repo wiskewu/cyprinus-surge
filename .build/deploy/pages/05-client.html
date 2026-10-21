@@ -4,7 +4,7 @@
 <pre><code># 你的电脑上
 scp root@你的服务器IP:/etc/sing-box/client.env ./client.env</code></pre>
 
-<div class="note"><b>多台设备用 <code>device.sh</code>，不要用本页的方式。</b>本页的 <code>client.env</code> 里只有一台设备的凭据（<code>20-secrets.sh</code> 写的 <code>main</code>），多台共用同一个 uuid 就没法单独吊销。服务端跑 <code>sudo bash device.sh add laptop</code> 会直接生成那台的配置，你只管 scp 过去。见 <a href="03-server.html#devices">第 3 页</a>。</div>
+<div class="note"><b>多台设备用 <code>device.sh</code>，不要用本页的方式。</b>本页的 <code>client.env</code> 里只有一台设备的凭据（<code>20-secrets.sh</code> 写的 <code>main</code>），多台共用同一个 uuid 就没法单独吊销。服务端跑 <code>sudo bash device.sh add laptop</code> 会直接生成那台的配置，你只管 scp 过去。见 <a href="03-server.html#devices">第 3 页</a>。验收那一步同样不需要 <code>client.env</code>：<code>SERVER_IP=... bash 60-verify-client.sh</code>（见 <a href="06-ops.html">第 6 页</a>）。</div>
 
 <h3>一次生成三端</h3>
 <pre><code>bash docs/deploy/scripts/50-render-client.sh ./client.env --all   # 默认输出到 ./data</code></pre>
@@ -34,7 +34,7 @@ OUT=./me.json bash docs/deploy/scripts/50-render-client.sh ./client.env
 OUTDIR=/tmp/x bash docs/deploy/scripts/50-render-client.sh ./client.env --all</code></pre>
 <p>产物一律落在 <code>OUTDIR</code>（默认 <code>./data</code>，已在 <code>.gitignore</code> 里），不会往脚本目录写。改完 <code>client.env</code> 后重跑即可覆盖同名文件。</p>
 
-<h2>导入</h2>
+<h2 id="import">导入</h2>
 <div class="tw">
 <table>
 <thead><tr><th>平台</th><th>客户端</th><th>注意</th></tr></thead>

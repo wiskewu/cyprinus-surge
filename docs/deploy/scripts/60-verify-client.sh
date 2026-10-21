@@ -2,6 +2,7 @@
 # 60-verify-client.sh —— 在【客户端机器】做验收测试（用本地 mixed 入站，不需要 TUN）。
 # 用法： bash 60-verify-client.sh client.env
 #       PROXY=socks5h://127.0.0.1:20122 bash 60-verify-client.sh client.env   # GUI 的端口
+#       SERVER_IP=1.2.3.4 VLESS_PORT=443 bash 60-verify-client.sh             # 没 client.env（device.sh 流程）
 #
 # 设计原则：
 #   1) 代理不通就直接停（exit 2），不打印一堆误导性的结果
@@ -14,8 +15,18 @@ ENVFILE="$CLIENT_ENV_FILE"
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib.sh
 . "$SELF_DIR/lib.sh"
-[ -f "$ENVFILE" ] || die "找不到 ${ENVFILE}（从服务器 /etc/sing-box/client.env 复制过来）"
-load_env "$ENVFILE"
+# 环境文件可有可无：脚本真正用到的只有 SERVER_IP / VLESS_PORT。
+# 用 device.sh 管设备时，客户端手上只有一份 JSON，没必要（也不应该）把 client.env 发过去，
+# 这时直接给变量：SERVER_IP=1.2.3.4 VLESS_PORT=443 bash 60-verify-client.sh
+if [ -f "$ENVFILE" ]; then
+  load_env "$ENVFILE"
+elif [ -n "${SERVER_IP:-}" ]; then
+  printf '\033[33m[!]\033[0m 没有 %s，按命令行给的 SERVER_IP / VLESS_PORT 继续\n' "$ENVFILE" >&2
+else
+  die "找不到 ${ENVFILE}（从服务器 /etc/sing-box/client.env 复制过来），或用 SERVER_IP=... VLESS_PORT=... 直接给"
+fi
+SERVER_IP="${SERVER_IP:-}"
+VLESS_PORT="${VLESS_PORT:-443}"
 
 PROXY="${PROXY:-socks5h://127.0.0.1:2080}"
 PASS=0; FAIL=0; SKIP=0
@@ -55,6 +66,7 @@ if [ -z "$first" ]; then
     2) 端口对吗？GUI.for.SingBox 默认 20122，我们自己生成的配置是 2080
     3) 配置里有 mixed 入站吗？手机配置（CLIENT_MIXED=0）只有 TUN，没有本地端口
     4) 换端口跑：PROXY=socks5h://127.0.0.1:端口 bash 60-verify-client.sh client.env
+    5) 用 device.sh 管设备时根本没 client.env：SERVER_IP=服务器IP VLESS_PORT=443 bash 60-verify-client.sh
 EOF
   exit 2
 fi
