@@ -94,7 +94,10 @@ command -v nc >/dev/null 2>&1 || warn "没有 nc，ProxyCommand 里的最后一�
 
 load_env "$KEYS"
 [ -n "$NAME" ] && { valid_name "$NAME" || die "客户端名不合法：$NAME"; CLIENT_NAME="$NAME"; }
-: "${SPA_PORT:=62201}" "${SSH_PORT:=22}" "${ACCESS_TIMEOUT:=120}"
+: "${SPA_PORT:=62201}" "${ACCESS_TIMEOUT:=120}"
+# SSH_PORT 不给默认值：填错的话 SPA 会去开一个 sshd 根本不在的端口，表现是
+# 「敲门成功但连不上」，且很难查。这个值由服务端 10-server.sh 探测后写进 client.env。
+[ -n "${SSH_PORT:-}" ] || die "$KEYS 里没有 SSH_PORT。用服务端 10-server.sh 处理过的那份 client.env（SSH_PORT 由它探测写入）；确认无误再手工加一行 SSH_PORT=你的端口"
 [ -n "${HOSTS:-}" ] || die "密钥包里没有 HOSTS，重新生成或手工加一行 HOSTS=\"名字=地址\""
 
 # 没指定名字、文件里也没有 CLIENT_NAME，就走 SHARED（spa_keys_for 自己会回退）

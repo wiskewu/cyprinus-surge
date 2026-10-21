@@ -46,7 +46,10 @@ done
 # ---------------------------------------------------------------- 状态
 
 show_status() {
+  local ports p
+  ports="$(ssh_resolve_ports)" || exit 1
   printf '包      : %s\n' "$KEYS"
+  printf 'SSH 端口: %s（探测所得）\n' "$ports"
   if command -v fwknopd >/dev/null 2>&1; then
     printf 'fwknopd : %s\n' "$(systemctl is-active fwknop-server 2>/dev/null || echo 未安装)"
     printf '跳转规则: %s\n' "$(iptables -S INPUT 2>/dev/null | grep -q FWKNOP_INPUT && echo '在 INPUT 第 1 位（正常）' || echo '缺失 —— 跑 systemctl restart fwknop-server，或检查 ufw 是否重载过')"
@@ -56,7 +59,7 @@ show_status() {
   fi
   if command -v ufw >/dev/null 2>&1; then
     printf 'ufw     : %s\n' "$(ufw status | head -1)"
-    ufw status | grep -E "22/tcp|62201/udp" | sed 's/^/          /' || true
+    ufw status | grep -E "($(printf '%s' "$ports" | tr ' ' '|'))/tcp|${SPA_PORT:-62201}/udp" | sed 's/^/          /' || true
   fi
 }
 
@@ -70,8 +73,10 @@ if [ "$MODE" = uninstall ]; then
   [ "$PURGE" = 1 ] && { rm -f "$ACCESS_CONF" "$KEYS"; log "已删除 access.conf 与密钥包"; }
   if command -v ufw >/dev/null 2>&1; then
     ufw --force delete allow 62201/udp >/dev/null 2>&1 || true
-    ufw limit 22/tcp >/dev/null 2>&1 || true
-    log "已恢复公网 SSH 规则（ufw limit 22/tcp）"
+    # 恢复时同样按探测到的端口，不用 22（脚本顶层，不能用 local）
+    _ports="$(ssh_resolve_ports)" || _ports="22"
+    for _p in $_ports; do ufw limit "$_p/tcp" >/dev/null 2>&1 || true; done
+    log "已恢复公网 SSH 规则（ufw limit ${_ports}）"
   fi
   exit 0
 fi
@@ -89,7 +94,12 @@ fi
 command -v fwknopd >/dev/null 2>&1 || die "fwknopd 装完仍找不到，检查 apt 输出"
 
 load_env "$KEYS"
-: "${SPA_PORT:=62201}" "${SSH_PORT:=22}" "${ACCESS_TIMEOUT:=120}" "${MAX_FW_TIMEOUT:=300}"
+: "${SPA_PORT:=62201}" "${ACCESS_TIMEOUT:=120}" "${MAX_FW_TIMEOUT:=300}"
+
+# SSH 端口一律探测，不默认 22（云厂商给的新机器常是随机端口）
+SSH_PORTS="$(ssh_resolve_ports)"
+SSH_PORT="$SSH_PORTS"   # 兼容旧变量名（单端口时就是它本身）
+log "SSH 端口：${SSH_PORTS}"
 
 IFACE="$(ip -4 route show default 2>/dev/null | awk '{print $5; exit}')"
 [ -n "$IFACE" ] || die "识别不到默认网卡，PCAP_INTF 只能靠 fwknopd 自己猜，指定网卡再跑"
@@ -130,8 +140,10 @@ chmod 644 "$FWD_CONF"
 log "3/5 渲染 $ACCESS_CONF"
 umask 077
 render_stanza() {
+  local ports="" p
+  for p in $SSH_PORTS; do ports="${ports:+$ports,}tcp/$p"; done
   printf 'SOURCE ANY;\n'
-  printf 'OPEN_PORTS tcp/%s;\n' "$SSH_PORT"
+  printf 'OPEN_PORTS %s;\n' "$ports"
   printf 'FW_ACCESS_TIMEOUT %s;\n' "$ACCESS_TIMEOUT"
   printf 'MAX_FW_TIMEOUT %s;\n' "$MAX_FW_TIMEOUT"
   printf 'KEY_BASE64 %s;\n' "${1%%:*}"
@@ -163,6 +175,26 @@ want=$(host_count "${CLIENTS:-}")
 got="$(grep -c '^KEY_BASE64 ' "$ACCESS_CONF" || true)"
 [ "$got" = "$want" ] || die "自检失败：access.conf 渲染出 $got 个 stanza，期望 $want 个"
 
+# 把探测到的 SSH 端口回写到密钥包：客户端的 ACCESS tcp/<port> 必须和服务端一致，
+# 而密钥包通常在别的机器上生成，那时无从知道这台服务器的真实端口。写回后管理员把
+# 这份包重新取走再分发给客户端，就不会再有「客户端开的端口和 sshd 不一致」。
+# 值必须带引号：多个端口是空格分隔的，不加引号写成 SSH_PORT=22 50022，
+# load_env 去 source 这个文件时会把 50022 当命令执行，直接炸。
+write_ssh_ports() {
+  local f="$1"
+  [ -f "$f" ] || return 0
+  if grep -q '^SSH_PORT=' "$f"; then
+    sed -i "s|^SSH_PORT=.*|SSH_PORT=\"$SSH_PORTS\"|" "$f"
+  elif grep -q '^# SSH_PORT ' "$f"; then
+    sed -i "s|^# SSH_PORT .*|SSH_PORT=\"$SSH_PORTS\"|" "$f"
+  else
+    printf 'SSH_PORT="%s"\n' "$SSH_PORTS" >>"$f"
+  fi
+  chmod 600 "$f"
+}
+write_ssh_ports "$KEYS" && log "已把 SSH 端口（$SSH_PORTS）写回 $KEYS"
+write_ssh_ports "$CLIENT_ENV"
+
 # ---- 起服务 ----
 log "4/5 启动 fwknopd"
 systemctl enable fwknop-server >/dev/null 2>&1 || true
@@ -190,25 +222,37 @@ if command -v ufw >/dev/null 2>&1; then
     else
       log "检测到并行接入通道，收口后仍有第二条路"
     fi
-    ufw --force delete limit "$SSH_PORT/tcp" >/dev/null 2>&1 || true
-    ufw --force delete allow "$SSH_PORT/tcp" >/dev/null 2>&1 || true
-    log "已删除公网 $SSH_PORT/tcp 规则"
+    # 每个探测到的端口都要关。sshd 同时监听多个时，只关一个等于多开一扇没用的门：
+    # SPA 只放行其中之一，另一个照样能进。
+    for p in $SSH_PORTS; do
+      ufw --force delete limit "$p/tcp" >/dev/null 2>&1 || true
+      ufw --force delete allow "$p/tcp" >/dev/null 2>&1 || true
+    done
+    # 回读 ufw 确认真的没了。ufw 删不存在的规则也返回 0，只看退出码会误报成功。
+    _left=""
+    for p in $SSH_PORTS; do
+      ufw status | grep -qE "^$p/tcp[[:space:]]+(ALLOW|LIMIT)" && _left="$_left $p"
+    done
+    [ -z "$_left" ] || die "ufw 里这些 SSH 规则还在：$_left —— 收口未生效，别以为已经关掉了"
+    log "已确认公网 SSH 端口全部关闭：${SSH_PORTS}"
   else
-    log "保持公网 $SSH_PORT/tcp 规则（确认客户端能进门后跑 --close-ssh）"
+    log "保持公网 ${SSH_PORTS} 的规则（确认客户端能进门后跑 --close-ssh）"
   fi
   # ufw 的 enable/reload/reset 会重建 INPUT 链，把 fwknopd 的跳转冲掉 → 重启让它插回去
   systemctl restart fwknop-server
   sleep 1
   iptables -S INPUT | grep -q FWKNOP_INPUT || warn "重启后跳转规则仍不在，确认 iptables 是不是 nft 后端"
 else
-  warn "没装 ufw，跳过防火墙改动。自己确认 $SPA_PORT/udp 通，且 $SSH_PORT/tcp 不对公网开放"
+  warn "没装 ufw，跳过防火墙改动。自己确认 $SPA_PORT/udp 通，且 ${SSH_PORTS} 不对公网开放"
 fi
 
 cat <<EOF
 
 服务端就绪。下一步：
-  1) 在客户端跑 20-client.sh 配好 ~/.fwknoprc
+  1) 客户端：SSH_PORT=$SSH_PORTS bash 20-client.sh --keys clients/<名字>.env
+     （SSH_PORT 必须是上面这个值——它来自本机探测，不一定是 22）
+     或者：把已含 SSH_PORT 的这份密钥包取回去，分发给客户端
   2) 先在当前这个 SSH 会话里另开一个连接试：ssh <别名>
      确认能进来，再跑：bash 10-server.sh --keys $KEYS --close-ssh
-  3) 从外网验一遍：nmap -Pn -p$SSH_PORT <服务器IP>   → 必须显示 filtered
+  3) 从外网验一遍：nmap -Pn -p${SSH_PORTS// /,} <服务器IP>   → 必须显示 filtered
 EOF

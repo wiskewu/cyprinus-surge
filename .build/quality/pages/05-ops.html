@@ -15,6 +15,7 @@
 <tr><td><code>nmap</code> 显示 22 是 <code>closed</code></td><td>还有别的东西在放行：云安全组、ufw 其他规则</td></tr>
 <tr><td>客户端卡在 resolve</td><td><code>ALLOW_IP resolve</code> 需要能访问外网。固定 IP 在 <code>[default]</code> 里写死 <code>ALLOW_IP &lt;你的IP&gt;</code></td></tr>
 <tr><td><code>ssh</code> 卡在 <code>kex_exchange_identification</code></td><td>你本机的 TUN 把 SSH 也代理了，见下</td></tr>
+<tr><td>敲门成功但连不上</td><td>客户端 <code>ACCESS tcp/&lt;端口&gt;</code> 与服务器的 sshd 端口不一致。服务端会探测并把实测值写回密钥包，<b>确认你分发给客户端的是跑完 <code>10-server.sh</code> 之后的那份</b>，或直接 <code>SSH_PORT=… bash 20-client.sh</code></td></tr>
 <tr><td>测出的延迟漂亮、实际很差</td><td>测量机器自己的 TUN 污染了结果，见下</td></tr>
 </tbody>
 </table>
@@ -52,7 +53,7 @@ sudo route -n delete -host &lt;服务器IP&gt;</code></pre>
 <thead><tr><th>端口</th><th>协议</th><th>谁用</th></tr></thead>
 <tbody>
 <tr><td>62201</td><td>UDP</td><td>SPA 敲门包，<b>必须在外层放行</b></td></tr>
-<tr><td>你的 SSH 端口</td><td>TCP</td><td>收口验证通过后可从安全组删掉</td></tr>
+<tr><td>你的 SSH 端口</td><td>TCP</td><td>收口验证通过后可从安全组删掉（脚本会自己探测并删掉全部）</td></tr>
 </tbody>
 </table>
 </div>

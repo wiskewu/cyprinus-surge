@@ -17,8 +17,10 @@ ssh root@&lt;服务器&gt; 'bash /root/ssh-spa/10-server.sh --keys /root/spa-key
 <li><b>装 fwknop-server</b>（Debian 包名，客户端才是 <code>fwknop-client</code>）</li>
 <li><b>渲染 <code>/etc/fwknop/fwknopd.conf</b></b>：按默认路由网卡写 <code>PCAP_INTF</code>，嗅探端口取 <code>SPA_PORT</code>，跳转规则放在 <code>INPUT</code> 第 1 位，防重放三项全开。包自带版本备份为 <code>fwknopd.conf.orig</code></li>
 <li><b>渲染 <code>/etc/fwknop/access.conf</code></b>（0600）：从密钥包逐个 stanza 展开，并自检 stanza 数 == 密钥组数</li>
+<li><b>探测 SSH 端口</b>：三路（当前连接 → <code>ss</code> 监听 → <code>sshd_config</code>），<b>不假设是 22</b>。云厂商给的新机器常是随机端口，按 22 去操作会关错</li>
 <li><b>启动 <code>fwknop-server</code></b>：起不来就打日志退出，<b>此时防火墙还没动</b>；起来了还要确认 <code>FWKNOP_INPUT</code> 跳转真的插上了</li>
-<li><b>防火墙</b>：<code>ufw allow 62201/udp</code>，<b>22 保持原样</b>；改完 ufw 后自动重启一次 fwknopd（见 <a href="05-ops.html#ufw">第 5 页</a>）</li>
+<li><b>防火墙</b>：<code>ufw allow 62201/udp</code>，<b>SSH 端口保持原样</b>；改完 ufw 后自动重启一次 fwknopd（见 <a href="05-ops.html#ufw">第 5 页</a>）</li>
+<li><b>把探测到的端口写回密钥包</b>：客户端配置里的 <code>ACCESS tcp/&lt;端口&gt;</code> 必须和服务端一致，而密钥包是在别的机器上生成的。你分发给客户端的应当是<b>跑完这一步之后</b>的那份</li>
 </ol>
 
 <details><summary>渲染出来的 fwknopd.conf</summary><div class="body">
@@ -69,14 +71,17 @@ ssh &lt;你的机器&gt; 'bash 20-client.sh --keys ~/laptop.env'</code></pre>
 <h2>第 4 步 · 收口</h2>
 <div class="bad"><b>顺序不能反。</b>先在<b>当前这个 SSH 会话</b>里另开一个连接，确认能进得来，再收口。</div>
 <pre><code>bash /root/ssh-spa/10-server.sh --keys /root/spa-keys.env --close-ssh</code></pre>
-<p>它会删除公网 <code>22/tcp</code> 规则（<code>ufw limit</code> 和 <code>ufw allow</code> 两种都试），然后重启 fwknopd 恢复跳转规则。</p>
+<p>它会删除<b>探测到的每一个</b>公网 SSH 端口规则（<code>ufw limit</code> 和 <code>ufw allow</code> 两种都试），<b>然后回读 <code>ufw status</code> 确认规则真的没了</b>——ufw 删一条不存在的规则也返回 0，只看退出码会把「没关上」报成「已关闭」。还有规则残留时脚本直接报错退出。</p>
+<p>sshd 若同时监听多个端口，全部都会被处理：只关一个的话另一个还开着，而 SPA 只放行其中之一，等于多开一扇没用的门。</p>
+<p>收口前会检测 <code>tailscale0</code> / <code>wg0</code> 这类并行通道，没有就提醒你收口后只剩云控制台 VNC 能回来（只提醒，不阻止）。</p>
 
 <h2 id="lockout">锁门急救</h2>
-<p>万一还是锁了——云厂商控制台的 VNC / 串口，或者你之前装了 Tailscale（见 <a href="05-ops.html#backup">第 5 页</a>）：</p>
+<p>万一还是锁了——云厂商控制台的 VNC / 串口，或者你之前装了 Tailscale（见 <a href="05-ops.html#backup">第 5 页</a>）。<b>端口按探测结果恢复，不是 22</b>：</p>
 <pre><code>sudo systemctl stop fwknop-server
 sudo iptables -D INPUT -j FWKNOP_INPUT
-sudo ufw allow 22/tcp</code></pre>
-<p>或者直接让脚本还原（保留密钥包）：</p>
+ss -tlnp | grep sshd          # 看看真实端口
+sudo ufw limit 那个端口/tcp</code></pre>
+<p>或者直接让脚本还原（它会自己探测端口）：</p>
 <pre><code>sudo bash 10-server.sh --uninstall     # 还原 fwknopd.conf，恢复公网 SSH 规则
 sudo bash 10-server.sh --purge         # 上面这些，再删掉 access.conf 与密钥包</code></pre>
 

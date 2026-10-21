@@ -61,7 +61,6 @@ Host server1
 
 ```
 SPA_PORT=62201
-SSH_PORT=22
 ACCESS_TIMEOUT=120
 MAX_FW_TIMEOUT=300
 HOSTS="server1=203.0.113.10 server2=198.51.100.7"
@@ -106,16 +105,18 @@ scp spa-keys.env root@<服务器>:/root/
 ssh root@<服务器> 'bash /root/ssh-spa/10-server.sh --keys /root/spa-keys.env'
 ```
 
-装 `fwknop-server`、按默认路由网卡渲染 `fwknopd.conf`、从密钥包渲染 `access.conf`、起服务、放行 `62201/udp`。**22 保持原样。**
+装 `fwknop-server`、按默认路由网卡渲染 `fwknopd.conf`、从密钥包渲染 `access.conf`、起服务、放行 `62201/udp`。**SSH 端口保持原样。**
+
+脚本会三路探测真实 SSH 端口（当前连接 → `ss` 监听 → `sshd_config`，**不假设是 22**），并把探测结果写回密钥包。分发给客户端的必须是**跑完这一步之后**的那份，否则客户端会去开一个 sshd 根本不在的端口——表现是「敲门成功但连不上」，且很难查。
 
 ### 第 3 步 · 客户端（每台各跑一次）
 
 ```bash
 scp clients/laptop.env <机器>:~/
-ssh <机器> 'bash 20-client.sh --keys ~/laptop.env'
+ssh <机器> 'SSH_PORT=50022 bash 20-client.sh --keys ~/laptop.env'   # 用服务端探测出的那个值
 ```
 
-装 `fwknop`，写 `~/.fwknoprc`，往 `~/.ssh/config` 追加托管块。托管块是幂等的，带 `# BEGIN/END ssh-spa` 标记，重跑只原地替换并清掉多余空行，`--uninstall` 摘掉之后与原文件逐字节一致。
+写 `~/.fwknoprc`，往 `~/.ssh/config` 追加托管块。托管块是幂等的，带 `# BEGIN/END ssh-spa` 标记，重跑只原地替换并清掉多余空行，`--uninstall` 摘掉之后与原文件逐字节一致。
 
 ### 第 4 步 · 收口
 
@@ -125,6 +126,8 @@ ssh <机器> 'bash 20-client.sh --keys ~/laptop.env'
 bash /root/ssh-spa/10-server.sh --keys /root/spa-keys.env --close-ssh
 ```
 
+它会删掉**探测到的每一个** SSH 端口规则，然后**回读 `ufw status` 确认真的没了**——ufw 删一条不存在的规则也返回 0，只看退出码会把「没关上」报成「已关闭」。有残留时脚本直接报错退出。sshd 同时监听多个端口时全部处理：只关一个的话另一个还开着，而 SPA 只放行其中之一。
+
 ### 锁门急救
 
 云厂商控制台的 VNC / 串口，或者你之前装了 Tailscale：
@@ -132,10 +135,11 @@ bash /root/ssh-spa/10-server.sh --keys /root/spa-keys.env --close-ssh
 ```bash
 sudo systemctl stop fwknop-server
 sudo iptables -D INPUT -j FWKNOP_INPUT
-sudo ufw allow 22/tcp
+ss -tlnp | grep sshd          # 看看真实端口，不是 22
+sudo ufw limit 那个端口/tcp
 ```
 
-或者 `sudo bash 10-server.sh --uninstall`（保留密钥；`--purge` 连密钥一起删）。
+或者 `sudo bash 10-server.sh --uninstall`（保留密钥；`--purge` 连密钥一起删）——它会自己探测端口来恢复。
 
 ## 5. 验收
 
@@ -172,6 +176,7 @@ fwknop -n server1 --fw-timeout 300    # 开窗久一点（被 MAX_FW_TIMEOUT 封
 | 日志里没有 SPA 记录 | 包根本没到。先查云安全组有没有放行 `62201/udp`，再 `tcpdump` |
 | `nmap` 显示 22 是 `closed` | 还有别的东西在放行：云安全组、ufw 其他规则 |
 | `ssh` 卡在 `kex_exchange_identification` | 你本机的 TUN 把 SSH 也代理了，见下 |
+| 敲门成功但连不上 | 客户端 `ACCESS tcp/<端口>` 与服务器 sshd 端口不一致。服务端会把实测值写回密钥包，确认你分发的是跑完 `10-server.sh` 之后的那份 |
 
 ### 与 ufw 的关系
 
@@ -203,7 +208,7 @@ sudo ufw allow in on tailscale0
 
 ### 第二层防火墙
 
-ufw 只是里层，**云厂商安全组是外层，脚本碰不到**。不在外层放行 `62201/udp`，敲门包到不了网卡；SSH 端口则可以在收口验证通过后从安全组删掉。
+ufw 只是里层，**云厂商安全组是外层，脚本碰不到**。不在外层放行 `62201/udp`，敲门包到不了网卡；SSH 端口则可以在收口验证通过后从安全组删掉（脚本会自己探测并删掉全部）。
 
 ## 7. 已知限制
 

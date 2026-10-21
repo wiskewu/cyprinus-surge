@@ -83,10 +83,14 @@ HEADER="# ssh-spa 密钥包 · 生成于 $STAMP
 
 write_bundle() {
   # $1=输出文件 $2=该文件专属的键值行（SHARED=… / CLIENTS="…"）
+  # SSH_PORT 不在这里猜：密钥包往往在另一台机器上生成，那时无从知道服务器的真实端口。
+  # 服务端跑 10-server.sh 时会探测并回写 client.env；这里只保留用户显式指定的值。
+  local sshline=""
+  [ -n "${SSH_PORT:-}" ] && sshline="SSH_PORT=$SSH_PORT"
   cat > "$1" <<EOF
 $HEADER
 SPA_PORT=62201
-SSH_PORT=22
+${sshline:-# SSH_PORT 由服务端 10-server.sh 探测后写入 client.env}
 ACCESS_TIMEOUT=120
 MAX_FW_TIMEOUT=300
 HOSTS="$HOSTS"
