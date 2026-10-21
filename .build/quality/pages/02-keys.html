@@ -17,6 +17,33 @@
 <h2>为什么可以靠密钥区分设备</h2>
 <p><code>access.conf</code> 支持多个 stanza，服务端收到包后<b>逐个试解密</b>，只有对上的那个能开规则（<code>server/incoming_spa.c</code> 的 <code>incoming_spa()</code>）。所以所有 stanza 都写 <code>SOURCE ANY</code>——客户端会换 IP，靠地址区分在漫游时直接失效。</p>
 
+<h2>参数与命名</h2>
+<div class="tw">
+<table>
+<thead><tr><th>参数</th><th>含义</th><th>落到哪里</th></tr></thead>
+<tbody>
+<tr><td><code>--hosts "server1=1.2.3.4"</code></td><td>这批密钥管哪几台服务器：<code>名字=地址</code>，空格分隔可写多台</td><td>名字 → <code>~/.fwknoprc</code> 的 <code>[server1]</code> stanza 名 + <code>~/.ssh/config</code> 的 <code>Host server1</code>；地址 → 敲门的 <code>SPA_SERVER</code> 与 <code>HostName</code></td></tr>
+<tr><td><code>--clients "laptop phone"</code></td><td>每台客户端各一对独立密钥</td><td><code>clients/&lt;名字&gt;.env</code> 一份；服务端包里一行 <code>CLIENTS="laptop=… phone=…"</code>，在 <code>access.conf</code> 里各成一个 stanza</td></tr>
+<tr><td><code>--shared</code></td><td>所有客户端共用一对（与 <code>--clients</code> 二选一）</td><td>仍生成 <code>clients/shared.env</code>；吊销只能全换</td></tr>
+<tr><td><code>--out FILE</code></td><td>服务端包路径，默认 <code>spa-keys.env</code></td><td>客户端的包总落在同目录的 <code>clients/</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>名字只允许 <code>[A-Za-z0-9._-]</code>：它会进 <code>grep</code>、fwknop 的 stanza 名和 ssh config 的 Host。<code>hosts</code> 里的名字起短一点——以后你要敲的就是 <code>ssh server1</code>、<code>fwknop -n server1</code>。多台服务器用<b>同一份</b>密钥就够：客户端拿到 <code>HOSTS</code> 里每台一个 stanza，每台服务器自己渲染自己的 <code>access.conf</code>。</p>
+
+<h2>和部署手册的 <code>devices.list</code> 没有关系</h2>
+<p>两套凭据、两套吊销，互不影响——分属不同层，「能不能进门」和「进门后能不能上网」：</p>
+<div class="tw">
+<table>
+<thead><tr><th>哪一套</th><th>管什么</th><th>名字从哪来</th><th>吊销怎么做</th></tr></thead>
+<tbody>
+<tr><td><code>devices.list</code><br>（<a href="../deploy/03-server.html#devices">部署手册第 3 页</a>）</td><td>sing-box 的代理凭据（VLESS uuid / Hysteria2 password）</td><td><code>device.sh add mac desktop</code></td><td><code>device.sh revoke mac</code></td></tr>
+<tr><td><code>--clients</code><br>（本手册）</td><td>SSH 敲门用的 fwknop 密钥</td><td>生成密钥时手写</td><td>从密钥包删掉那台，重跑 <code>10-server.sh</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>名字不必一致，数量也不必一致（一台只用来代理、从不 SSH 的平板，就不必写进 <code>--clients</code>）。<b>建议</b>还是用同一套叫法，出问题时「这台是哪台」一眼能对上。</p>
+
 <h2>密钥包</h2>
 <p>服务端那份（<b>不要发给任何一台客户端</b>）：</p>
 <pre><code>SPA_PORT=62201

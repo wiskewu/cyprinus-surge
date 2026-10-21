@@ -33,6 +33,7 @@ sudo bash device.sh render laptop                       # 只重渲染客户端�
 <pre><code>scp root@服务器:/etc/sing-box/clients/sing-box-client-laptop-desktop.json laptop@机器:~/</code></pre>
 <div class="warn"><b>每台设备只发它自己那一份。</b>整个 <code>devices.list</code> 落到任何一台机器上，就等于把所有设备的凭据都给了它。名单本身也要进 <code>.gitignore</code> 或单独加密存放。</div>
 <div class="bad"><b>add / rotate / revoke 都会重启 sing-box。</b>当前活跃会话不会断（连接已建立），但新连接会短暂受影响。</div>
+<div class="note">这里的名字只属于<b>代理凭据</b>。SSH 敲门（fwknop SPA）是另一套凭据、另一套吊销（删一个 <code>access.conf</code> stanza），与 <code>devices.list</code> 无关，见 <a href="../quality/index.html">SSH 加固手册</a>。</div>
 
 <h3>跑完之后做什么</h3>
 <ol>
