@@ -20,6 +20,11 @@ MODE=server
 CHECK=0
 PURGE=0
 KEYS="./spa-keys.env"
+PW_ACTION=keep        # keep | yes | no      退出后要不要允许密码登录
+ROOT_LOGIN=keep        # keep | yes | prohibit-password | no
+
+SSHD_MAIN="${SSHD_MAIN:-/etc/ssh/sshd_config}"
+SSHD_DROPIN_DIR="${SSHD_DROPIN_DIR:-/etc/ssh/sshd_config.d}"
 
 FWK_DIR="${FWK_DIR:-/etc/fwknop}"
 FWD_CONF="$FWK_DIR/fwknopd.conf"
@@ -35,7 +40,15 @@ usage() {
   --client       客户端模式：还原 ~/.fwknoprc，摘掉 ~/.ssh/config 的托管块
   --purge        服务端连 access.conf + 密钥包一起删；客户端连那份 client 密钥一起删
   --keys FILE    密钥包路径（默认 ./spa-keys.env，只用来读 SPA_PORT 与 --purge）
+  --password MODE
+                 yes | no | keep（默认 keep）
+                 退出后要不要允许密码登录。keep = 保持现状（部署加固后是 no）
+  --root-login MODE
+                 yes | prohibit-password | no | keep（默认 keep）
+                 只影响 root 账号：yes 才能用密码登 root，prohibit-password 只允许公钥
   -h, --help     显示帮助
+
+注意：把密码登录打开是安全性降级。除非你是为了恢复访问，否则保持 keep/no。
 
 服务端做的事（顺序有讲究）：
   1) 先 ufw 放行探测到的每一个 SSH 端口，并回读确认
@@ -43,7 +56,8 @@ usage() {
   3) 删掉 INPUT 里的 FWKNOP_INPUT 跳转与链
   4) 关掉 SPA 端口（udp）
   5) 还原 fwknopd.conf（保留 .orig 备份的那份原配置）
-  6) 打印最终状态，ufw / sshd / ssh 直连三项自检
+  6) 按 --password / --root-login 调整登录策略（默认不动）
+  7) 打印最终状态，ufw / sshd / ssh 直连三项自检
 EOF
 }
 
@@ -55,6 +69,10 @@ while [ $# -gt 0 ]; do
     --purge) PURGE=1 ;;
     --keys) shift; KEYS="${1:?--keys 需要参数}" ;;
     --keys=*) KEYS="${1#*=}" ;;
+    --password) shift; PW_ACTION="${1:?--password 需要参数（yes|no|keep）}" ;;
+    --password=*) PW_ACTION="${1#*=}" ;;
+    --root-login) shift; ROOT_LOGIN="${1:?--root-login 需要参数}" ;;
+    --root-login=*) ROOT_LOGIN="${1#*=}" ;;
     -h | --help) usage; exit 0 ;;
     *) usage; die "未知参数：$1" ;;
   esac
@@ -90,6 +108,9 @@ run_client() {
 EOF
 }
 
+case "$PW_ACTION" in yes | no | keep) ;; *) die "--password 只能是 yes / no / keep" ;; esac
+case "$ROOT_LOGIN" in yes | no | prohibit-password | keep) ;; *) die "--root-login 只能是 yes / no / prohibit-password / keep" ;; esac
+
 [ "$MODE" = client ] && { run_client; exit 0; }
 
 # ---------------------------------------------------------------- 服务端
@@ -108,6 +129,9 @@ show_status() {
   printf '临时放行   : %s 条\n' "$(iptables -S FWKNOP_INPUT 2>/dev/null | grep -c '^-A' || true)"
   local ports; ports="$(ssh_resolve_ports 2>/dev/null || true)"
   printf 'SSH 端口   : %s\n' "${ports:-（探测不到，用 SSH_PORT= 指定）}"
+  if command -v sshd >/dev/null 2>&1 && sshd -T >/dev/null 2>&1; then
+    printf '登录策略   : %s\n' "$(sshd -T 2>/dev/null | grep -iE '^(passwordauthentication|kbdinteractiveauthentication|permitrootlogin) ' | paste -sd' ' -)"
+  fi
   if command -v ufw >/dev/null 2>&1; then
     printf 'ufw        : %s\n' "$(ufw status | head -1)"
     ufw status | grep -E "($(printf '%s' "${ports:-22}" | tr ' ' '|'))/tcp|${SPA_PORT}/udp" | sed 's/^/             /' || true
@@ -124,7 +148,7 @@ need_root
 
 # 1) 先开公网 SSH —— 这一步不成功就绝不继续拆
 PORTS="$(ssh_resolve_ports)"
-log "1/6 先放行公网 SSH：${PORTS}/tcp"
+log "1/7 先放行公网 SSH：${PORTS}/tcp"
 if command -v ufw >/dev/null 2>&1; then
   for p in $PORTS; do ufw allow "$p/tcp" comment 'ssh' >/dev/null; done
   # 回读：ufw 加规则也是「写进去不等于生效」，只看退出码会误判
@@ -139,25 +163,25 @@ else
 fi
 
 # 2) 停 fwknopd
-log "2/6 停用 fwknop-server"
+log "2/7 停用 fwknop-server"
 systemctl disable --now fwknop-server >/dev/null 2>&1 || warn "    fwknop-server 停用失败，继续（后面会清 iptables）"
 
 # 3) 清 iptables：跳转 + 链
-log "3/6 删除 INPUT 跳转与 FWKNOP_INPUT 链"
+log "3/7 删除 INPUT 跳转与 FWKNOP_INPUT 链"
 iptables -D INPUT -j FWKNOP_INPUT 2>/dev/null || true
 iptables -F FWKNOP_INPUT 2>/dev/null || true
 iptables -X FWKNOP_INPUT 2>/dev/null || true
 iptables -S INPUT 2>/dev/null | grep -q FWKNOP_INPUT && warn "    INPUT 里还有 FWKNOP_INPUT 跳转，手工删一下"
 
 # 4) 关 SPA 端口
-log "4/6 关闭 SPA 端口 ${SPA_PORT}/udp"
+log "4/7 关闭 SPA 端口 ${SPA_PORT}/udp"
 if command -v ufw >/dev/null 2>&1; then
   ufw --force delete allow "${SPA_PORT}/udp" >/dev/null 2>&1 || true
   ufw status | grep -q "${SPA_PORT}/udp" && warn "    ufw 里还能看到 ${SPA_PORT}/udp，手工删一下"
 fi
 
 # 5) 还原 fwknopd.conf
-log "5/6 还原 fwknopd.conf"
+log "5/7 还原 fwknopd.conf"
 if [ -f "$FWD_ORIG" ]; then
   mv "$FWD_ORIG" "$FWD_CONF"
   log "    已从 ${FWD_ORIG} 还原"
@@ -165,8 +189,90 @@ else
   warn "    没有 ${FWD_ORIG}，fwknopd.conf 保持现状（服务已停，不影响直连）"
 fi
 
-# 6) 自检
-log "6/6 自检"
+# ---------------------------------------------------------------- sshd 登录策略
+# sshd 对同一个关键字只取「第一个出现的值」：Include 把 drop-in 就地展开（按文件名排序），
+# 所以真正生效的是「排序最靠前、且设置了该关键字」的那一份文件。改错地方等于没改。
+sshd_uses_dropin() {
+  grep -qiE '^[[:space:]]*Include[[:space:]]+.*sshd_config\.d' "$SSHD_MAIN" 2>/dev/null
+}
+
+first_file_with_key() {
+  local key="$1" f
+  if sshd_uses_dropin; then
+    for f in $(ls "$SSHD_DROPIN_DIR"/*.conf 2>/dev/null | sort); do
+      if grep -qiE "^[[:space:]]*${key}[[:space:]]" "$f"; then printf '%s\n' "$f"; return 0; fi
+    done
+  fi
+  if grep -qiE "^[[:space:]]*${key}[[:space:]]" "$SSHD_MAIN"; then printf '%s\n' "$SSHD_MAIN"; return 0; fi
+  return 1
+}
+
+# set_sshd_key KEY VALUE —— 改写「第一个出现」的那一行；哪儿都没有就补一份
+set_sshd_key() {
+  local key="$1" val="$2" f=""
+  f="$(first_file_with_key "$key" || true)"
+  if [ -z "$f" ]; then
+    if sshd_uses_dropin; then
+      mkdir -p "$SSHD_DROPIN_DIR"
+      f="$SSHD_DROPIN_DIR/99-ssh-spa.conf"
+      [ -f "$f" ] || : >"$f"
+    else
+      f="$SSHD_MAIN"
+    fi
+  fi
+  awk -v k="$key" -v v="$val" '
+    BEGIN { done = 0 }
+    { if (!done && tolower($1) == tolower(k)) { print k " " v; done = 1; next } print }
+    END { if (!done) print k " " v }
+  ' "$f" >"$f.spa.tmp" && mv "$f.spa.tmp" "$f"
+  chmod 644 "$f" 2>/dev/null || true
+  log "    ${f} → ${key} ${val}"
+}
+
+apply_sshd_choices() {
+  [ "$PW_ACTION" = keep ] && [ "$ROOT_LOGIN" = keep ] && return 0
+  if ! command -v sshd >/dev/null 2>&1 || [ ! -r "$SSHD_MAIN" ]; then
+    warn "找不到 sshd 或读不到 $SSHD_MAIN，跳过登录策略设置"
+    return 0
+  fi
+  log "6/7 登录策略：password=${PW_ACTION} root-login=${ROOT_LOGIN}"
+  local want_pw=""
+  if [ "$PW_ACTION" != keep ]; then
+    set_sshd_key PasswordAuthentication "$PW_ACTION"
+    want_pw="$PW_ACTION"
+    # 键盘交互认证也能送密码，开着它等于密码登录没关
+    if [ "$PW_ACTION" = no ]; then
+      set_sshd_key KbdInteractiveAuthentication no
+    fi
+  fi
+  [ "$ROOT_LOGIN" != keep ] && set_sshd_key PermitRootLogin "$ROOT_LOGIN"
+
+  if ! sshd -t 2>/dev/null; then
+    warn "改完 sshd -t 不通过：请检查 $SSHD_MAIN 与 $SSHD_DROPIN_DIR（现在重启 sshd 会失败，先别 restart）"
+    return 0
+  fi
+  systemctl reload ssh 2>/dev/null || systemctl restart ssh 2>/dev/null ||
+    systemctl restart sshd 2>/dev/null || warn "reload/restart ssh 失败，新策略可能没生效"
+
+  local got; got="$(sshd -T 2>/dev/null | grep -iE '^(passwordauthentication|kbdinteractiveauthentication|permitrootlogin) ' | paste -sd' ' -)"
+  log "    生效值：${got}"
+  if [ -n "$want_pw" ] && ! sshd -T 2>/dev/null | grep -qx "passwordauthentication ${want_pw}"; then
+    warn "    passwordauthentication 没改成 ${want_pw}，谁在前面设了它："
+    grep -rniE --exclude='*.orig' '^[[:space:]]*(PasswordAuthentication|KbdInteractiveAuthentication)' \
+      "$SSHD_MAIN" "$SSHD_DROPIN_DIR" 2>/dev/null | while IFS= read -r l; do warn "      $l"; done
+  fi
+  if [ "$PW_ACTION" = yes ] && [ "$ROOT_LOGIN" = keep ]; then
+    warn "    注意：root 若是 prohibit-password，root 仍然不能用密码登录；要的话加 --root-login yes"
+  fi
+  if [ "$PW_ACTION" = yes ]; then
+    warn "    密码登录已打开＝回到可被爆破的状态，靠 fail2ban 兜底（sudo fail2ban-client status sshd 看一眼）"
+  fi
+}
+
+# 7) 自检
+apply_sshd_choices
+
+log "7/7 自检"
 show_status
 printf '\n'
 if command -v ufw >/dev/null 2>&1 && ufw status | grep -q '^Status: active'; then
