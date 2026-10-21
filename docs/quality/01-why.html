@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>为什么 · SSH 加固手册</title>
+<style>
+:root{--ink:#161a21;--ink2:#4a5361;--ink3:#6f7886;--line:#e4e8ee;--line2:#f0f3f7;--bg:#f7f8fa;--card:#fff;--acc:#0d6b58;--acc2:#e9f5f2;--warn:#9a5608;--warn2:#fdf4e7;--bad:#a21f36;--bad2:#fdeef1;--info:#1d4ed8;--info2:#eef2ff;--r:10px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.75 "PingFang SC","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1040px;margin:0 auto;padding:0 20px}
+a{color:var(--acc);text-decoration:none;border-bottom:1px solid rgba(13,107,88,.28)}
+a:hover{border-bottom-color:var(--acc)}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.88em;background:var(--line2);border:1px solid var(--line);border-radius:4px;padding:.05em .35em}
+.top{background:#fff;border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;align-items:baseline;gap:12px;padding:12px 20px}
+.top .home{font-weight:700;border:0}
+.top .crumb{color:var(--ink3);font-size:13px}
+.nav{background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:9}
+.nav .wrap{display:flex;gap:6px;overflow-x:auto;padding:8px 20px;font-size:13.5px}
+.nav a{padding:4px 10px;border-radius:999px;border:0;color:var(--ink2);white-space:nowrap}
+.nav a:hover{background:var(--line2)}
+.nav a[aria-current="page"]{background:var(--acc);color:#fff}
+main{padding:28px 0 60px}
+h1{font-size:26px;margin:6px 0 10px;letter-spacing:-.01em}
+h2{font-size:20px;margin:34px 0 10px;padding-top:10px;border-top:1px solid var(--line)}
+h2:first-of-type{border-top:0;padding-top:0}
+h3{font-size:16px;margin:22px 0 8px}
+p{margin:8px 0}
+.lede{color:var(--ink2);font-size:15.5px;margin-bottom:16px}
+ul,ol{margin:8px 0;padding-left:22px}
+li{margin:4px 0}
+pre{position:relative;background:#0f172a;color:#e2e8f0;border-radius:var(--r);padding:14px 16px;overflow-x:auto;font:13px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;margin:10px 0}
+pre code{background:none;border:0;padding:0;color:inherit;font-size:inherit}
+pre .copy{position:absolute;top:8px;right:8px;background:#1e293b;color:#cbd5e1;border:1px solid #334155;border-radius:6px;font-size:12px;padding:2px 8px;cursor:pointer}
+pre .copy:hover{background:#334155}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;margin:12px 0}
+.card h3{margin-top:0}
+.note,.warn,.bad{border-radius:0 var(--r) var(--r) 0;padding:11px 15px;margin:12px 0;font-size:14px;border-left:3px solid}
+.note{background:var(--acc2);border-color:var(--acc);color:#0a4a3d}
+.warn{background:var(--warn2);border-color:#d79a3f;color:#6b3d06}
+.bad{background:var(--bad2);border-color:#cf5b70;color:#7c1a2c}
+.note b,.warn b,.bad b{font-weight:650}
+table{border-collapse:collapse;width:100%;font-size:13.8px;background:#fff;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line2);vertical-align:top}
+th{background:#f8fafb;font-size:12.4px;color:var(--ink3);text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+.tw{overflow-x:auto;margin:12px 0}
+.tag{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:5px;background:var(--line2);color:var(--ink2)}
+.tag.ok{background:var(--acc2);color:var(--acc)}
+.tag.warn{background:var(--warn2);color:var(--warn)}
+.tag.bad{background:var(--bad2);color:var(--bad)}
+.tag.info{background:var(--info2);color:var(--info)}
+.steps{counter-reset:s;list-style:none;padding:0}
+.steps>li{counter-increment:s;position:relative;padding-left:38px;margin:14px 0}
+.steps>li::before{content:counter(s);position:absolute;left:0;top:1px;width:24px;height:24px;border-radius:50%;background:var(--acc);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.kv{display:grid;grid-template-columns:140px 1fr;gap:2px 12px;font-size:14px;margin:8px 0}
+.kv dt{color:var(--ink3)}
+.kv dd{margin:0}
+details{margin:10px 0;border:1px solid var(--line);border-radius:var(--r);background:#fff}
+details>summary{cursor:pointer;padding:10px 14px;font-weight:600;font-size:14px;color:var(--acc)}
+details[open]>summary{border-bottom:1px solid var(--line)}
+details .body{padding:4px 14px 14px}
+.fig{background:#fff;border:1px solid var(--line);border-radius:var(--r);margin:14px 0;overflow:hidden}
+.fig .bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 14px;border-bottom:1px solid var(--line);font-size:13px;color:var(--ink3);background:#fbfcfd}
+.fig .bar b{color:var(--ink);font-weight:600}
+.fig iframe{display:block;width:100%;height:640px;border:0}
+.foot{border-top:1px solid var(--line);background:#fff;padding:20px 0 40px;font-size:13px;color:var(--ink3)}
+@media(max-width:640px){h1{font-size:22px}.kv{grid-template-columns:1fr}.fig iframe{height:520px}}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap"><a class="home" href="index.html">SSH 加固手册</a><span class="crumb">1 · 为什么</span></div></header>
+<nav class="nav"><div class="wrap"><a href="index.html">0 · 总览</a><a href="01-why.html" aria-current="page">1 · 为什么</a><a href="02-flow.html">2 · 访问链路</a><a href="03-keys.html">3 · 多客户端密钥</a><a href="04-deploy.html">4 · 部署</a><a href="05-verify.html">5 · 验收与运维</a><a href="06-ops.html">6 · 排查</a></div></nav>
+<main class="wrap">
+<h1>1 · 为什么</h1>
+<p class="lede">先说清楚这件事解决的是什么、不是什么。它<b>不是</b>「把 22 换成 2222」，也不是「让攻击者多花点时间」——是让 <code>sshd</code> 在互联网上根本不接受连接。</p>
+
+<h2>已经做到的两件事，和它们没做到的</h2>
+<p>这两样都值得做，本方案也假设你已经做了：</p>
+<div class="tw">
+<table>
+<thead><tr><th>已经做到的</th><th>仍然是暴露的</th></tr></thead>
+<tbody>
+<tr><td><code>PasswordAuthentication no</code>，爆破没有意义</td><td>22 端口对全互联网开放，任何扫描器都能连上并拿到 banner 和版本号</td></tr>
+<tr><td>fail2ban 封掉来源 IP</td><td>OpenSSH 一旦出 0day，暴露窗口从「爆破」变成「直接打 daemon」</td></tr>
+<tr><td>失败尝试被静音</td><td>日志里<b>仍然每天堆着</b>连接尝试——因为确实有人在连</td></tr>
+</tbody>
+</table>
+</div>
+<p>这三行里真正的差别只有一条：<b>「已经暴露」和「还没暴露」的差别</b>。前两行是认证后的强度，第三行是暴露后的噪音。SPA 动的是第三行的前提——让噪音根本不存在。</p>
+
+<h2>端口敲击为什么不够</h2>
+<p>端口敲击（port knocking）的想法很简单：按顺序连 7000 → 8000 → 9000，服务端识别到序列就临时打开 22。</p>
+<pre><code>你                     服务器
+ │── TCP 连 7000 ───────►│  记下
+ │── TCP 连 8000 ───────►│  序列差一个
+ │── TCP 连 9000 ───────►│  命中，开 22</code></pre>
+<p>致命伤在最后一句之前就已经注定了：<b>这个序列是明文的</b>。任何能看到你流量的人抓下来重放即可，而且整个过程<b>没有任何认证</b>——只有「藏」。区别只是猜端口号比抓包容易。</p>
+
+<h2>SPA 换了什么</h2>
+<p>单包授权（Single Packet Authorization）把「一串明文连接尝试」换成<b>一个加密并签名的 UDP 包</b>：</p>
+<div class="tw">
+<table>
+<thead><tr><th></th><th>端口敲击</th><th>SPA</th></tr></thead>
+<tbody>
+<tr><td>传输内容</td><td>明文端口号序列</td><td>加密后的 SPA 包（可达 MTU）</td></tr>
+<tr><td>认证</td><td>无</td><td>独立 HMAC 密钥签名（encrypt-then-authenticate）</td></tr>
+<tr><td>重放</td><td>抓下来重放即成功</td><td>包内带时间戳与一次性序列号，任一不符静默丢弃</td></tr>
+<tr><td>拒绝服务</td><td>往序列里插一个包就能把客户端锁在外面</td><td>无效包不进解密流程，也没有序列可污染</td></tr>
+<tr><td>给攻击者的反馈</td><td>时序差异</td><td>没有：解不开的包被静默丢掉，和丢包无差别</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>这是遮蔽，还是真关闭</h2>
+<p>关键差别在扫描器看到什么：</p>
+<pre><code>$ nmap -Pn -p22 203.0.113.10
+Host 203.0.113.10 is up (0.02s latency).
+Not shown: 22/tcp filtered          ← 不是 closed</code></pre>
+<p><code>closed</code> 意味着「有主机回了 RST，确实有东西在监听」。<code>filtered</code> 意味着「静默丢包，没有任何证据表明这里存在服务」。SPA 给的是后者。</p>
+
+<div class="note"><b>所以这不是 security through obscurity。</b>端口不是藏在一个难猜的号码后面，它是真的关着。SPA 包是<b>你属于这里</b>的证明，和钥匙证明你属于锁着的房间是同一回事。难猜只是副作用。</div>
+
+<div class="warn"><b>SPA 也不是万能的。</b>它挡的是「没钥匙的人连不上 sshd」。服务器自身的 OpenSSH 0day 依然要靠及时打补丁；拿到密钥的中间人攻击依然成立。它改变的是<b>暴露窗口</b>，不是消灭漏洞。完整限制见 <a href="06-ops.html#limits">第 6 页</a>。</div>
+
+<p style="margin-top:24px"><a href="index.html">← 回到总览</a>　·　<a href="02-flow.html">下一步：访问链路 →</a></p>
+</main>
+<footer class="foot"><div class="wrap">
+本手册与 <a href="../deploy/index.html">节点部署手册</a> · <a href="../index.html">方案总览</a> 配套。服务端命令在 Debian 12/13、Ubuntu 22.04/24.04 上验证；<code>fwknop-server</code> 与 <code>fwknop-client</code> 均来自 Debian 官方源。仅限本人自用科研学习，遵守所在地法律法规与服务条款。
+</div></footer>
+<script>
+document.querySelectorAll('pre').forEach(function(pre){
+  var b=document.createElement('button');b.className='copy';b.type='button';b.textContent='复制';
+  b.onclick=function(){
+    var t=pre.innerText.replace(/复制$|已复制$/,'');
+    var done=function(){b.textContent='已复制';setTimeout(function(){b.textContent='复制'},1200)};
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(done,function(){fallback(t,done)})}
+    else{fallback(t,done)}
+  };
+  function fallback(t,cb){var ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');cb()}catch(e){}document.body.removeChild(ta)}
+  pre.appendChild(b);
+});
+</script>
+</body>
+</html>

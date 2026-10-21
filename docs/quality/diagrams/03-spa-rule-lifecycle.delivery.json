@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "5541687e-e1a6-4a0c-9512-2cca5cbfd918",
+  "status": "current",
+  "command": "deliver",
+  "type": "lifecycle",
+  "input": "E:\\githubrefs\\cyprinus-surge\\.archify\\lifecycle-spa-rule-20261021-100000\\candidate.json",
+  "output": "E:\\githubrefs\\cyprinus-surge\\docs\\quality\\diagrams\\03-spa-rule-lifecycle.html",
+  "specification": {
+    "sha256": "167df7a75e65e3832cd33f620e652ba50dfed2a8c03408557b458964a0ad5bcb",
+    "bytes": 4367
+  },
+  "artifact": {
+    "sha256": "e0e3b11859378fdadf0139f0e1deabf7684641f8bb38823ae811540739ce9bbc",
+    "bytes": 761170
+  }
+}

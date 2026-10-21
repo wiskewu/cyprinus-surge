@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>排查 · SSH 加固手册</title>
+<style>
+:root{--ink:#161a21;--ink2:#4a5361;--ink3:#6f7886;--line:#e4e8ee;--line2:#f0f3f7;--bg:#f7f8fa;--card:#fff;--acc:#0d6b58;--acc2:#e9f5f2;--warn:#9a5608;--warn2:#fdf4e7;--bad:#a21f36;--bad2:#fdeef1;--info:#1d4ed8;--info2:#eef2ff;--r:10px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.75 "PingFang SC","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1040px;margin:0 auto;padding:0 20px}
+a{color:var(--acc);text-decoration:none;border-bottom:1px solid rgba(13,107,88,.28)}
+a:hover{border-bottom-color:var(--acc)}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.88em;background:var(--line2);border:1px solid var(--line);border-radius:4px;padding:.05em .35em}
+.top{background:#fff;border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;align-items:baseline;gap:12px;padding:12px 20px}
+.top .home{font-weight:700;border:0}
+.top .crumb{color:var(--ink3);font-size:13px}
+.nav{background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:9}
+.nav .wrap{display:flex;gap:6px;overflow-x:auto;padding:8px 20px;font-size:13.5px}
+.nav a{padding:4px 10px;border-radius:999px;border:0;color:var(--ink2);white-space:nowrap}
+.nav a:hover{background:var(--line2)}
+.nav a[aria-current="page"]{background:var(--acc);color:#fff}
+main{padding:28px 0 60px}
+h1{font-size:26px;margin:6px 0 10px;letter-spacing:-.01em}
+h2{font-size:20px;margin:34px 0 10px;padding-top:10px;border-top:1px solid var(--line)}
+h2:first-of-type{border-top:0;padding-top:0}
+h3{font-size:16px;margin:22px 0 8px}
+p{margin:8px 0}
+.lede{color:var(--ink2);font-size:15.5px;margin-bottom:16px}
+ul,ol{margin:8px 0;padding-left:22px}
+li{margin:4px 0}
+pre{position:relative;background:#0f172a;color:#e2e8f0;border-radius:var(--r);padding:14px 16px;overflow-x:auto;font:13px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;margin:10px 0}
+pre code{background:none;border:0;padding:0;color:inherit;font-size:inherit}
+pre .copy{position:absolute;top:8px;right:8px;background:#1e293b;color:#cbd5e1;border:1px solid #334155;border-radius:6px;font-size:12px;padding:2px 8px;cursor:pointer}
+pre .copy:hover{background:#334155}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;margin:12px 0}
+.card h3{margin-top:0}
+.note,.warn,.bad{border-radius:0 var(--r) var(--r) 0;padding:11px 15px;margin:12px 0;font-size:14px;border-left:3px solid}
+.note{background:var(--acc2);border-color:var(--acc);color:#0a4a3d}
+.warn{background:var(--warn2);border-color:#d79a3f;color:#6b3d06}
+.bad{background:var(--bad2);border-color:#cf5b70;color:#7c1a2c}
+.note b,.warn b,.bad b{font-weight:650}
+table{border-collapse:collapse;width:100%;font-size:13.8px;background:#fff;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line2);vertical-align:top}
+th{background:#f8fafb;font-size:12.4px;color:var(--ink3);text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+.tw{overflow-x:auto;margin:12px 0}
+.tag{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:5px;background:var(--line2);color:var(--ink2)}
+.tag.ok{background:var(--acc2);color:var(--acc)}
+.tag.warn{background:var(--warn2);color:var(--warn)}
+.tag.bad{background:var(--bad2);color:var(--bad)}
+.tag.info{background:var(--info2);color:var(--info)}
+.steps{counter-reset:s;list-style:none;padding:0}
+.steps>li{counter-increment:s;position:relative;padding-left:38px;margin:14px 0}
+.steps>li::before{content:counter(s);position:absolute;left:0;top:1px;width:24px;height:24px;border-radius:50%;background:var(--acc);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.kv{display:grid;grid-template-columns:140px 1fr;gap:2px 12px;font-size:14px;margin:8px 0}
+.kv dt{color:var(--ink3)}
+.kv dd{margin:0}
+details{margin:10px 0;border:1px solid var(--line);border-radius:var(--r);background:#fff}
+details>summary{cursor:pointer;padding:10px 14px;font-weight:600;font-size:14px;color:var(--acc)}
+details[open]>summary{border-bottom:1px solid var(--line)}
+details .body{padding:4px 14px 14px}
+.fig{background:#fff;border:1px solid var(--line);border-radius:var(--r);margin:14px 0;overflow:hidden}
+.fig .bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 14px;border-bottom:1px solid var(--line);font-size:13px;color:var(--ink3);background:#fbfcfd}
+.fig .bar b{color:var(--ink);font-weight:600}
+.fig iframe{display:block;width:100%;height:640px;border:0}
+.foot{border-top:1px solid var(--line);background:#fff;padding:20px 0 40px;font-size:13px;color:var(--ink3)}
+@media(max-width:640px){h1{font-size:22px}.kv{grid-template-columns:1fr}.fig iframe{height:520px}}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap"><a class="home" href="index.html">SSH 加固手册</a><span class="crumb">6 · 排查</span></div></header>
+<nav class="nav"><div class="wrap"><a href="index.html">0 · 总览</a><a href="01-why.html">1 · 为什么</a><a href="02-flow.html">2 · 访问链路</a><a href="03-keys.html">3 · 多客户端密钥</a><a href="04-deploy.html">4 · 部署</a><a href="05-verify.html">5 · 验收与运维</a><a href="06-ops.html" aria-current="page">6 · 排查</a></div></nav>
+<main class="wrap">
+<h1>6 · 排查</h1>
+<p class="lede">症状 → 查什么，以及这套方案真正的边界在哪。</p>
+
+<h2>故障速查</h2>
+<div class="tw">
+<table>
+<thead><tr><th>现象</th><th>查什么</th></tr></thead>
+<tbody>
+<tr><td><code>ssh</code> 直接超时</td><td>服务端 <code>journalctl -u fwknop-server -n 50</code>；客户端 <code>fwknop -n &lt;host&gt; -v</code>。UDP 被中间设备丢了 → 重敲一次</td></tr>
+<tr><td>敲门后仍连不上</td><td><code>iptables -S FWKNOP_INPUT</code> 看规则插上没有；<code>iptables -S INPUT | grep FWKNOP_INPUT</code> 看跳转还在不在（多半是 ufw reload 过）</td></tr>
+<tr><td>客户端报「stanza not found」</td><td><code>~/.fwknoprc</code> 里没有 <code>[&lt;主机名&gt;]</code> 段。fwknop 装完会丢一个全注释的同名样例文件，脚本会先备份成 <code>~/.fwknoprc.bak</code></td></tr>
+<tr><td>客户端报密钥相关错误</td><td>服务端和客户端密钥对不上。多半是客户端装 fwknop 时自带的样例 <code>~/.fwknoprc</code> 覆盖了生成的版本</td></tr>
+<tr><td>服务端 fwknopd 起不来</td><td><code>fwknopd -F</code> 前台跑看报错。常见是 <code>access.conf</code> 里混进了空格或中文标点</td></tr>
+<tr><td><code>nmap</code> 显示 22 是 <code>closed</code> 而非 <code>filtered</code></td><td>还有别的东西在放行 22：云厂商安全组、ufw 的其他规则、还有 <code>/etc/hosts.allow</code> 之类</td></tr>
+<tr><td>日志里没有 SPA 记录</td><td>包根本没到。服务端 <code>tcpdump -i any udp port 62201</code> 确认；没有就是服务商封了 UDP 或非标端口</td></tr>
+<tr><td>客户端卡在 resolve</td><td><code>ALLOW_IP resolve</code> 需要能访问外网。固定 IP 的机器在 <code>[default]</code> 里写死 <code>ALLOW_IP &lt;你的IP&gt;</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="ufw">与 ufw 的关系</h2>
+<p>fwknopd 自己往 <code>FWKNOP_INPUT</code> 链插规则，跳转规则插在 <code>INPUT</code> 的<b>第 1 位</b>：</p>
+<pre><code>IPT_INPUT_ACCESS   ACCEPT, filter, INPUT, 1, FWKNOP_INPUT, 1;
+#                                        ↑ 位置 1，先于 ufw 的链求值</code></pre>
+<p>所以 <b>SPA 开的口子不会被 ufw 挡掉</b>。代价是 <code>ufw status</code> 里看不到这些临时规则——它不知道 fwknopd 存在。</p>
+
+<div class="bad"><b>最大的坑：<code>ufw enable</code> / <code>ufw reload</code> / <code>ufw reset</code> 会重建 INPUT 链，把跳转规则冲掉。</b>之后 SPA <b>静默失效</b>——客户端不报错，<code>fwknop</code> 正常发包，SSH 直接超时。任何 ufw 变更之后：<pre><code>sudo systemctl restart fwknop-server     # 让它把跳转插回去</code></pre><code>10-server.sh</code> 每次改完 ufw 都会自动重启一次。</div>
+
+<h3>检查跳转还在不在</h3>
+<pre><code>iptables -S INPUT | grep FWKNOP_INPUT     # 有输出 = 正常（在第 1 位）
+sudo bash 10-server.sh --status</code></pre>
+
+<h2>嗅探端口</h2>
+<p>服务端默认只嗅探 <code>udp port 62201</code>（<code>PCAP_FILTER</code>）。客户端用了 <code>fwknop --rand-port</code> 就打不进来，得把这一行放宽：</p>
+<pre><code>PCAP_FILTER   udp dst portrange 10000-65535;</code></pre>
+<p>更省事的做法是别用随机端口。改完重启 <code>fwknop-server</code>。</p>
+
+<h2 id="backup">并行接入通道</h2>
+<p>建议在同网（如 Tailscale / WireGuard 的 <code>tailscale0</code>）上再留一条不经敲门的路：</p>
+<pre><code>sudo ufw allow in on tailscale0</code></pre>
+<p>它的作用不是「fwknop 坏了的备份」，而是<b>一条独立存在的路</b>：公网配置写错了，你仍然能从 tailnet 进去修。VPS 上的 Tailscale 本身也吃 SSH 规则，所以这两件事是配套的。</p>
+
+<h2>Docker 的影响</h2>
+<p>Docker 启动时会重写 <code>FORWARD</code> 和 <code>nat</code> 链。fwknopd 的跳转在 <code>INPUT</code> 上，理论上不受影响，但如果发现 SPA 时好时坏：</p>
+<pre><code>iptables -S INPUT | head -5          # 确认跳转还在第 1 位
+sudo systemctl restart fwknop-server # 重插一次</code></pre>
+
+<h2 id="limits">已知限制</h2>
+<ul>
+<li><b>不是万能。</b>SPA 挡的是「没钥匙的人连不上 sshd」。OpenSSH 自身的 0day 依然要靠及时打补丁；拿到密钥的中间人攻击依然成立。它改变的是<b>暴露窗口</b>。</li>
+<li><b>密钥就是命门。</b>密钥泄露 = 22 端口随时对攻击者开放，而且<b>不会有任何异常日志</b>——在他看来就是一次合法敲门。</li>
+<li><b>需要 UDP 出境。</b>对 UDP 严格管控的网络（部分校园网、公司网）里 62201/udp 可能不通，SPA 反而挡了你的路——那种环境本来就该走别的路。</li>
+<li><b>服务商可能封 UDP 或非标端口。</b>被封的表现和「客户端丢包」一模一样，先在服务端 <code>tcpdump</code> 确认包到没到。</li>
+<li><b>并发受限。</b>每台设备每次敲门生成一条规则；同一个 IP 短时间内多次敲门会累积多条规则，靠 <code>iptables</code> 的超时清理。<code>MAX_FW_TIMEOUT</code> 封顶就是防止客户端给自己开超长窗口。</li>
+<li><b>脚本按 Debian/Ubuntu 写</b>（apt + ufw + systemd；服务端包 <code>fwknop-server</code>、客户端包 <code>fwknop-client</code>）。其他发行版照着改；客户端脚本已额外支持 brew / pacman。</li>
+</ul>
+
+<h2>参考</h2>
+<ul>
+<li><a href="https://www.michelebologna.net/2026/ssh-port-22-fwknop-single-packet-authorization/">Why I close SSH port 22 entirely</a>（Michele Bologna, 2026-06-11）——本手册的出发点，多客户端部分按其「一组共享密钥」扩写</li>
+<li><a href="https://www.cipherdyne.org/fwknop/docs/fwknop-tutorial.html">fwknop 官方教程</a></li>
+<li><a href="https://manpages.debian.org/unstable/fwknop-server/fwknopd.8.en.html">fwknopd(8)</a> —— <code>access.conf</code> 与 <code>fwknopd.conf</code> 的完整指令表</li>
+<li>fwknop 源码 <code>server/incoming_spa.c</code> 的 <code>incoming_spa()</code>——「逐 stanza 试密钥」的权威依据</li>
+</ul>
+
+<p style="margin-top:24px"><a href="05-verify.html">← 上一步</a>　·　<a href="index.html">回到总览</a></p>
+</main>
+<footer class="foot"><div class="wrap">
+本手册与 <a href="../deploy/index.html">节点部署手册</a> · <a href="../index.html">方案总览</a> 配套。服务端命令在 Debian 12/13、Ubuntu 22.04/24.04 上验证；<code>fwknop-server</code> 与 <code>fwknop-client</code> 均来自 Debian 官方源。仅限本人自用科研学习，遵守所在地法律法规与服务条款。
+</div></footer>
+<script>
+document.querySelectorAll('pre').forEach(function(pre){
+  var b=document.createElement('button');b.className='copy';b.type='button';b.textContent='复制';
+  b.onclick=function(){
+    var t=pre.innerText.replace(/复制$|已复制$/,'');
+    var done=function(){b.textContent='已复制';setTimeout(function(){b.textContent='复制'},1200)};
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(done,function(){fallback(t,done)})}
+    else{fallback(t,done)}
+  };
+  function fallback(t,cb){var ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');cb()}catch(e){}document.body.removeChild(ta)}
+  pre.appendChild(b);
+});
+</script>
+</body>
+</html>

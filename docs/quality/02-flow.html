@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>访问链路 · SSH 加固手册</title>
+<style>
+:root{--ink:#161a21;--ink2:#4a5361;--ink3:#6f7886;--line:#e4e8ee;--line2:#f0f3f7;--bg:#f7f8fa;--card:#fff;--acc:#0d6b58;--acc2:#e9f5f2;--warn:#9a5608;--warn2:#fdf4e7;--bad:#a21f36;--bad2:#fdeef1;--info:#1d4ed8;--info2:#eef2ff;--r:10px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.75 "PingFang SC","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1040px;margin:0 auto;padding:0 20px}
+a{color:var(--acc);text-decoration:none;border-bottom:1px solid rgba(13,107,88,.28)}
+a:hover{border-bottom-color:var(--acc)}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.88em;background:var(--line2);border:1px solid var(--line);border-radius:4px;padding:.05em .35em}
+.top{background:#fff;border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;align-items:baseline;gap:12px;padding:12px 20px}
+.top .home{font-weight:700;border:0}
+.top .crumb{color:var(--ink3);font-size:13px}
+.nav{background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:9}
+.nav .wrap{display:flex;gap:6px;overflow-x:auto;padding:8px 20px;font-size:13.5px}
+.nav a{padding:4px 10px;border-radius:999px;border:0;color:var(--ink2);white-space:nowrap}
+.nav a:hover{background:var(--line2)}
+.nav a[aria-current="page"]{background:var(--acc);color:#fff}
+main{padding:28px 0 60px}
+h1{font-size:26px;margin:6px 0 10px;letter-spacing:-.01em}
+h2{font-size:20px;margin:34px 0 10px;padding-top:10px;border-top:1px solid var(--line)}
+h2:first-of-type{border-top:0;padding-top:0}
+h3{font-size:16px;margin:22px 0 8px}
+p{margin:8px 0}
+.lede{color:var(--ink2);font-size:15.5px;margin-bottom:16px}
+ul,ol{margin:8px 0;padding-left:22px}
+li{margin:4px 0}
+pre{position:relative;background:#0f172a;color:#e2e8f0;border-radius:var(--r);padding:14px 16px;overflow-x:auto;font:13px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;margin:10px 0}
+pre code{background:none;border:0;padding:0;color:inherit;font-size:inherit}
+pre .copy{position:absolute;top:8px;right:8px;background:#1e293b;color:#cbd5e1;border:1px solid #334155;border-radius:6px;font-size:12px;padding:2px 8px;cursor:pointer}
+pre .copy:hover{background:#334155}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;margin:12px 0}
+.card h3{margin-top:0}
+.note,.warn,.bad{border-radius:0 var(--r) var(--r) 0;padding:11px 15px;margin:12px 0;font-size:14px;border-left:3px solid}
+.note{background:var(--acc2);border-color:var(--acc);color:#0a4a3d}
+.warn{background:var(--warn2);border-color:#d79a3f;color:#6b3d06}
+.bad{background:var(--bad2);border-color:#cf5b70;color:#7c1a2c}
+.note b,.warn b,.bad b{font-weight:650}
+table{border-collapse:collapse;width:100%;font-size:13.8px;background:#fff;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line2);vertical-align:top}
+th{background:#f8fafb;font-size:12.4px;color:var(--ink3);text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+.tw{overflow-x:auto;margin:12px 0}
+.tag{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:5px;background:var(--line2);color:var(--ink2)}
+.tag.ok{background:var(--acc2);color:var(--acc)}
+.tag.warn{background:var(--warn2);color:var(--warn)}
+.tag.bad{background:var(--bad2);color:var(--bad)}
+.tag.info{background:var(--info2);color:var(--info)}
+.steps{counter-reset:s;list-style:none;padding:0}
+.steps>li{counter-increment:s;position:relative;padding-left:38px;margin:14px 0}
+.steps>li::before{content:counter(s);position:absolute;left:0;top:1px;width:24px;height:24px;border-radius:50%;background:var(--acc);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.kv{display:grid;grid-template-columns:140px 1fr;gap:2px 12px;font-size:14px;margin:8px 0}
+.kv dt{color:var(--ink3)}
+.kv dd{margin:0}
+details{margin:10px 0;border:1px solid var(--line);border-radius:var(--r);background:#fff}
+details>summary{cursor:pointer;padding:10px 14px;font-weight:600;font-size:14px;color:var(--acc)}
+details[open]>summary{border-bottom:1px solid var(--line)}
+details .body{padding:4px 14px 14px}
+.fig{background:#fff;border:1px solid var(--line);border-radius:var(--r);margin:14px 0;overflow:hidden}
+.fig .bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 14px;border-bottom:1px solid var(--line);font-size:13px;color:var(--ink3);background:#fbfcfd}
+.fig .bar b{color:var(--ink);font-weight:600}
+.fig iframe{display:block;width:100%;height:640px;border:0}
+.foot{border-top:1px solid var(--line);background:#fff;padding:20px 0 40px;font-size:13px;color:var(--ink3)}
+@media(max-width:640px){h1{font-size:22px}.kv{grid-template-columns:1fr}.fig iframe{height:520px}}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap"><a class="home" href="index.html">SSH 加固手册</a><span class="crumb">2 · 访问链路</span></div></header>
+<nav class="nav"><div class="wrap"><a href="index.html">0 · 总览</a><a href="01-why.html">1 · 为什么</a><a href="02-flow.html" aria-current="page">2 · 访问链路</a><a href="03-keys.html">3 · 多客户端密钥</a><a href="04-deploy.html">4 · 部署</a><a href="05-verify.html">5 · 验收与运维</a><a href="06-ops.html">6 · 排查</a></div></nav>
+<main class="wrap">
+<h1>2 · 访问链路</h1>
+<p class="lede">一次 <code>ssh server1</code> 背后发生了什么：谁发包、谁验签、规则什么时候插、什么时候撤。</p>
+
+<h2>时序</h2>
+<div class="fig">
+<div class="bar"><b>图 2 · 一次 SPA 访问的完整链路</b><a href="diagrams/02-spa-access-sequence.html">打开独立交互版 →</a></div>
+<iframe src="diagrams/02-spa-access-sequence.html" title="一次 SPA 访问的完整链路" loading="lazy"></iframe>
+</div>
+
+<h2>三个容易忽略的点</h2>
+
+<h3><code>sleep 2</code> 在等什么</h3>
+<p><code>ProxyCommand</code> 里的 <code>sleep 2</code> 不是凑数。它等的是 <code>fwknopd</code> 把 iptables 规则插进去。UDP 到了 → 验签 → 写规则，这几步要时间；<code>nc</code> 抢在前面连，22 还是关着的。</p>
+<pre><code>ProxyCommand fwknop -n server1 &gt;/dev/null 2&gt;&amp;1; sleep 2; nc %h %p</code></pre>
+<p>两个细节：</p>
+<ul>
+<li><code>&gt;/dev/null 2&gt;&amp;1</code> 是必须的。<code>ProxyCommand</code> 的 stdout 会被 ssh 当成加密通道来读，<code>fwknop</code> 的任何输出都会污染这条流。</li>
+<li>用 <code>;</code> 而不是 <code>&amp;&amp;</code>。新机器上 <code>fwknop</code> 还没装时敲门会失败，但 <code>nc</code> 照样往下走——那时 22 还开着，正好用同一条命令兼容「装之前」和「装之后」两种状态。</li>
+</ul>
+
+<h3>UDP 会丢，所以可以重敲</h3>
+<p>SPA 走 UDP，可能在链路上丢包。<code>fwknop</code> 是<b>无状态</b>的：重复发同一个包没有副作用。SSH 卡住就再敲一次，不用等窗口过期，也不用担心「敲多了会被限速」。</p>
+
+<h3>规则撤销不等于断线</h3>
+<p>窗口到期撤销的是<b>放行规则</b>，也就是「允许建立新连接」。已经建立并认证过的会话由内核的连接跟踪维持，<b>不受影响</b>。所以一条 120 秒的规则足够开一次交互式登录，但如果你要挂长时间会话，得把 <code>ACCESS_TIMEOUT</code> 调大后重跑服务端脚本。</p>
+
+<h2>规则的生命周期</h2>
+<div class="fig">
+<div class="bar"><b>图 3 · FWKNOP_INPUT 放行规则的生命周期</b><a href="diagrams/03-spa-rule-lifecycle.html">打开独立交互版 →</a></div>
+<iframe src="diagrams/03-spa-rule-lifecycle.html" title="FWKNOP_INPUT 放行规则的生命周期" loading="lazy"></iframe>
+</div>
+
+<p>把图 3 压成一句话：<b>绝大多数时间都停在「关闭」</b>，此时 22 上没有任何放行规则；只有一个很短的窗口里有。</p>
+
+<div class="note"><b>验签失败是静默的。</b>攻击者无法区分「密钥错了」和「包里根本没有密钥」——两种情况都不回错误包。这条性质让暴力猜密钥在<b>协议层就没有反馈</b>，不依赖限速。</div>
+
+<h3>防重放靠三样东西</h3>
+<p>包里带时间戳和一次性序列号，服务端渲染的配置把它们都打开：</p>
+<pre><code>ENABLE_SPA_PACKET_AGING  Y;    # 拒绝时间戳过旧的包
+MAX_SPA_PACKET_AGE       120;  # 判定「过旧」的秒数
+ENABLE_DIGEST_PERSISTENCE Y;   # 摘要缓存跨进程重启保留</code></pre>
+<p>最后一条容易被忽略：如果 fwknopd 重启就忘了见过哪些摘要，攻击者可以在重启后重放旧的包。开启后缓存落盘，重启不影响防重放。</p>
+
+<h2>客户端配置长什么样</h2>
+<p><code>20-client.sh</code> 生成的内容（主机名和密钥为示意）：</p>
+<pre><code>[default]
+SPA_SERVER_PROTO  udp
+USE_HMAC          Y
+HMAC_DIGEST_TYPE  SHA512
+ALLOW_IP          resolve        # 自动探测公网出口 IP
+ACCESS            tcp/22         # 我要开哪个端口
+KEY_BASE64        &lt;这台设备的加密密钥&gt;
+HMAC_KEY_BASE64   &lt;这台设备的 HMAC 密钥&gt;
+
+[server1]
+SPA_SERVER        203.0.113.10
+SPA_SERVER_PORT   62201
+
+[server2]
+SPA_SERVER        198.51.100.7
+SPA_SERVER_PORT   62201</code></pre>
+<p>加密密钥和 HMAC 密钥<b>必须分开</b>：一个负责内容保密，一个负责身份认证，混用会削弱整套方案的性质。<code>ALLOW_IP resolve</code> 需要能访问外网（fwknop 查公网 IP 的服务）；固定 IP 的机器可以在 <code>[default]</code> 里写死 <code>ALLOW_IP &lt;你的IP&gt;</code>。</p>
+
+<p style="margin-top:24px"><a href="01-why.html">← 上一步</a>　·　<a href="03-keys.html">下一步：多客户端密钥 →</a></p>
+</main>
+<footer class="foot"><div class="wrap">
+本手册与 <a href="../deploy/index.html">节点部署手册</a> · <a href="../index.html">方案总览</a> 配套。服务端命令在 Debian 12/13、Ubuntu 22.04/24.04 上验证；<code>fwknop-server</code> 与 <code>fwknop-client</code> 均来自 Debian 官方源。仅限本人自用科研学习，遵守所在地法律法规与服务条款。
+</div></footer>
+<script>
+document.querySelectorAll('pre').forEach(function(pre){
+  var b=document.createElement('button');b.className='copy';b.type='button';b.textContent='复制';
+  b.onclick=function(){
+    var t=pre.innerText.replace(/复制$|已复制$/,'');
+    var done=function(){b.textContent='已复制';setTimeout(function(){b.textContent='复制'},1200)};
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(done,function(){fallback(t,done)})}
+    else{fallback(t,done)}
+  };
+  function fallback(t,cb){var ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');cb()}catch(e){}document.body.removeChild(ta)}
+  pre.appendChild(b);
+});
+</script>
+</body>
+</html>

@@ -38,7 +38,8 @@ docs/
   deploy/onekey.html      一键脚本说明（交互模式、参数、卸载行为）
   deploy/troubleshooting.html  独立排查手册
   deploy/scripts/         可直接拷到服务器执行的脚本
-  quality/                SSH 加固专题：fwknop SPA 关掉 22 端口，多客户端密钥模型 + 三个幂等脚本
+  quality/                SSH 加固手册：fwknop SPA 关掉 22 端口，6 页 + 3 张架构图
+  quality/scripts/         00-gen-keys / 10-server / 20-client 三个幂等脚本
   diagrams/               四张交互式架构图 + 校验回执 JSON
   README.md               文档索引
 prompt.txt                原始需求稿
@@ -63,8 +64,8 @@ cd /root/deploy && bash deploy.sh             # 交互：逐步骤询问 复用/
 
 ## 维护文档
 
-- `docs/deploy/*.html` 由 `.build/deploy/build.mjs` 从 `.build/deploy/pages/` 模板生成，并把 `scripts/*` 内联进页面；改脚本后重跑构建即可。
-- `docs/diagrams/*.html` 由 [archify](https://github.com/tt-a1i/archify) 生成，同目录 `*.finalize-summary.json` 为 validate/deliver/check/browser-check 的校验回执。
+- `docs/deploy/*.html` 由 `.build/deploy/build.mjs` 从 `.build/deploy/pages/` 模板生成，并把 `scripts/*` 内联进页面；`docs/quality/*.html` 同理走 `.build/quality/build.mjs`。改脚本后重跑构建即可。
+- `docs/diagrams/*.html` 与 `docs/quality/diagrams/*.html` 由 [archify](https://github.com/tt-a1i/archify) 生成，同目录 `*.finalize-summary.json` 为 validate/deliver/check/browser-check 的校验回执。
 - `.build/`、`.archify/`、`data/` 为本机工具与运行产物，已在 `.gitignore` 中排除（`data/` 含真实 `client.env` 与凭据，勿提交、勿外发）。
 
 ## 合规与风险
