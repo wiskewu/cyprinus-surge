@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ===========================================================================
 # deploy.sh —— 一键脚本（自动生成，勿手改）
-#   生成时间：2026-10-20T09:05:49Z
+#   生成时间：2026-10-21T10:48:36Z
 #   来源：lib.sh + steps/*.sh + onekey/driver.sh
 #   重新生成：bash build-onekey.sh
 # ===========================================================================
@@ -96,7 +96,7 @@ rand_pass() { openssl rand -base64 32 | tr -dc 'A-Za-z0-9' | cut -c1-"${1:-20}";
 
 # ---------------------------- 10-system.sh ----------------------------
 # 步骤 10：系统初始化。函数与变量都以 system_ 前缀命名，便于一键脚本内联后不冲突。
-system_TITLE="系统初始化（依赖 / BBR / swap / 时间同步 / 防火墙）"
+system_TITLE="系统初始化（依赖 / BBR / swap / 时间同步 / SSH 加固 / 防火墙）"
 system_OPTIONAL=0
 
 system_check() {
@@ -104,7 +104,19 @@ system_check() {
   command -v ufw >/dev/null 2>&1 || return 1
   ufw status 2>/dev/null | grep -q '^Status: active' || return 1
   [ "$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null)" = "bbr" ] || return 1
+  # SSH 免密已生效才算加固完成（没有公钥时本步会跳过，这里也会一直报未配置）
+  sshd -T 2>/dev/null | grep -qx 'passwordauthentication no' || return 1
   return 0
+}
+
+# 是否至少有一个可用的公钥：没有就不许关密码，否则会把人锁在门外
+system_has_authorized_key() {
+  local f
+  for f in /root/.ssh/authorized_keys /home/*/.ssh/authorized_keys; do
+    [ -r "$f" ] || continue
+    grep -qE '^[[:space:]]*ssh-(rsa|ed25519|ecdsa)' "$f" && return 0
+  done
+  return 1
 }
 
 # 探测 SSH 端口：当前连接 → sshd 监听 → sshd_config → 22
@@ -125,13 +137,13 @@ system_run() {
   local HY2_HOP_END="${HY2_HOP_END:-8447}" SWAP_MB="${SWAP_MB:-1024}" SSH_PORTS
   export DEBIAN_FRONTEND=noninteractive
 
-  log "1/7 安装基础软件"
+  log "1/8 安装基础软件"
   apt-get update -qq
   apt-get -y -qq install --no-install-recommends \
     ca-certificates curl openssl jq tar unzip ufw fail2ban \
     unattended-upgrades vnstat mtr-tiny dnsutils >/dev/null
 
-  log "2/7 内核参数：BBR + 大缓冲区"
+  log "2/8 内核参数：BBR + 大缓冲区"
   cat >/etc/sysctl.d/99-proxy.conf <<'SYSCTL'
 net.core.default_qdisc = fq
 net.ipv4.tcp_congestion_control = bbr
@@ -147,11 +159,11 @@ SYSCTL
   echo tcp_bbr >/etc/modules-load.d/bbr.conf
   sysctl --system >/dev/null
 
-  log "3/7 出站优先 IPv4"
+  log "3/8 出站优先 IPv4"
   touch /etc/gai.conf
   grep -q '^precedence ::ffff:0:0/96' /etc/gai.conf || echo 'precedence ::ffff:0:0/96  100' >>/etc/gai.conf
 
-  log "4/7 swap"
+  log "4/8 swap"
   if ! swapon --show | grep -q .; then
     if [ ! -f /swapfile ]; then
       fallocate -l "${SWAP_MB}M" /swapfile 2>/dev/null || dd if=/dev/zero of=/swapfile bs=1M count="$SWAP_MB" status=none
@@ -162,12 +174,48 @@ SYSCTL
     sysctl -w vm.swappiness=10 >/dev/null
   fi
 
-  log "5/7 时间同步"
+  log "5/8 时间同步"
   timedatectl set-timezone UTC
   timedatectl set-ntp true
   systemctl enable --now systemd-timesyncd >/dev/null 2>&1 || true
 
-  log "6/7 防火墙（绝不假设 SSH 是 22）"
+  # 先改 sshd 再收防火墙：万一配置写坏了，防火墙这一步根本不会执行到，
+  # 你至少还留着一条能连回来的路（且已连着的会话不受影响）
+  log "6/8 SSH 加固：仅公钥登录"
+  if system_has_authorized_key; then
+    mkdir -p /etc/ssh/sshd_config.d
+    cat >/etc/ssh/sshd_config.d/99-proxy.conf <<'SSHEOF'
+PermitRootLogin prohibit-password
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PubkeyAuthentication yes
+X11Forwarding no
+SSHEOF
+    # Ubuntu 镜像自带 50-cloud-init.conf 里写着 PasswordAuthentication yes，
+    # 而 sshd 对每个关键字取「第一个出现的值」，50 排在 99 前面 → 它赢。
+    # 所以必须就地改掉，不能只在 99 里写一遍。
+    CI=/etc/ssh/sshd_config.d/50-cloud-init.conf
+    if [ -f "$CI" ] && grep -qE '^[[:space:]]*PasswordAuthentication' "$CI"; then
+      [ -f "$CI.orig" ] || cp -a "$CI" "$CI.orig"
+      sed -i 's/^[[:space:]]*PasswordAuthentication.*/PasswordAuthentication no/I' "$CI"
+    fi
+    if sshd -t 2>/dev/null; then
+      systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || true
+      if sshd -T 2>/dev/null | grep -qx 'passwordauthentication no'; then
+        log "    已生效：passwordauthentication no"
+      else
+        warn "    未生效：/etc/ssh/sshd_config 里可能没有 Include sshd_config.d，请手工确认"
+      fi
+    else
+      warn "sshd 配置有语法错，已回滚本步改动，sshd 未重启"
+      rm -f /etc/ssh/sshd_config.d/99-proxy.conf
+      [ -f "$CI.orig" ] && mv "$CI.orig" "$CI"
+    fi
+  else
+    warn "没有找到任何 authorized_keys，跳过 SSH 加固：先 ssh-copy-id 装好公钥，再重跑本步"
+  fi
+
+  log "7/8 防火墙（绝不假设 SSH 是 22）"
   SSH_PORTS="$(printf '%s\n%s\n' "${SSH_PORT:-}" "$(system_detect_ssh_ports)" | grep -E '^[0-9]+$' | sort -un | paste -sd' ' -)"
   [ -n "$SSH_PORTS" ] || SSH_PORTS=22
   log "    SSH 端口：${SSH_PORTS}"
@@ -178,10 +226,11 @@ SYSCTL
   ufw allow "${HY2_PORT}:${HY2_HOP_END}/udp" comment 'hysteria2' >/dev/null
   ufw --force enable >/dev/null
 
-  log "7/7 目录与常驻服务"
+  log "8/8 目录与常驻服务"
   install -d -m 700 "$DEPLOY_DIR" /var/lib/sing-box /root/backups
   systemctl enable --now fail2ban vnstat >/dev/null 2>&1 || true
   log "完成：${SSH_PORTS} / ${VLESS_PORT}/tcp / ${HY2_PORT}-${HY2_HOP_END}/udp 已放行"
+  warn "别忘了第二层防火墙：云厂商控制台的安全组也要放行同样的端口，否则表现为「部分端口通、部分超时」"
 }
 
 system_uninstall() {
@@ -189,8 +238,12 @@ system_uninstall() {
   ufw delete allow "${VLESS_PORT}/tcp" >/dev/null 2>&1 || true
   ufw delete allow "${HY2_PORT}:${HY2_HOP_END}/udp" >/dev/null 2>&1 || true
   rm -f /etc/sysctl.d/99-proxy.conf
+  rm -f /etc/ssh/sshd_config.d/99-proxy.conf
+  [ -f /etc/ssh/sshd_config.d/50-cloud-init.conf.orig ] && \
+    mv /etc/ssh/sshd_config.d/50-cloud-init.conf.orig /etc/ssh/sshd_config.d/50-cloud-init.conf
+  systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || true
   sysctl --system >/dev/null 2>&1 || true
-  log "已移除本项目加的 ufw 规则与 sysctl 配置（SSH 规则、swap、ufw 开关保持不动）"
+  log "已移除本项目加的 ufw 规则、sysctl 与 SSH 加固（SSH 规则、swap、ufw 开关保持不动）"
 }
 
 # ---------------------------- 20-install.sh ----------------------------

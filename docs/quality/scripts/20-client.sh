@@ -142,8 +142,9 @@ if [ "$SSH_CONFIG" = 1 ]; then
   # 备份摘掉托管块之后的版本：备份里不含我们塞的东西
   [ -s "$SSHCFG" ] && cp -a "$SSHCFG" "$SSHCFG.bak"
   {
-    cat "$SSHCFG"
-    printf '\n%s\n' "$BEGIN"
+    # 首次配置时 ~/.ssh/config 可能还不存在；分隔行追加在末尾，否则每重跑一次就多一个空行
+    if [ -f "$SSHCFG" ]; then cat "$SSHCFG"; printf '\n'; fi
+    printf '%s\n' "$BEGIN"
     for h in $HOSTS; do
       printf 'Host %s\n' "${h%%=*}"
       printf '  HostName %s\n' "${h#*=}"
