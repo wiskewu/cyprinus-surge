@@ -1,7 +1,8 @@
     {
       "type": "hysteria2",
       "tag": "proxy-hy2",
-      "server": "${SERVER_IP}",
+      "server": "${SERVER_HOST}",
+      "domain_resolver": { "server": "dns-cn" },
       "server_port": ${HY2_PORT},
       "server_ports": ["${HY2_HOP_RANGE}"],
       "hop_interval": "30s",

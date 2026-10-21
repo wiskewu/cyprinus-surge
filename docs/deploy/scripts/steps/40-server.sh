@@ -8,6 +8,25 @@ server_check() {
   return 0
 }
 
+# 把设备名单渲染成 sing-box 的 users 数组内容（逗号分隔，不含外层方括号）。
+# 模板里写 "users": [ __USERS__ ]，方括号由模板负责。
+# $1=名单内容 $2=凭据字段名(uuid|password) $3=输出文件
+render_users() {
+  local rows="$1" field="$2" out="$3" n c p first=1
+  : >"$out"
+  while read -r n c p; do
+    [ -n "$first" ] || printf ',\n' >>"$out"
+    if [ "$field" = uuid ]; then
+      printf '        { "name": "%s", "uuid": "%s", "flow": "xtls-rprx-vision" }' "$n" "$c" >>"$out"
+    else
+      printf '        { "name": "%s", "password": "%s" }' "$n" "$c" >>"$out"
+    fi
+    first=""
+  done <<<"$rows"
+  [ -n "$first" ] && die "设备名单解析不出条目：$DEVICES_LIST"
+  return 0
+}
+
 server_run() {
   local T
   load_env "$ENVFILE"
@@ -15,17 +34,25 @@ server_run() {
   [ -x "$SB_BIN" ] || die "sing-box 未安装"
   T="$(mktemp -d)"; trap 'rm -rf "$T"' RETURN
 
+  # users 数组按设备名单渲染：一份设备名单 = 一组凭据，删一行就吊销那台
+  local rows; rows="$(device_rows)"
+  [ -n "$rows" ] || die "设备名单为空：$DEVICES_LIST"
+
   render_vars "$TPL_DIR/in-reality.json.tmpl" "$T/in1.json"
+  render_users "$rows" uuid "$T/u1.json"
+  inject_block "$T/in1.json" "__USERS__" "$T/u1.json"
   cp "$T/in1.json" "$T/inbounds.json"
   if [ "${ENABLE_HY2:-0}" = "1" ]; then
     for f in cert.pem key.pem; do
       [ -s "$DEPLOY_DIR/$f" ] || die "缺少 $DEPLOY_DIR/$f：先跑 Hysteria2 步骤，或把 ENABLE_HY2 改成 0"
     done
     render_vars "$TPL_DIR/in-hy2.json.tmpl" "$T/in2.json"
+    render_users "$rows" password "$T/u2.json"
+    inject_block "$T/in2.json" "__USERS__" "$T/u2.json"
     join_json "$T/in1.json" "$T/in2.json" >"$T/inbounds.json"
-    log "双入口：REALITY:${VLESS_PORT} + Hysteria2:${HY2_PORT}/udp"
+    log "双入口：REALITY:${VLESS_PORT} + Hysteria2:${HY2_PORT}/udp（$(printf '%s\n' "$rows" | wc -l) 台设备）"
   else
-    log "单入口：REALITY:${VLESS_PORT}"
+    log "单入口：REALITY:${VLESS_PORT}（$(printf '%s\n' "$rows" | wc -l) 台设备）"
   fi
 
   render_vars "$TPL_DIR/server.json.tmpl" "$T/server.json"

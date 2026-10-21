@@ -3,7 +3,9 @@
       "tag": "vless-in",
       "listen": "::",
       "listen_port": ${VLESS_PORT},
-      "users": [{ "name": "me", "uuid": "${UUID}", "flow": "xtls-rprx-vision" }],
+      "users": [
+__USERS__
+      ],
       "tls": {
         "enabled": true,
         "server_name": "${REALITY_DEST}",

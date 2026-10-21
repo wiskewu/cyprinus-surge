@@ -1,7 +1,8 @@
     {
       "type": "vless",
       "tag": "proxy",
-      "server": "${SERVER_IP}",
+      "server": "${SERVER_HOST}",
+      "domain_resolver": { "server": "dns-cn" },
       "server_port": ${VLESS_PORT},
       "uuid": "${UUID}",
       "flow": "xtls-rprx-vision",

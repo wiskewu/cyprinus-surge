@@ -6,7 +6,9 @@
       "up_mbps": ${HY2_UP_MBPS},
       "down_mbps": ${HY2_DOWN_MBPS},
       "obfs": { "type": "salamander", "password": "${OBFS_PASSWORD}" },
-      "users": [{ "name": "me", "password": "${HY2_PASSWORD}" }],
+      "users": [
+__USERS__
+      ],
       "tls": {
         "enabled": true,
         "server_name": "${DOMAIN}",

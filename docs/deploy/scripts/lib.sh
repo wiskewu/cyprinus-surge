@@ -8,6 +8,7 @@
 DEPLOY_DIR="${DEPLOY_DIR:-/etc/sing-box}"
 ENVFILE="${ENVFILE:-$DEPLOY_DIR/deploy.env}"
 CLIENT_ENV="${CLIENT_ENV:-$DEPLOY_DIR/client.env}"
+DEVICES_LIST="${DEVICES_LIST:-$DEPLOY_DIR/devices.list}"
 SB_BIN="${SB_BIN:-/usr/local/bin/sing-box}"
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TPL_DIR="$SELF_DIR/templates"
@@ -83,3 +84,26 @@ sb_check() {
 }
 
 rand_pass() { openssl rand -base64 32 | tr -dc 'A-Za-z0-9' | cut -c1-"${1:-20}"; }
+
+# ===== 设备名单 devices.list =====
+# 格式：每行「名字 凭据 平台」，# 开头是注释。
+# 一台设备一个凭据，同时当 VLESS 的 uuid 和 Hysteria2 的 password 用——
+# 这样「吊销一台」就是删一行，两条入口同时失效，不会漏。
+# 代价是同一个值出现在两个协议里（个人自用可接受，换来的是吊销的原子性）。
+valid_device_name() { case "${1:-}" in "" | *[!A-Za-z0-9._-]*) return 1 ;; *) return 0 ;; esac; }
+
+device_rows() {
+  [ -f "$DEVICES_LIST" ] || return 0
+  sed -e 's/#.*//' -e 's/[[:space:]]*$//' -e '/^$/d' "$DEVICES_LIST"
+}
+
+# device_get <名字> → 输出「凭据 平台」；不存在则返回 1
+device_get() {
+  local n c p
+  while read -r n c p; do
+    if [ "$n" = "$1" ]; then printf '%s %s\n' "$c" "${p:-desktop}"; return 0; fi
+  done < <(device_rows)
+  return 1
+}
+
+device_exists() { device_get "$1" >/dev/null 2>&1; }
