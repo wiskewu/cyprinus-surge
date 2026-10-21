@@ -105,7 +105,7 @@ IFACE="$(ip -4 route show default 2>/dev/null | awk '{print $5; exit}')"
 [ -n "$IFACE" ] || die "识别不到默认网卡，PCAP_INTF 只能靠 fwknopd 自己猜，指定网卡再跑"
 
 # ---- 渲染 fwknopd.conf：只写我们要管的几项，其余用包自带默认值 ----
-log "2/5 渲染 $FWD_CONF（网卡 $IFACE，SPA 端口 $SPA_PORT）"
+log "2/5 渲染 ${FWD_CONF}（网卡 ${IFACE}，SPA 端口 ${SPA_PORT}）"
 mkdir -p "$FWK_DIR"
 [ -f "$FWD_ORIG" ] || { [ -f "$FWD_CONF" ] && cp -a "$FWD_CONF" "$FWD_ORIG"; }
 cat > "$FWD_CONF" <<EOF
@@ -192,7 +192,7 @@ write_ssh_ports() {
   fi
   chmod 600 "$f"
 }
-write_ssh_ports "$KEYS" && log "已把 SSH 端口（$SSH_PORTS）写回 $KEYS"
+write_ssh_ports "$KEYS" && log "已把 SSH 端口（${SSH_PORTS}）写回 $KEYS"
 write_ssh_ports "$CLIENT_ENV"
 
 # ---- 起服务 ----

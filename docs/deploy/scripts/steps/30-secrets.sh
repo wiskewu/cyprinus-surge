@@ -37,7 +37,7 @@ secrets_run() {
   else
     FIRST_DEVICE="${FIRST_DEVICE:-main}"
   fi
-  valid_device_name "$FIRST_DEVICE" || die "设备名不合法：$FIRST_DEVICE（只允许字母数字 . _ -）"
+  valid_device_name "$FIRST_DEVICE" || die "设备名不合法：${FIRST_DEVICE}（只允许字母数字 . _ -）"
 
   KP="$("$SB_BIN" generate reality-keypair)"
   REALITY_PRIVATE_KEY="$(printf '%s\n' "$KP" | awk -F': *' '/PrivateKey/{print $2}')"
@@ -56,7 +56,7 @@ secrets_run() {
 $FIRST_DEVICE $("$SB_BIN" generate uuid) desktop
 LIST
     chmod 600 "$DEVICES_LIST"
-    log "已创建设备名单：$DEVICES_LIST（第一台：$FIRST_DEVICE）"
+    log "已创建设备名单：${DEVICES_LIST}（第一台：${FIRST_DEVICE}）"
   else
     log "设备名单已存在，保留：$DEVICES_LIST"
   fi

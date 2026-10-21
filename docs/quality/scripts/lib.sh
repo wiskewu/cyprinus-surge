@@ -34,7 +34,7 @@ spa_keys_for() {
         "$name"=*) printf '%s\n' "${entry#*=}"; return 0 ;;
       esac
     done
-    die "密钥包里没有客户端 $name（重新生成时把它写进 --clients）"
+    die "密钥包里没有客户端 ${name}（重新生成时把它写进 --clients）"
   fi
   line="$(grep -E '^SHARED=' "$file" | head -n1 || true)"
   [ -n "$line" ] || die "密钥包里既没有客户端 $name 也没有 SHARED"

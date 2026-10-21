@@ -383,7 +383,7 @@ secrets_run() {
   else
     FIRST_DEVICE="${FIRST_DEVICE:-main}"
   fi
-  valid_device_name "$FIRST_DEVICE" || die "设备名不合法：$FIRST_DEVICE（只允许字母数字 . _ -）"
+  valid_device_name "$FIRST_DEVICE" || die "设备名不合法：${FIRST_DEVICE}（只允许字母数字 . _ -）"
 
   KP="$("$SB_BIN" generate reality-keypair)"
   REALITY_PRIVATE_KEY="$(printf '%s\n' "$KP" | awk -F': *' '/PrivateKey/{print $2}')"
@@ -402,7 +402,7 @@ secrets_run() {
 $FIRST_DEVICE $("$SB_BIN" generate uuid) desktop
 LIST
     chmod 600 "$DEVICES_LIST"
-    log "已创建设备名单：$DEVICES_LIST（第一台：$FIRST_DEVICE）"
+    log "已创建设备名单：${DEVICES_LIST}（第一台：${FIRST_DEVICE}）"
   else
     log "设备名单已存在，保留：$DEVICES_LIST"
   fi
@@ -538,7 +538,7 @@ server_run() {
   cp "$T/in1.json" "$T/inbounds.json"
   if [ "${ENABLE_HY2:-0}" = "1" ]; then
     for f in cert.pem key.pem; do
-      [ -s "$DEPLOY_DIR/$f" ] || die "缺少 $DEPLOY_DIR/$f：先跑 Hysteria2 步骤，或把 ENABLE_HY2 改成 0"
+      [ -s "$DEPLOY_DIR/$f" ] || die "缺少 $DEPLOY_DIR/${f}：先跑 Hysteria2 步骤，或把 ENABLE_HY2 改成 0"
     done
     render_vars "$TPL_DIR/in-hy2.json.tmpl" "$T/in2.json"
     render_users "$rows" password "$T/u2.json"
@@ -661,7 +661,7 @@ porthop_run() {
     log "规则已存在"
   else
     iptables -t nat -A PREROUTING -i "$PORTHOP_IFACE" -p udp --dport "${PORTHOP_START}:${PORTHOP_END}" -j REDIRECT --to-ports "$PORTHOP_START"
-    log "已添加：udp ${PORTHOP_START}:${PORTHOP_END} → ${PORTHOP_START}（$PORTHOP_IFACE）"
+    log "已添加：udp ${PORTHOP_START}:${PORTHOP_END} → ${PORTHOP_START}（${PORTHOP_IFACE}）"
   fi
   export DEBIAN_FRONTEND=noninteractive
   echo "iptables-persistent iptables-persistent/autosave_v4 boolean true" | debconf-set-selections
@@ -788,13 +788,13 @@ do_install() {
   for id in "${STEPS[@]}"; do
     selected "$id" || continue
     if [ "$(step_optional "$id")" = 1 ] && ! hy2_enabled && { [ "$id" = "hy2" ] || [ "$id" = "porthop" ]; }; then
-      log "跳过 $id（ENABLE_HY2 未开启）"
+      log "跳过 ${id}（ENABLE_HY2 未开启）"
       continue
     fi
     if [ "$(step_state "$id")" = "已配置" ]; then
       decide "$id"; rc=$?
       case "$rc" in
-        1) log "复用 $id（不执行）"; continue ;;
+        1) log "复用 ${id}（不执行）"; continue ;;
         2) log "跳过 $id"; continue ;;
       esac
     fi
@@ -854,7 +854,7 @@ do_uninstall() {
     log "已删除 $DEPLOY_DIR"
     rmdir /root/deploy 2>/dev/null || true
   else
-    log "保留 $DEPLOY_DIR（含密钥与证书，便于下次复用）"
+    log "保留 ${DEPLOY_DIR}（含密钥与证书，便于下次复用）"
   fi
   log "卸载结束。SSH 防火墙规则、swap、ufw 开关均未改动。"
 }

@@ -83,9 +83,9 @@ OUTDIR="${OUTDIR:-data}"
 
 # ---------- 按设备取凭据 ----------
 if [ -n "$DEVICE" ]; then
-  [ -f "$DEVICES_LIST" ] || die "--device 需要设备名单，但找不到 $DEVICES_LIST（在服务器上跑）"
+  [ -f "$DEVICES_LIST" ] || die "--device 需要设备名单，但找不到 ${DEVICES_LIST}（在服务器上跑）"
   valid_device_name "$DEVICE" || die "设备名不合法：$DEVICE"
-  _row="$(device_get "$DEVICE")" || die "设备名单里没有 $DEVICE（bash device.sh list 看有哪些）"
+  _row="$(device_get "$DEVICE")" || die "设备名单里没有 ${DEVICE}（bash device.sh list 看有哪些）"
   _cred="${_row%% *}"
   [ -n "$_cred" ] || die "设备 $DEVICE 的凭据为空"
   DEVICE_PLATFORM="${_row#* }"
@@ -204,7 +204,7 @@ EOF
   exit 0
 fi
 
-log "生成 ${#TARGETS[@]} 份：${TARGETS[*]}$([ -n "$DEVICE" ] && echo "（设备 $DEVICE）")"
+log "生成 ${#TARGETS[@]} 份：${TARGETS[*]}$([ -n "$DEVICE" ] && echo "（设备 ${DEVICE}）")"
 for t in "${TARGETS[@]}"; do
   apply_target "$t"
   render_one "$TARGET_OUT"

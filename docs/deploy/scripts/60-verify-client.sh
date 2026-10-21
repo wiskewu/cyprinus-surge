@@ -14,7 +14,7 @@ ENVFILE="$CLIENT_ENV_FILE"
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib.sh
 . "$SELF_DIR/lib.sh"
-[ -f "$ENVFILE" ] || die "找不到 $ENVFILE（从服务器 /etc/sing-box/client.env 复制过来）"
+[ -f "$ENVFILE" ] || die "找不到 ${ENVFILE}（从服务器 /etc/sing-box/client.env 复制过来）"
 load_env "$ENVFILE"
 
 PROXY="${PROXY:-socks5h://127.0.0.1:2080}"
@@ -44,7 +44,7 @@ body() {
   curl --proxy "$PROXY" -fsS --max-time "${2:-12}" "$1" 2>/dev/null || true
 }
 
-say "0. 本地代理是否可用（$PROXY）"
+say "0. 本地代理是否可用（${PROXY}）"
 first="$(body https://api.ipify.org 12)"
 if [ -z "$first" ]; then
   printf '  \033[31m✗\033[0m 无法通过 %s 完成任何请求\n' "$PROXY"
@@ -62,7 +62,7 @@ ok "代理可用，境外出口 $first"
 if [ "$first" = "${SERVER_IP}" ]; then
   ok "境外流量确实走 VPS（${SERVER_IP}）"
 else
-  no "境外出口是 $first，不是 SERVER_IP=${SERVER_IP}（检查 client.env 与配置是否同源）"
+  no "境外出口是 ${first}，不是 SERVER_IP=${SERVER_IP}（检查 client.env 与配置是否同源）"
 fi
 
 say "1. 分流：国内站点是否直连（A/B 对照，不依赖第三方）"

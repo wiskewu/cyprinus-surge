@@ -24,7 +24,7 @@ porthop_run() {
     log "规则已存在"
   else
     iptables -t nat -A PREROUTING -i "$PORTHOP_IFACE" -p udp --dport "${PORTHOP_START}:${PORTHOP_END}" -j REDIRECT --to-ports "$PORTHOP_START"
-    log "已添加：udp ${PORTHOP_START}:${PORTHOP_END} → ${PORTHOP_START}（$PORTHOP_IFACE）"
+    log "已添加：udp ${PORTHOP_START}:${PORTHOP_END} → ${PORTHOP_START}（${PORTHOP_IFACE}）"
   fi
   export DEBIAN_FRONTEND=noninteractive
   echo "iptables-persistent iptables-persistent/autosave_v4 boolean true" | debconf-set-selections

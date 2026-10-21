@@ -104,7 +104,7 @@ load_env "$KEYS"
 PAIR="$(spa_keys_for "$KEYS" "${CLIENT_NAME:-}")"
 WHO="${CLIENT_NAME:-shared（共用密钥组）}"
 
-log "2/3 渲染 $FWKRC（客户端 $WHO）"
+log "2/3 渲染 ${FWKRC}（客户端 ${WHO}）"
 umask 077
 # fwknop 装完会丢一个全注释的样例，只有那类文件值得备份；我们生成的版本不用备
 [ -f "$FWKRC" ] && ! grep -qF '由 20-client.sh 生成' "$FWKRC" && cp -a "$FWKRC" "$FWKRC.bak"

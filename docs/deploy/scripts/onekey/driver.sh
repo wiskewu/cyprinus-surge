@@ -108,13 +108,13 @@ do_install() {
   for id in "${STEPS[@]}"; do
     selected "$id" || continue
     if [ "$(step_optional "$id")" = 1 ] && ! hy2_enabled && { [ "$id" = "hy2" ] || [ "$id" = "porthop" ]; }; then
-      log "跳过 $id（ENABLE_HY2 未开启）"
+      log "跳过 ${id}（ENABLE_HY2 未开启）"
       continue
     fi
     if [ "$(step_state "$id")" = "已配置" ]; then
       decide "$id"; rc=$?
       case "$rc" in
-        1) log "复用 $id（不执行）"; continue ;;
+        1) log "复用 ${id}（不执行）"; continue ;;
         2) log "跳过 $id"; continue ;;
       esac
     fi
@@ -174,7 +174,7 @@ do_uninstall() {
     log "已删除 $DEPLOY_DIR"
     rmdir /root/deploy 2>/dev/null || true
   else
-    log "保留 $DEPLOY_DIR（含密钥与证书，便于下次复用）"
+    log "保留 ${DEPLOY_DIR}（含密钥与证书，便于下次复用）"
   fi
   log "卸载结束。SSH 防火墙规则、swap、ufw 开关均未改动。"
 }

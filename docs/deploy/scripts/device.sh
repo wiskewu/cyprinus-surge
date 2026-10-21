@@ -10,7 +10,7 @@
 # 做的事：改 devices.list → 重渲染服务端配置 → 重新渲染该设备的客户端 JSON。
 # 不自己实现任何 sing-box 逻辑，渲染一律走现有脚本，所以不会和模板漂移。
 #
-# 真相源是 $DEVICES_LIST（默认 /etc/sing-box/devices.list），建议纳入 git。
+# 真相源是 ${DEVICES_LIST}（默认 /etc/sing-box/devices.list），建议纳入 git。
 # 一台设备一个凭据，同时当 VLESS uuid 与 Hysteria2 password——吊销因此是原子的。
 #
 # 在【服务器】上跑：它就地改名单、重渲染服务端、重渲染该设备的客户端 JSON。
@@ -48,7 +48,7 @@ EOF
 }
 
 cmd_list() {
-  [ -s "$DEVICES_LIST" ] || die "设备名单不存在：$DEVICES_LIST（先跑 20-secrets.sh）"
+  [ -s "$DEVICES_LIST" ] || die "设备名单不存在：${DEVICES_LIST}（先跑 20-secrets.sh）"
   printf '\n%-20s %-38s %s\n' "设备" "凭据" "平台"
   printf '%s\n' "--------------------------------------------------------------------------------"
   local n c p
@@ -98,14 +98,14 @@ case "$CMD" in
   add)
     [ $# -ge 1 ] || { usage; die "add 需要设备名"; }
     NAME="$1"; PLATFORM="${2:-desktop}"
-    valid_device_name "$NAME" || die "设备名不合法：$NAME（只允许字母数字 . _ -）"
+    valid_device_name "$NAME" || die "设备名不合法：${NAME}（只允许字母数字 . _ -）"
     case " $VALID_PLATFORMS " in *" $PLATFORM "*) ;; *) die "平台只能是：$VALID_PLATFORMS" ;; esac
     device_exists "$NAME" && die "设备 $NAME 已存在（rotate 换凭据 / revoke 删除）"
-    [ -s "$DEVICES_LIST" ] || die "设备名单不存在：$DEVICES_LIST（先跑 20-secrets.sh）"
+    [ -s "$DEVICES_LIST" ] || die "设备名单不存在：${DEVICES_LIST}（先跑 20-secrets.sh）"
     CRED="$("$SB_BIN" generate uuid)"
     printf '%s %s %s\n' "$NAME" "$CRED" "$PLATFORM" >>"$DEVICES_LIST"
     chmod 600 "$DEVICES_LIST"
-    log "已新增设备 $NAME（$PLATFORM）"
+    log "已新增设备 ${NAME}（${PLATFORM}）"
     apply_changes "$NAME"
     ;;
 

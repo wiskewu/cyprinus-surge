@@ -9,7 +9,7 @@ load_env "$ENVFILE"
 
 # 缺变量时给出人话，而不是 "unbound variable"
 for v in SERVER_IP VLESS_PORT REALITY_DEST; do
-  [ -n "${!v:-}" ] || die "deploy.env 缺少 $v。重跑 20-secrets.sh，或手工补一行 $v=..."
+  [ -n "${!v:-}" ] || die "deploy.env 缺少 ${v}。重跑 20-secrets.sh，或手工补一行 $v=..."
 done
 
 ok=0; bad=0

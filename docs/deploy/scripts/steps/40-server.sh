@@ -44,7 +44,7 @@ server_run() {
   cp "$T/in1.json" "$T/inbounds.json"
   if [ "${ENABLE_HY2:-0}" = "1" ]; then
     for f in cert.pem key.pem; do
-      [ -s "$DEPLOY_DIR/$f" ] || die "缺少 $DEPLOY_DIR/$f：先跑 Hysteria2 步骤，或把 ENABLE_HY2 改成 0"
+      [ -s "$DEPLOY_DIR/$f" ] || die "缺少 $DEPLOY_DIR/${f}：先跑 Hysteria2 步骤，或把 ENABLE_HY2 改成 0"
     done
     render_vars "$TPL_DIR/in-hy2.json.tmpl" "$T/in2.json"
     render_users "$rows" password "$T/u2.json"

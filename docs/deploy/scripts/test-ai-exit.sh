@@ -39,8 +39,8 @@ cleanup() {
 trap cleanup EXIT
 
 log "0/5 前置检查"
-[ -x "$SB_BIN" ] || die "找不到 $SB_BIN，先跑 10-install-singbox.sh"
-[ -s "$CLIENT_ENV" ] || die "缺少 $CLIENT_ENV，先跑 20-secrets.sh"
+[ -x "$SB_BIN" ] || die "找不到 ${SB_BIN}，先跑 10-install-singbox.sh"
+[ -s "$CLIENT_ENV" ] || die "缺少 ${CLIENT_ENV}，先跑 20-secrets.sh"
 for p in "$MIXED_PORT" "$SOCKS_PORT"; do
   ss -tln 2>/dev/null | grep -q ":$p " && die "端口 $p 已被占用，换一个：MIXED_PORT= / SOCKS_PORT="
 done
@@ -88,7 +88,7 @@ curl -s -o /dev/null -w '%{http_code}' --max-time 20 \
 CURL_RC=$?
 set -e
 CODE="$(cat "$TMP/code" 2>/dev/null || echo 000)"
-log "    HTTP $CODE（curl 退出码 $CURL_RC；403/401 属正常——测的是走没走上，不是能不能访问）"
+log "    HTTP ${CODE}（curl 退出码 ${CURL_RC}；403/401 属正常——测的是走没走上，不是能不能访问）"
 
 log "5/5 核对 ai-out 是否真的被用到"
 grep -o 'outbound/[a-z0-9_-]*' "$TMP/client.log" 2>/dev/null | sort -u >"$TMP/used" || true

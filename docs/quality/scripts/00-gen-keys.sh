@@ -64,14 +64,14 @@ mkdir -p "$OUT_DIR/clients"
 if [ -n "$HOSTS" ]; then
   for h in $HOSTS; do
     case "$h" in
-      *=?*) valid_name "${h%%=*}" || die "主机名不合法：$h（只允许字母数字 . _ -）" ;;
+      *=?*) valid_name "${h%%=*}" || die "主机名不合法：${h}（只允许字母数字 . _ -）" ;;
       *) die "主机条目要写成 name=地址：$h" ;;
     esac
   done
 fi
 if [ -n "$CLIENTS_ARG" ]; then
   for c in $CLIENTS_ARG; do
-    valid_name "$c" || die "客户端名不合法：$c（只允许字母数字 . _ -）"
+    valid_name "$c" || die "客户端名不合法：${c}（只允许字母数字 . _ -）"
   done
 fi
 
