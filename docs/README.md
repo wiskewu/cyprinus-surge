@@ -8,6 +8,7 @@
 | [vps-shortlist.html](vps-shortlist.html) | 服务器入门采购清单：满足下单门槛的 6 家厂商 / 8 个机型，含价格、线路、支付宝/Visa 支持、按小时与换 IP 能力 |
 | [deploy/index.html](deploy/index.html) | **部署手册**：6 步主流程 + [一键脚本](deploy/onekey.html) + 独立排查手册；`scripts/deploy.sh` 由 `build-onekey.sh` 从 `steps/*.sh` 生成 |
 | [方案.md](方案.md) | 完整文字方案：选型、协议、客户端配置骨架、分流与 DNS、IP 门禁、运维与故障手册、实施验收、成本、风险、参考来源 |
+| [quality/README.md](quality/README.md) | SSH 加固：用 fwknop SPA 把 22 端口彻底关掉（多客户端密钥模型 + 三个幂等脚本），基于 [原文](https://www.michelebologna.net/2026/ssh-port-22-fwknop-single-packet-authorization/) 校对并补上多客户端方案 |
 | [diagrams/01-architecture.html](diagrams/01-architecture.html) | 图 1 总体架构（独立交互版，可切主题） |
 | [diagrams/02-ai-request-path.html](diagrams/02-ai-request-path.html) | 图 2 一次 AI 请求的分流链路 |
 | [diagrams/03-failover-lifecycle.html](diagrams/03-failover-lifecycle.html) | 图 3 连接健康与降级切换 |

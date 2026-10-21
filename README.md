@@ -38,6 +38,7 @@ docs/
   deploy/onekey.html      一键脚本说明（交互模式、参数、卸载行为）
   deploy/troubleshooting.html  独立排查手册
   deploy/scripts/         可直接拷到服务器执行的脚本
+  quality/                SSH 加固专题：fwknop SPA 关掉 22 端口，多客户端密钥模型 + 三个幂等脚本
   diagrams/               四张交互式架构图 + 校验回执 JSON
   README.md               文档索引
 prompt.txt                原始需求稿
