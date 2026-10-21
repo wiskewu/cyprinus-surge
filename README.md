@@ -34,7 +34,7 @@ docs/
   方案.md                 完整文字方案：选型/协议/分流与 DNS/IP 门禁/运维/验收/风险
   index.html              推荐入口：单文件可视化方案（内联四张架构图，可离线打开）
   vps-shortlist.html      采购清单：6 家厂商 8 个机型，含线路、价格、换 IP 能力
-  deploy/index.html       部署手册：6 步主流程（每步内联对应脚本源码，避免文档漂移）
+  deploy/index.html       部署手册：6 步主流程，每步只写命令与参数，脚本本体在 scripts/
   deploy/onekey.html      一键脚本说明（交互模式、参数、卸载行为）
   deploy/troubleshooting.html  独立排查手册
   deploy/scripts/         可直接拷到服务器执行的脚本
@@ -64,7 +64,7 @@ cd /root/deploy && bash deploy.sh             # 交互：逐步骤询问 复用/
 
 ## 维护文档
 
-- `docs/deploy/*.html` 由 `.build/deploy/build.mjs` 从 `.build/deploy/pages/` 模板生成，并把 `scripts/*` 内联进页面；`docs/quality/*.html` 同理走 `.build/quality/build.mjs`。改脚本后重跑构建即可。
+- `docs/deploy/*.html` 与 `docs/quality/*.html` 都由 `build.mjs` 从 `.build/*/pages/` 生成。构建支持 `{{SCRIPT:文件名}}` 占位符把脚本源码内联进页面（目前只有 `quality/` 用到，`docs/quality/*.html` 内联的源码与 `docs/quality/scripts/` 逐字节一致）；`deploy/` 页面只引用脚本名，不内联源码。改脚本后重跑构建即可。
 - `docs/diagrams/*.html` 与 `docs/quality/diagrams/*.html` 由 [archify](https://github.com/tt-a1i/archify) 生成，同目录 `*.finalize-summary.json` 为 validate/deliver/check/browser-check 的校验回执。
 - `.build/`、`.archify/`、`data/` 为本机工具与运行产物，已在 `.gitignore` 中排除（`data/` 含真实 `client.env` 与凭据，勿提交、勿外发）。
 

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:,">
-<title>为什么 · SSH 加固手册</title>
+<title>多客户端密钥 · SSH 加固手册</title>
 <style>
 :root{--ink:#161a21;--ink2:#4a5361;--ink3:#6f7886;--line:#e4e8ee;--line2:#f0f3f7;--bg:#f7f8fa;--card:#fff;--acc:#0d6b58;--acc2:#e9f5f2;--warn:#9a5608;--warn2:#fdf4e7;--bad:#a21f36;--bad2:#fdeef1;--info:#1d4ed8;--info2:#eef2ff;--r:10px}
 *{box-sizing:border-box}
@@ -71,61 +71,71 @@ details .body{padding:4px 14px 14px}
 </style>
 </head>
 <body>
-<header class="top"><div class="wrap"><a class="home" href="index.html">SSH 加固手册</a><span class="crumb">1 · 为什么</span></div></header>
-<nav class="nav"><div class="wrap"><a href="index.html">0 · 总览</a><a href="01-why.html" aria-current="page">1 · 为什么</a><a href="02-flow.html">2 · 访问链路</a><a href="03-keys.html">3 · 多客户端密钥</a><a href="04-deploy.html">4 · 部署</a><a href="05-verify.html">5 · 验收与运维</a><a href="06-ops.html">6 · 排查</a></div></nav>
+<header class="top"><div class="wrap"><a class="home" href="index.html">SSH 加固手册</a><span class="crumb">2 · 多客户端密钥</span></div></header>
+<nav class="nav"><div class="wrap"><a href="index.html">0 · 总览</a><a href="01-how.html">1 · 工作原理</a><a href="02-keys.html" aria-current="page">2 · 多客户端密钥</a><a href="03-deploy.html">3 · 部署</a><a href="04-verify.html">4 · 验收与运维</a><a href="05-ops.html">5 · 排查</a></div></nav>
 <main class="wrap">
-<h1>1 · 为什么</h1>
-<p class="lede">先说清楚这件事解决的是什么、不是什么。它<b>不是</b>「把 22 换成 2222」，也不是「让攻击者多花点时间」——是让 <code>sshd</code> 在互联网上根本不接受连接。</p>
+<h1>2 · 多客户端密钥</h1>
+<p class="lede">一台设备一把密钥，删一行就是吊销那台，其余不受影响。</p>
 
-<h2>已经做到的两件事，和它们没做到的</h2>
-<p>这两样都值得做，本方案也假设你已经做了：</p>
+<h2>两种模式</h2>
 <div class="tw">
 <table>
-<thead><tr><th>已经做到的</th><th>仍然是暴露的</th></tr></thead>
+<thead><tr><th></th><th>每设备独立 <span class="tag ok">推荐</span></th><th>全部共用 <span class="tag warn">简单</span></th></tr></thead>
 <tbody>
-<tr><td><code>PasswordAuthentication no</code>，爆破没有意义</td><td>22 端口对全互联网开放，任何扫描器都能连上并拿到 banner 和版本号</td></tr>
-<tr><td>fail2ban 封掉来源 IP</td><td>OpenSSH 一旦出 0day，暴露窗口从「爆破」变成「直接打 daemon」</td></tr>
-<tr><td>失败尝试被静音</td><td>日志里<b>仍然每天堆着</b>连接尝试——因为确实有人在连</td></tr>
+<tr><td>生成命令</td><td><code>--clients "laptop phone"</code></td><td><code>--shared</code></td></tr>
+<tr><td>吊销一台</td><td>删一个 stanza，<b>其余不受影响</b></td><td><b>全换</b>，所有设备重配</td></tr>
+<tr><td>密钥泄露影响面</td><td>一台</td><td>所有设备</td></tr>
 </tbody>
 </table>
 </div>
-<p>这三行里真正的差别只有一条：<b>「已经暴露」和「还没暴露」的差别</b>。前两行是认证后的强度，第三行是暴露后的噪音。SPA 动的是第三行的前提——让噪音根本不存在。</p>
+<p>代价只是多一个密钥包文件，脚本已经替你做了。</p>
 
-<h2>端口敲击为什么不够</h2>
-<p>端口敲击（port knocking）的想法很简单：按顺序连 7000 → 8000 → 9000，服务端识别到序列就临时打开 22。</p>
-<pre><code>你                     服务器
- │── TCP 连 7000 ───────►│  记下
- │── TCP 连 8000 ───────►│  序列差一个
- │── TCP 连 9000 ───────►│  命中，开 22</code></pre>
-<p>致命伤在最后一句之前就已经注定了：<b>这个序列是明文的</b>。任何能看到你流量的人抓下来重放即可，而且整个过程<b>没有任何认证</b>——只有「藏」。区别只是猜端口号比抓包容易。</p>
+<h2>为什么可以靠密钥区分设备</h2>
+<p><code>access.conf</code> 支持多个 stanza，服务端收到包后<b>逐个试解密</b>，只有对上的那个能开规则（<code>server/incoming_spa.c</code> 的 <code>incoming_spa()</code>）。所以所有 stanza 都写 <code>SOURCE ANY</code>——客户端会换 IP，靠地址区分在漫游时直接失效。</p>
 
-<h2>SPA 换了什么</h2>
-<p>单包授权（Single Packet Authorization）把「一串明文连接尝试」换成<b>一个加密并签名的 UDP 包</b>：</p>
+<h2>密钥包</h2>
+<p>服务端那份（<b>不要发给任何一台客户端</b>）：</p>
+<pre><code>SPA_PORT=62201
+SSH_PORT=22
+ACCESS_TIMEOUT=120
+MAX_FW_TIMEOUT=300
+HOSTS="server1=203.0.113.10 server2=198.51.100.7"
+CLIENTS="laptop=&lt;KEY&gt;:&lt;HMAC&gt; phone=&lt;KEY&gt;:&lt;HMAC&gt;"</code></pre>
+<p>每台客户端那份只含自己：</p>
+<pre><code>HOSTS="server1=203.0.113.10 server2=198.51.100.7"
+CLIENT_NAME=laptop
+CLIENTS="laptop=&lt;KEY&gt;:&lt;HMAC&gt;"</code></pre>
+<div class="bad"><b>格式坑：</b>每客户端的键值必须写在<b>一行带引号的 <code>CLIENTS="..."</code></b> 里。写成 <code>CLIENT laptop=...</code> 不是合法 shell 赋值，脚本 source 这个文件时会直接报 <code>CLIENT: command not found</code>。</div>
+
+<h2>渲染出的 access.conf</h2>
+<pre><code># --- laptop ---
+SOURCE ANY;
+OPEN_PORTS tcp/22;
+FW_ACCESS_TIMEOUT 120;
+MAX_FW_TIMEOUT 300;
+KEY_BASE64        &lt;laptop 的密钥&gt;;
+HMAC_KEY_BASE64   &lt;laptop 的 HMAC 密钥&gt;;</code></pre>
 <div class="tw">
 <table>
-<thead><tr><th></th><th>端口敲击</th><th>SPA</th></tr></thead>
+<thead><tr><th>字段</th><th>含义</th></tr></thead>
 <tbody>
-<tr><td>传输内容</td><td>明文端口号序列</td><td>加密后的 SPA 包（可达 MTU）</td></tr>
-<tr><td>认证</td><td>无</td><td>独立 HMAC 密钥签名（encrypt-then-authenticate）</td></tr>
-<tr><td>重放</td><td>抓下来重放即成功</td><td>包内带时间戳与一次性序列号，任一不符静默丢弃</td></tr>
-<tr><td>拒绝服务</td><td>往序列里插一个包就能把客户端锁在外面</td><td>无效包不进解密流程，也没有序列可污染</td></tr>
-<tr><td>给攻击者的反馈</td><td>时序差异</td><td>没有：解不开的包被静默丢掉，和丢包无差别</td></tr>
+<tr><td><code>OPEN_PORTS</code></td><td>收到有效包后开哪些端口，服务端说了算</td></tr>
+<tr><td><code>FW_ACCESS_TIMEOUT</code></td><td>规则保留多少秒（不设默认 30）</td></tr>
+<tr><td><code>MAX_FW_TIMEOUT</code></td><td>封顶，客户端 <code>--fw-timeout</code> 也拿不到超过这个值（不设默认 300）</td></tr>
 </tbody>
 </table>
 </div>
+<p>没开 <code>PERMIT_CLIENT_PORTS</code>，所以客户端在 <code>ACCESS</code> 里写什么都改变不了服务端放行的端口。脚本渲染后会自检：stanza 数必须等于密钥组数，对不上就退出。</p>
 
-<h2>这是遮蔽，还是真关闭</h2>
-<p>关键差别在扫描器看到什么：</p>
-<pre><code>$ nmap -Pn -p22 203.0.113.10
-Host 203.0.113.10 is up (0.02s latency).
-Not shown: 22/tcp filtered          ← 不是 closed</code></pre>
-<p><code>closed</code> 意味着「有主机回了 RST，确实有东西在监听」。<code>filtered</code> 意味着「静默丢包，没有任何证据表明这里存在服务」。SPA 给的是后者。</p>
+<h2>吊销与轮换</h2>
+<pre><code># 吊销一台：从密钥包去掉那台，重跑服务端
+sudo bash 10-server.sh --keys spa-keys.env
 
-<div class="note"><b>所以这不是 security through obscurity。</b>端口不是藏在一个难猜的号码后面，它是真的关着。SPA 包是<b>你属于这里</b>的证明，和钥匙证明你属于锁着的房间是同一回事。难猜只是副作用。</div>
+# 全量轮换：--force 重新生成，分发新包，逐台重跑
+bash 00-gen-keys.sh --hosts "..." --clients "laptop phone" --force</code></pre>
+<p>两套 stanza 可以共存，所以能先加新的、确认都迁走了再删旧的。<b>吊销后顺手把设备上那份密钥包删掉</b>——服务端拒绝对它只是「连不上」，本地文件仍是有效凭据。</p>
 
-<div class="warn"><b>SPA 也不是万能的。</b>它挡的是「没钥匙的人连不上 sshd」。服务器自身的 OpenSSH 0day 依然要靠及时打补丁；拿到密钥的中间人攻击依然成立。它改变的是<b>暴露窗口</b>，不是消灭漏洞。完整限制见 <a href="06-ops.html#limits">第 6 页</a>。</div>
-
-<p style="margin-top:24px"><a href="index.html">← 回到总览</a>　·　<a href="02-flow.html">下一步：访问链路 →</a></p>
+<p style="margin-top:24px"><a href="01-how.html">← 上一步</a>　·　<a href="03-deploy.html">下一步：部署 →</a></p>
 </main>
 <footer class="foot"><div class="wrap">
 本手册与 <a href="../deploy/index.html">节点部署手册</a> · <a href="../index.html">方案总览</a> 配套。服务端命令在 Debian 12/13、Ubuntu 22.04/24.04 上验证；<code>fwknop-server</code> 与 <code>fwknop-client</code> 均来自 Debian 官方源。仅限本人自用科研学习，遵守所在地法律法规与服务条款。

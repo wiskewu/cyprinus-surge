@@ -6,8 +6,8 @@
 |---|---|
 | **[index.html](index.html)** | **推荐入口**：单文件方案可视化（内联四张已校验的架构图，可离线打开） |
 | [vps-shortlist.html](vps-shortlist.html) | 服务器入门采购清单：满足下单门槛的 6 家厂商 / 8 个机型，含价格、线路、支付宝/Visa 支持、按小时与换 IP 能力 |
-| [deploy/index.html](deploy/index.html) | **部署手册**：6 步主流程 + [一键脚本](deploy/onekey.html) + 独立排查手册；`scripts/deploy.sh` 由 `build-onekey.sh` 从 `steps/*.sh` 生成 |
-| [quality/index.html](quality/index.html) | **SSH 加固手册**：用 fwknop SPA 把 22 端口彻底关掉；6 页（[为什么](quality/01-why.html) → [访问链路](quality/02-flow.html) → [多客户端密钥](quality/03-keys.html) → [部署](quality/04-deploy.html) → [验收与运维](quality/05-verify.html) → [排查](quality/06-ops.html)），可离线打开 |
+| [deploy/index.html](deploy/index.html) | **部署手册**：6 步主流程 + [一键脚本](deploy/onekey.html) + 独立排查手册；页面只写命令与参数，`scripts/deploy.sh` 由 `build-onekey.sh` 从 `steps/*.sh` 生成 |
+| [quality/index.html](quality/index.html) | **SSH 加固手册**：用 fwknop SPA 把 22 端口彻底关掉；5 页（[工作原理](quality/01-how.html) → [多客户端密钥](quality/02-keys.html) → [部署](quality/03-deploy.html) → [验收与运维](quality/04-verify.html) → [排查](quality/05-ops.html)），可离线打开 |
 | [方案.md](方案.md) | 完整文字方案：选型、协议、客户端配置骨架、分流与 DNS、IP 门禁、运维与故障手册、实施验收、成本、风险、参考来源 |
 | [quality/README.md](quality/README.md) | 同一批内容的 Markdown 版（多客户端密钥模型 + 三个幂等脚本），基于 [原文](https://www.michelebologna.net/2026/ssh-port-22-fwknop-single-packet-authorization/) 校对并补上多客户端方案 |
 | [diagrams/01-architecture.html](diagrams/01-architecture.html) | 图 1 总体架构（独立交互版，可切主题） |

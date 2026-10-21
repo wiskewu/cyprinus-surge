@@ -19,6 +19,8 @@
 
 原文那句话说得准：SPA 不是「换个端口号」这种遮蔽，**22 端口是真的关着**，nmap 看到的是 `filtered`，不是 `closed`。
 
+> **SPA 和免密登录是叠加的两层，不是二选一。** 免密解决「连上了也无法登录」，SPA 解决「根本连不上」。两者同时开才有意义：先跑 [部署手册第 1 步](../deploy/01-init.html) 拿掉密码登录，再用本文把它挡在门外。反过来只做 SPA 而不关密码，等于给爆破留了个 120 秒的窗口。
+
 ## 2. SPA 是什么，以及端口敲击为什么不够
 
 **端口敲击（port knocking）**：按顺序连 7000 → 8000 → 9000，服务端识别到序列就临时开 22。
@@ -217,6 +219,8 @@ sudo systemctl restart fwknop-server     # 让它把跳转插回去
 
 **注意 `PCAP_FILTER`**：服务端默认只嗅探 `udp port 62201`。客户端用了 `fwknop --rand-port` 就打不进来，得把服务端这一行放宽成 `udp dst portrange 10000-65535`。
 
+**第二层防火墙**：ufw 只是里层，云厂商控制台里的安全组 / 云防火墙是外层，脚本碰不到。装完 SPA 后必须在外层手工放行 `62201/udp`，否则敲门包根本到不了网卡；外层的 SSH 端口则可以在收口验证通过后删掉。具体见第 11、12 节。
+
 **并行接入通道**：建议在同网（如 Tailscale / WireGuard 的 `tailscale0`）上再留一条不经敲门的路，并让 ufw 放行该接口：
 
 ```bash
@@ -254,9 +258,29 @@ ssh_public: "{{ not (fwknop_enabled | default(false) | bool) }}"
 | 客户端报密钥相关错误 | 服务端和客户端的密钥对不上。多半是客户端装 fwknop 时自带的样例 `~/.fwknoprc` 覆盖了生成的版本 |
 | 服务端 fwknopd 起不来 | `fwknopd -F` 前台跑看报错。常见是 `access.conf` 里混进了空格或中文标点 |
 | `nmap` 显示 22 是 `closed` 而不是 `filtered` | 还有别的东西在放行 22（云厂商的安全组、`ufw` 的其他规则） |
+| 日志里没有 SPA 记录 | 包根本没到。先查云厂商安全组有没有放行 62201/udp（外层防火墙），再服务端 `tcpdump -i any udp port 62201`；两处都正常才是服务商封了 UDP |
+| `ssh` 卡在 `kex_exchange_identification` | 你本机的 TUN 把 SSH 也给代理了，见下 |
+| 测出来的延迟/丢包漂亮，实际用很差 | 测量机器自己的 TUN 会污染结果，见下 |
 | Docker 改了 iptables 导致 SPA 失效 | Docker 重写 FORWARD/nat 链时可能影响跳转。用 `IPT_INPUT_ACCESS` 的位置参数兜底，或把 fwknopd 的跳转移到自己的链里手工维护 |
 
-## 12. 已知限制
+## 12. 本机 TUN 会捕获 SSH 与测速
+
+如果你自己电脑上跑着 Clash / sing-box 的 TUN（虚拟网卡），**连新服务器的 SSH 也会被隧道接管**——新 IP 不在隧道的直连规则里，握手死在半路。症状是 `kex_exchange_identification: Connection closed` 或干脆超时，但服务器明明在跑。
+
+```bash
+# macOS
+sudo route -n add -host <服务器IP> <你的局域网网关>
+# Linux
+sudo ip route add <服务器IP> via <局域网网关>
+# 用完删掉
+sudo route -n delete -host <服务器IP>
+```
+
+更简单的办法：部署期间先把 TUN 关掉。
+
+**本机有 TUN 时，测出来的每一个数字都可能是假的。** 跑着代理客户端的机器会把自己的 `nc` / `mtr` / `curl` 也送进隧道，于是「端口通」「延迟很低」全是隧道内的回环表现。验收前先确认测试机器上**没有**任何代理客户端在跑。唯一在隧道开启时仍可靠的信号是 `ping`——ICMP 通常不被代理接管。
+
+## 13. 已知限制
 
 - **不是万能**。SPA 挡的是「没钥匙的人连不上 sshd」。服务器自身的 OpenSSH 0day 依然要靠及时打补丁；拿到密钥的中间人攻击也依然成立。原文说得对：SPA 改变的是**暴露窗口**，不是消灭漏洞。
 - **密钥就是命门**。密钥泄露 = 22 端口随时对攻击者开放，且不会有任何日志异常（在他看来就是一次合法敲门）。
@@ -265,7 +289,7 @@ ssh_public: "{{ not (fwknop_enabled | default(false) | bool) }}"
 - **`ALLOW_IP resolve` 需要能访问外网**（fwknop 查公网 IP 的服务）。固定 IP 的机器可以在 `~/.fwknoprc` 里直接写死 `ALLOW_IP <你的IP>`。
 - **本文脚本按 Debian/Ubuntu 写**（`apt` + `ufw` + systemd，服务端包 `fwknop-server`、客户端包 `fwknop-client`）。其他发行版照着改；客户端脚本已额外支持 brew / pacman。
 
-## 13. 文件
+## 14. 文件
 
 ```
 docs/quality/

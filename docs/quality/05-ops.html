@@ -71,75 +71,84 @@ details .body{padding:4px 14px 14px}
 </style>
 </head>
 <body>
-<header class="top"><div class="wrap"><a class="home" href="index.html">SSH 加固手册</a><span class="crumb">6 · 排查</span></div></header>
-<nav class="nav"><div class="wrap"><a href="index.html">0 · 总览</a><a href="01-why.html">1 · 为什么</a><a href="02-flow.html">2 · 访问链路</a><a href="03-keys.html">3 · 多客户端密钥</a><a href="04-deploy.html">4 · 部署</a><a href="05-verify.html">5 · 验收与运维</a><a href="06-ops.html" aria-current="page">6 · 排查</a></div></nav>
+<header class="top"><div class="wrap"><a class="home" href="index.html">SSH 加固手册</a><span class="crumb">5 · 排查</span></div></header>
+<nav class="nav"><div class="wrap"><a href="index.html">0 · 总览</a><a href="01-how.html">1 · 工作原理</a><a href="02-keys.html">2 · 多客户端密钥</a><a href="03-deploy.html">3 · 部署</a><a href="04-verify.html">4 · 验收与运维</a><a href="05-ops.html" aria-current="page">5 · 排查</a></div></nav>
 <main class="wrap">
-<h1>6 · 排查</h1>
-<p class="lede">症状 → 查什么，以及这套方案真正的边界在哪。</p>
+<h1>5 · 排查</h1>
+<p class="lede">症状 → 查什么，以及这套方案真正的边界。</p>
 
 <h2>故障速查</h2>
 <div class="tw">
 <table>
 <thead><tr><th>现象</th><th>查什么</th></tr></thead>
 <tbody>
-<tr><td><code>ssh</code> 直接超时</td><td>服务端 <code>journalctl -u fwknop-server -n 50</code>；客户端 <code>fwknop -n &lt;host&gt; -v</code>。UDP 被中间设备丢了 → 重敲一次</td></tr>
+<tr><td><code>ssh</code> 直接超时</td><td>服务端 <code>journalctl -u fwknop-server -n 50</code>；客户端 <code>fwknop -n &lt;host&gt; -v</code>。UDP 被丢了 → 重敲一次</td></tr>
 <tr><td>敲门后仍连不上</td><td><code>iptables -S FWKNOP_INPUT</code> 看规则插上没有；<code>iptables -S INPUT | grep FWKNOP_INPUT</code> 看跳转还在不在（多半是 ufw reload 过）</td></tr>
-<tr><td>客户端报「stanza not found」</td><td><code>~/.fwknoprc</code> 里没有 <code>[&lt;主机名&gt;]</code> 段。fwknop 装完会丢一个全注释的同名样例文件，脚本会先备份成 <code>~/.fwknoprc.bak</code></td></tr>
-<tr><td>客户端报密钥相关错误</td><td>服务端和客户端密钥对不上。多半是客户端装 fwknop 时自带的样例 <code>~/.fwknoprc</code> 覆盖了生成的版本</td></tr>
-<tr><td>服务端 fwknopd 起不来</td><td><code>fwknopd -F</code> 前台跑看报错。常见是 <code>access.conf</code> 里混进了空格或中文标点</td></tr>
-<tr><td><code>nmap</code> 显示 22 是 <code>closed</code> 而非 <code>filtered</code></td><td>还有别的东西在放行 22：云厂商安全组、ufw 的其他规则、还有 <code>/etc/hosts.allow</code> 之类</td></tr>
-<tr><td>日志里没有 SPA 记录</td><td>包根本没到。服务端 <code>tcpdump -i any udp port 62201</code> 确认；没有就是服务商封了 UDP 或非标端口</td></tr>
-<tr><td>客户端卡在 resolve</td><td><code>ALLOW_IP resolve</code> 需要能访问外网。固定 IP 的机器在 <code>[default]</code> 里写死 <code>ALLOW_IP &lt;你的IP&gt;</code></td></tr>
+<tr><td>客户端报「stanza not found」</td><td><code>~/.fwknoprc</code> 里没有 <code>[&lt;主机名&gt;]</code> 段。fwknop 装完会丢一个全注释的同名样例，脚本先备份成 <code>~/.fwknoprc.bak</code></td></tr>
+<tr><td>客户端报密钥错误</td><td>两端密钥对不上。多半是自带的样例 <code>~/.fwknoprc</code> 覆盖了生成的版本</td></tr>
+<tr><td>服务端 fwknopd 起不来</td><td><code>fwknopd -F</code> 前台跑。常见是 <code>access.conf</code> 里混进空格或中文标点</td></tr>
+<tr><td>日志里没有 SPA 记录</td><td>包根本没到。先查云安全组有没有放行 <code>62201/udp</code>，再 <code>tcpdump -i any udp port 62201</code>；两处都正常才是服务商封了 UDP</td></tr>
+<tr><td><code>nmap</code> 显示 22 是 <code>closed</code></td><td>还有别的东西在放行：云安全组、ufw 其他规则</td></tr>
+<tr><td>客户端卡在 resolve</td><td><code>ALLOW_IP resolve</code> 需要能访问外网。固定 IP 在 <code>[default]</code> 里写死 <code>ALLOW_IP &lt;你的IP&gt;</code></td></tr>
+<tr><td><code>ssh</code> 卡在 <code>kex_exchange_identification</code></td><td>你本机的 TUN 把 SSH 也代理了，见下</td></tr>
+<tr><td>测出的延迟漂亮、实际很差</td><td>测量机器自己的 TUN 污染了结果，见下</td></tr>
 </tbody>
 </table>
 </div>
 
+<h2>本机 TUN 捕获 SSH 与测速</h2>
+<p>本机跑着 Clash / sing-box 的 TUN 时，连新服务器的 SSH 也会被隧道接管（新 IP 不在直连规则里）。症状是 <code>kex_exchange_identification</code> 或超时，但服务器明明在跑。</p>
+<pre><code># macOS
+sudo route -n add -host &lt;服务器IP&gt; &lt;局域网网关&gt;
+# Linux
+sudo ip route add &lt;服务器IP&gt; via &lt;局域网网关&gt;
+# 用完删掉
+sudo route -n delete -host &lt;服务器IP&gt;</code></pre>
+<p>更简单：部署期间先关掉 TUN。</p>
+<div class="warn"><b>本机有 TUN 时，测出来的每个数字都可能是假的。</b>跑着代理客户端的机器会把 <code>nc</code> / <code>mtr</code> / <code>curl</code> 也送进隧道。验收前先确认测试机器上<b>没有</b>代理客户端在跑。唯一仍可靠的是 <code>ping</code>——ICMP 通常不被代理接管。</div>
+
 <h2 id="ufw">与 ufw 的关系</h2>
-<p>fwknopd 自己往 <code>FWKNOP_INPUT</code> 链插规则，跳转规则插在 <code>INPUT</code> 的<b>第 1 位</b>：</p>
 <pre><code>IPT_INPUT_ACCESS   ACCEPT, filter, INPUT, 1, FWKNOP_INPUT, 1;
-#                                        ↑ 位置 1，先于 ufw 的链求值</code></pre>
-<p>所以 <b>SPA 开的口子不会被 ufw 挡掉</b>。代价是 <code>ufw status</code> 里看不到这些临时规则——它不知道 fwknopd 存在。</p>
-
-<div class="bad"><b>最大的坑：<code>ufw enable</code> / <code>ufw reload</code> / <code>ufw reset</code> 会重建 INPUT 链，把跳转规则冲掉。</b>之后 SPA <b>静默失效</b>——客户端不报错，<code>fwknop</code> 正常发包，SSH 直接超时。任何 ufw 变更之后：<pre><code>sudo systemctl restart fwknop-server     # 让它把跳转插回去</code></pre><code>10-server.sh</code> 每次改完 ufw 都会自动重启一次。</div>
-
-<h3>检查跳转还在不在</h3>
-<pre><code>iptables -S INPUT | grep FWKNOP_INPUT     # 有输出 = 正常（在第 1 位）
-sudo bash 10-server.sh --status</code></pre>
+#                                        ↑ 第 1 位，先于 ufw 的链求值</code></pre>
+<p>SPA 开的口子不会被 ufw 挡掉。代价是 <code>ufw status</code> 里看不到这些临时规则。</p>
+<div class="bad"><b><code>ufw enable</code> / <code>reload</code> / <code>reset</code> 会重建 INPUT 链，冲掉跳转规则，之后 SPA 静默失效</b>（客户端不报错，SSH 直接超时）。任何 ufw 变更之后：<pre><code>sudo systemctl restart fwknop-server</code></pre>脚本每次改完 ufw 都会自动重启一次。</div>
+<p>检查跳转还在不在：<code>iptables -S INPUT | grep FWKNOP_INPUT</code>，有输出就是正常。</p>
 
 <h2>嗅探端口</h2>
-<p>服务端默认只嗅探 <code>udp port 62201</code>（<code>PCAP_FILTER</code>）。客户端用了 <code>fwknop --rand-port</code> 就打不进来，得把这一行放宽：</p>
-<pre><code>PCAP_FILTER   udp dst portrange 10000-65535;</code></pre>
-<p>更省事的做法是别用随机端口。改完重启 <code>fwknop-server</code>。</p>
+<p>服务端默认只嗅探 <code>udp port 62201</code>。客户端用了 <code>--rand-port</code> 就打不进来，得把 <code>fwknopd.conf</code> 里 <code>PCAP_FILTER</code> 放宽成 <code>udp dst portrange 10000-65535</code>。更省事是别用随机端口。</p>
 
 <h2 id="backup">并行接入通道</h2>
-<p>建议在同网（如 Tailscale / WireGuard 的 <code>tailscale0</code>）上再留一条不经敲门的路：</p>
 <pre><code>sudo ufw allow in on tailscale0</code></pre>
-<p>它的作用不是「fwknop 坏了的备份」，而是<b>一条独立存在的路</b>：公网配置写错了，你仍然能从 tailnet 进去修。VPS 上的 Tailscale 本身也吃 SSH 规则，所以这两件事是配套的。</p>
+<p>它的作用不是「SPA 坏了的备份」，而是<b>一条独立存在的路</b>：公网配置写错了，你仍能从 tailnet 进去修。VPS 上的 Tailscale 本身也吃 SSH 规则，两件事配套。</p>
 
-<h2>Docker 的影响</h2>
-<p>Docker 启动时会重写 <code>FORWARD</code> 和 <code>nat</code> 链。fwknopd 的跳转在 <code>INPUT</code> 上，理论上不受影响，但如果发现 SPA 时好时坏：</p>
-<pre><code>iptables -S INPUT | head -5          # 确认跳转还在第 1 位
-sudo systemctl restart fwknop-server # 重插一次</code></pre>
+<h2>第二层防火墙</h2>
+<div class="bad"><b>ufw 只是里层，云厂商安全组是外层，脚本碰不到。</b>不在外层放行 <code>62201/udp</code>，敲门包到不了网卡。</div>
+<div class="tw">
+<table>
+<thead><tr><th>端口</th><th>协议</th><th>谁用</th></tr></thead>
+<tbody>
+<tr><td>62201</td><td>UDP</td><td>SPA 敲门包，<b>必须在外层放行</b></td></tr>
+<tr><td>你的 SSH 端口</td><td>TCP</td><td>收口验证通过后可从安全组删掉</td></tr>
+</tbody>
+</table>
+</div>
 
 <h2 id="limits">已知限制</h2>
 <ul>
-<li><b>不是万能。</b>SPA 挡的是「没钥匙的人连不上 sshd」。OpenSSH 自身的 0day 依然要靠及时打补丁；拿到密钥的中间人攻击依然成立。它改变的是<b>暴露窗口</b>。</li>
-<li><b>密钥就是命门。</b>密钥泄露 = 22 端口随时对攻击者开放，而且<b>不会有任何异常日志</b>——在他看来就是一次合法敲门。</li>
-<li><b>需要 UDP 出境。</b>对 UDP 严格管控的网络（部分校园网、公司网）里 62201/udp 可能不通，SPA 反而挡了你的路——那种环境本来就该走别的路。</li>
-<li><b>服务商可能封 UDP 或非标端口。</b>被封的表现和「客户端丢包」一模一样，先在服务端 <code>tcpdump</code> 确认包到没到。</li>
-<li><b>并发受限。</b>每台设备每次敲门生成一条规则；同一个 IP 短时间内多次敲门会累积多条规则，靠 <code>iptables</code> 的超时清理。<code>MAX_FW_TIMEOUT</code> 封顶就是防止客户端给自己开超长窗口。</li>
-<li><b>脚本按 Debian/Ubuntu 写</b>（apt + ufw + systemd；服务端包 <code>fwknop-server</code>、客户端包 <code>fwknop-client</code>）。其他发行版照着改；客户端脚本已额外支持 brew / pacman。</li>
+<li><b>不是万能。</b>挡的是「没密钥的人连不上 sshd」。OpenSSH 自身的 0day 仍要靠及时打补丁；拿到密钥的中间人依然成立。改变的是<b>暴露窗口</b>。</li>
+<li><b>密钥就是命门。</b>泄露 = 22 随时对攻击者开放，且<b>日志里没有任何异常</b>——在他看来就是一次合法敲门。</li>
+<li><b>需要 UDP 出境。</b>部分校园网/公司网封 UDP 时 SPA 反而挡了你的路。</li>
+<li><b>服务商可能封 UDP 或非标端口。</b>表现和「客户端丢包」一模一样，先 <code>tcpdump</code> 确认包到没到。</li>
+<li><b>脚本按 Debian/Ubuntu 写</b>（apt + ufw + systemd；服务端包 <code>fwknop-server</code>、客户端包 <code>fwknop-client</code>）。客户端脚本已支持 brew / pacman。</li>
 </ul>
 
 <h2>参考</h2>
 <ul>
-<li><a href="https://www.michelebologna.net/2026/ssh-port-22-fwknop-single-packet-authorization/">Why I close SSH port 22 entirely</a>（Michele Bologna, 2026-06-11）——本手册的出发点，多客户端部分按其「一组共享密钥」扩写</li>
-<li><a href="https://www.cipherdyne.org/fwknop/docs/fwknop-tutorial.html">fwknop 官方教程</a></li>
-<li><a href="https://manpages.debian.org/unstable/fwknop-server/fwknopd.8.en.html">fwknopd(8)</a> —— <code>access.conf</code> 与 <code>fwknopd.conf</code> 的完整指令表</li>
-<li>fwknop 源码 <code>server/incoming_spa.c</code> 的 <code>incoming_spa()</code>——「逐 stanza 试密钥」的权威依据</li>
+<li><a href="https://www.michelebologna.net/2026/ssh-port-22-fwknop-single-packet-authorization/">Why I close SSH port 22 entirely</a>——本手册的出发点，多客户端部分按其「一组共享密钥」扩写</li>
+<li><a href="https://www.cipherdyne.org/fwknop/docs/fwknop-tutorial.html">fwknop 官方教程</a> · <a href="https://manpages.debian.org/unstable/fwknop-server/fwknopd.8.en.html">fwknopd(8)</a></li>
 </ul>
 
-<p style="margin-top:24px"><a href="05-verify.html">← 上一步</a>　·　<a href="index.html">回到总览</a></p>
+<p style="margin-top:24px"><a href="04-verify.html">← 上一步</a>　·　<a href="index.html">回到总览</a></p>
 </main>
 <footer class="foot"><div class="wrap">
 本手册与 <a href="../deploy/index.html">节点部署手册</a> · <a href="../index.html">方案总览</a> 配套。服务端命令在 Debian 12/13、Ubuntu 22.04/24.04 上验证；<code>fwknop-server</code> 与 <code>fwknop-client</code> 均来自 Debian 官方源。仅限本人自用科研学习，遵守所在地法律法规与服务条款。

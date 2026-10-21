@@ -208,10 +208,30 @@ curl -s -H "Authorization: Bearer $S" "http://$C/connections" | grep -o '"chains
 <tr><td>国内站点变慢</td><td>规则集没更新或 <code>sniff</code> 未生效；看连接列表的 chains</td></tr>
 <tr><td>突然全部失效且时间异常</td><td>NTP 漂移：<code>timedatectl set-ntp true</code> + 重启 timesyncd</td></tr>
 <tr><td>流量超了变慢</td><td>限速到 1Mbps（不是停机），<code>vnstat -m</code> 确认</td></tr>
-<tr><td>SSH 端口连不上</td><td>从控制台执行 <code>ufw allow 你的端口/tcp &amp;&amp; ufw reload</code>，再带 <code>SSH_PORT=</code> 重跑 <code>00</code></td></tr>
+<tr><td>SSH 端口连不上</td><td>先确认不是云厂商安全组挡的（<a href="01-init.html">第二层防火墙</a>）：控制台里也要放行你的 SSH 端口。然后从控制台执行 <code>ufw allow 你的端口/tcp &amp;&amp; ufw reload</code>，再带 <code>SSH_PORT=</code> 重跑 <code>00</code></td></tr>
+<tr><td>443 通但 8443 超时（或反过来）</td><td>几乎肯定是云厂商安全组只放行了部分端口。两层都要配</td></tr>
+<tr><td>连新服务器 SSH 卡在 <code>kex_exchange_identification</code></td><td><b>你本机的 TUN 把 SSH 也给代理了。</b>见下方「本机 TUN 捕获 SSH」</td></tr>
+<tr><td>测出来延迟/丢包漂亮，实际用很差</td><td>测量机器自己的 TUN 会污染结果，见下方「测量视角」</td></tr>
 </tbody>
 </table>
 </div>
+
+<h2>本机 TUN 捕获 SSH</h2>
+<p>如果你自己电脑上跑着 Clash / sing-box 之类的 TUN（虚拟网卡），<b>连新服务器的 SSH 也会被隧道接管</b>——新 IP 不在隧道的直连规则里，握手就死在半路。症状是 <code>kex_exchange_identification: Connection closed</code> 或者干脆超时，但服务器明明在跑。</p>
+<p>加一条宿主路由绕开隧道：</p>
+<pre><code># macOS
+sudo route -n add -host &lt;服务器IP&gt; &lt;你的局域网网关&gt;
+# Linux
+sudo ip route add &lt;服务器IP&gt; via &lt;局域网网关&gt;</code></pre>
+<p>用完删掉：<code>sudo route -n delete -host &lt;服务器IP&gt;</code>。更简单的办法是部署期间先把 TUN 关掉。</p>
+
+<h2>测量视角</h2>
+<div class="warn"><b>本机有 TUN 时，测出来的每一个数字都可能是假的。</b>一个跑着代理客户端的机器会把自己的 <code>curl</code> / <code>nc</code> 也送进隧道里，于是「延迟很低」「端口通」都是隧道内的回环表现，不是真实链路。验收前先确认测试机器上<b>没有</b>任何代理客户端在跑。</div>
+<p>唯一在隧道开启时仍然可靠的信号是 <code>ping</code>——ICMP 通常不被代理接管，所以它能给出到源站（或到 Cloudflare 节点）的真实往返延迟。常用组合：</p>
+<pre><code>ping &lt;服务器IP&gt;                      # 真实 RTT（绕过 TUN）
+mtr -r -c 200 &lt;服务器IP&gt;             # 真实丢包与抖动
+curl -o /dev/null -s -w '%{time_starttransfer}\n' https://www.google.com   # 走代理后的 TTFB</code></pre>
+<p>「连得上但只有几 KB/s」这种限速现象，同样要区分两种：<code>scp</code> 传个 10MB 文件很快、但走代理下载极慢 → 是<b>协议被限速</b>，换 IP 没用，得换传输协议（这正是本方案 REALITY 为主的原因）；<code>nc</code> 就直接超时、而境外节点一切正常 → 是<b>IP 被封</b>，换 IP 才有用。</p>
 
 <p style="margin-top:24px"><a href="index.html">← 回到总览</a></p>
 
