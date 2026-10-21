@@ -3,20 +3,38 @@
 
 <div class="note"><b>三句话：</b>① 免密登录挡的是「连上了也登不进」，SPA 挡的是「根本连不上」——<b>两层叠加</b>，先跑 <a href="../deploy/01-init.html">部署第 1 步</a>拿掉密码，再用本手册挡门。② 一台设备一把密钥，删一行就是吊销那台。③ <b>关公网 22 放最后做</b>，确认客户端能进来再做。</div>
 
+<h2>它和部署手册的关系</h2>
+<p><a href="../deploy/index.html">部署手册</a>的 6 步<b>全程不关 SSH 端口</b>，它只放行端口（第 1 步自动探测真实端口，不假设是 22）并关掉密码登录。本手册是它之后<b>可选的第 7 步</b>，不做也完全能用。</p>
+<div class="tw">
+<table>
+<thead><tr><th>阶段</th><th>做什么</th><th>公网 SSH 端口</th><th>密码登录</th><th>谁能进来</th></tr></thead>
+<tbody>
+<tr><td>0 拿到机器</td><td>厂商分配的端口（可能是随机的）</td><td class="tag warn">开</td><td>看厂商设置</td><td>你</td></tr>
+<tr><td>1 装公钥</td><td><a href="../deploy/01-init.html">部署第 1 步</a></td><td class="tag warn">开</td><td class="tag ok">关</td><td>持钥者</td></tr>
+<tr><td>2 部署节点</td><td><a href="../deploy/index.html">部署第 2–6 步</a></td><td class="tag warn">开</td><td class="tag ok">关</td><td>持钥者</td></tr>
+<tr><td>3 上 SPA</td><td>本手册第 1–3 步（可选）</td><td class="tag warn">开</td><td class="tag ok">关</td><td>持钥者 + 持 SPA 密钥者</td></tr>
+<tr><td>4 收口</td><td>本手册第 4 步</td><td class="tag bad">关</td><td class="tag ok">关</td><td>只剩 SPA 密钥者</td></tr>
+</tbody>
+</table>
+</div>
+<p>一句话记法：<b>先关密码，再部署节点，最后（可选）关端口。</b>拿不到公钥时部署第 1 步会自动跳过加固并提示，不会把你锁在门外。</p>
+
 <h2>四步</h2>
 <div class="tw">
 <table>
 <thead><tr><th>#</th><th>在哪台机器</th><th>做什么</th><th>命令</th></tr></thead>
 <tbody>
 <tr><td>1</td><td>你的安全机器</td><td>生成密钥包</td><td><code>bash 00-gen-keys.sh --hosts "server1=1.2.3.4" --clients "laptop phone"</code></td></tr>
-<tr><td>2</td><td>服务器</td><td>装 fwknopd、放行 SPA 端口（<b>22 仍开着</b>）</td><td><code>sudo bash 10-server.sh --keys spa-keys.env</code></td></tr>
+<tr><td>2</td><td>服务器</td><td>装 fwknopd、放行 SPA 端口（<b>SSH 端口仍开着</b>）</td><td><code>sudo bash 10-server.sh --keys spa-keys.env</code></td></tr>
 <tr><td>3</td><td>每台客户端</td><td>写 <code>~/.fwknoprc</code> 与 <code>~/.ssh/config</code></td><td><code>bash 20-client.sh --keys clients/laptop.env</code></td></tr>
-<tr><td>4</td><td>服务器</td><td>确认能进之后，<b>才</b>关公网 22</td><td><code>sudo bash 10-server.sh --keys spa-keys.env --close-ssh</code></td></tr>
+<tr><td>4</td><td>服务器</td><td>确认能进之后，<b>才</b>关公网 SSH 端口</td><td><code>sudo bash 10-server.sh --keys spa-keys.env --close-ssh</code></td></tr>
 </tbody>
 </table>
 </div>
 
-<div class="bad"><b>顺序反了会把自己锁在门外。</b>第 4 步必须等第 3 步验证通过。脚本默认不收口，且会在收口前检查 <code>fwknopd</code> 是否真的起来、<code>FWKNOP_INPUT</code> 跳转是否真的插上——起不来就退出，此时防火墙还没动。</div>
+<div class="bad"><b>顺序反了会把自己锁在门外。</b>第 4 步必须等第 3 步验证通过。脚本默认不收口，且会在收口前检查 <code>fwknopd</code> 是否真的起来、<code>FWKNOP_INPUT</code> 跳转是否真的插上——起不来就退出，此时防火墙还没动。没检测到并行的接入通道（<code>tailscale0</code> / <code>wg0</code>）时会提醒你：收口后只剩云控制台 VNC 能回来。</div>
+
+<p>这一步<b>完全可以不做</b>。不做的话 22 端口对全网开着，只是无法爆破（有密码登录被关着）。多数人的止步于此也够用。</p>
 
 <h2>开始前确认</h2>
 <ul>
