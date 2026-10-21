@@ -1,0 +1,11 @@
+# HTML 构建产物在仓库内统一为 LF，工作区检出后也是 LF，
+# 这样 `node .build/*/build.mjs` 重建出来的文件与仓库内容逐字节一致，
+# 不会出现「重建后永远显示 1 处修改」的假脏状态（Windows 上 autocrlf=true 时尤其明显）。
+docs/quality/*.html  text eol=lf
+docs/deploy/*.html   text eol=lf
+.build/**/*.html     text eol=lf
+
+*.sh   text eol=lf
+*.mjs  text eol=lf
+*.json text eol=lf
+*.md   text eol=lf
