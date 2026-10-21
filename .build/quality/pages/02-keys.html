@@ -1,0 +1,62 @@
+<h1>2 · 多客户端密钥</h1>
+<p class="lede">一台设备一把密钥，删一行就是吊销那台，其余不受影响。</p>
+
+<h2>两种模式</h2>
+<div class="tw">
+<table>
+<thead><tr><th></th><th>每设备独立 <span class="tag ok">推荐</span></th><th>全部共用 <span class="tag warn">简单</span></th></tr></thead>
+<tbody>
+<tr><td>生成命令</td><td><code>--clients "laptop phone"</code></td><td><code>--shared</code></td></tr>
+<tr><td>吊销一台</td><td>删一个 stanza，<b>其余不受影响</b></td><td><b>全换</b>，所有设备重配</td></tr>
+<tr><td>密钥泄露影响面</td><td>一台</td><td>所有设备</td></tr>
+</tbody>
+</table>
+</div>
+<p>代价只是多一个密钥包文件，脚本已经替你做了。</p>
+
+<h2>为什么可以靠密钥区分设备</h2>
+<p><code>access.conf</code> 支持多个 stanza，服务端收到包后<b>逐个试解密</b>，只有对上的那个能开规则（<code>server/incoming_spa.c</code> 的 <code>incoming_spa()</code>）。所以所有 stanza 都写 <code>SOURCE ANY</code>——客户端会换 IP，靠地址区分在漫游时直接失效。</p>
+
+<h2>密钥包</h2>
+<p>服务端那份（<b>不要发给任何一台客户端</b>）：</p>
+<pre><code>SPA_PORT=62201
+SSH_PORT=22
+ACCESS_TIMEOUT=120
+MAX_FW_TIMEOUT=300
+HOSTS="server1=203.0.113.10 server2=198.51.100.7"
+CLIENTS="laptop=&lt;KEY&gt;:&lt;HMAC&gt; phone=&lt;KEY&gt;:&lt;HMAC&gt;"</code></pre>
+<p>每台客户端那份只含自己：</p>
+<pre><code>HOSTS="server1=203.0.113.10 server2=198.51.100.7"
+CLIENT_NAME=laptop
+CLIENTS="laptop=&lt;KEY&gt;:&lt;HMAC&gt;"</code></pre>
+<div class="bad"><b>格式坑：</b>每客户端的键值必须写在<b>一行带引号的 <code>CLIENTS="..."</code></b> 里。写成 <code>CLIENT laptop=...</code> 不是合法 shell 赋值，脚本 source 这个文件时会直接报 <code>CLIENT: command not found</code>。</div>
+
+<h2>渲染出的 access.conf</h2>
+<pre><code># --- laptop ---
+SOURCE ANY;
+OPEN_PORTS tcp/22;
+FW_ACCESS_TIMEOUT 120;
+MAX_FW_TIMEOUT 300;
+KEY_BASE64        &lt;laptop 的密钥&gt;;
+HMAC_KEY_BASE64   &lt;laptop 的 HMAC 密钥&gt;;</code></pre>
+<div class="tw">
+<table>
+<thead><tr><th>字段</th><th>含义</th></tr></thead>
+<tbody>
+<tr><td><code>OPEN_PORTS</code></td><td>收到有效包后开哪些端口，服务端说了算</td></tr>
+<tr><td><code>FW_ACCESS_TIMEOUT</code></td><td>规则保留多少秒（不设默认 30）</td></tr>
+<tr><td><code>MAX_FW_TIMEOUT</code></td><td>封顶，客户端 <code>--fw-timeout</code> 也拿不到超过这个值（不设默认 300）</td></tr>
+</tbody>
+</table>
+</div>
+<p>没开 <code>PERMIT_CLIENT_PORTS</code>，所以客户端在 <code>ACCESS</code> 里写什么都改变不了服务端放行的端口。脚本渲染后会自检：stanza 数必须等于密钥组数，对不上就退出。</p>
+
+<h2>吊销与轮换</h2>
+<pre><code># 吊销一台：从密钥包去掉那台，重跑服务端
+sudo bash 10-server.sh --keys spa-keys.env
+
+# 全量轮换：--force 重新生成，分发新包，逐台重跑
+bash 00-gen-keys.sh --hosts "..." --clients "laptop phone" --force</code></pre>
+<p>两套 stanza 可以共存，所以能先加新的、确认都迁走了再删旧的。<b>吊销后顺手把设备上那份密钥包删掉</b>——服务端拒绝对它只是「连不上」，本地文件仍是有效凭据。</p>
+
+<p style="margin-top:24px"><a href="01-how.html">← 上一步</a>　·　<a href="03-deploy.html">下一步：部署 →</a></p>

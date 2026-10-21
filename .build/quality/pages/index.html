@@ -1,0 +1,53 @@
+<h1>SSH 加固</h1>
+<p class="lede">用 fwknop 的单包授权（SPA）把 22 端口关到互联网上不可达。配好之后 <code>ssh server1</code> 用法不变，敲门发生在 <code>ProxyCommand</code> 里。</p>
+
+<div class="note"><b>三句话：</b>① 免密登录挡的是「连上了也登不进」，SPA 挡的是「根本连不上」——<b>两层叠加</b>，先跑 <a href="../deploy/01-init.html">部署第 1 步</a>拿掉密码，再用本手册挡门。② 一台设备一把密钥，删一行就是吊销那台。③ <b>关公网 22 放最后做</b>，确认客户端能进来再做。</div>
+
+<h2>四步</h2>
+<div class="tw">
+<table>
+<thead><tr><th>#</th><th>在哪台机器</th><th>做什么</th><th>命令</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>你的安全机器</td><td>生成密钥包</td><td><code>bash 00-gen-keys.sh --hosts "server1=1.2.3.4" --clients "laptop phone"</code></td></tr>
+<tr><td>2</td><td>服务器</td><td>装 fwknopd、放行 SPA 端口（<b>22 仍开着</b>）</td><td><code>sudo bash 10-server.sh --keys spa-keys.env</code></td></tr>
+<tr><td>3</td><td>每台客户端</td><td>写 <code>~/.fwknoprc</code> 与 <code>~/.ssh/config</code></td><td><code>bash 20-client.sh --keys clients/laptop.env</code></td></tr>
+<tr><td>4</td><td>服务器</td><td>确认能进之后，<b>才</b>关公网 22</td><td><code>sudo bash 10-server.sh --keys spa-keys.env --close-ssh</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="bad"><b>顺序反了会把自己锁在门外。</b>第 4 步必须等第 3 步验证通过。脚本默认不收口，且会在收口前检查 <code>fwknopd</code> 是否真的起来、<code>FWKNOP_INPUT</code> 跳转是否真的插上——起不来就退出，此时防火墙还没动。</div>
+
+<h2>开始前确认</h2>
+<ul>
+<li>已跑完 <a href="../deploy/01-init.html">部署第 1 步</a>（<code>sshd -T | grep -i passwordauthentication</code> 输出 <code>no</code>）</li>
+<li>云厂商安全组里放行 <code>62201/udp</code>（<b>外层防火墙，脚本碰不到</b>）</li>
+<li>系统：Debian 12/13 或 Ubuntu 22.04/24.04</li>
+</ul>
+
+<h2>产物</h2>
+<div class="tw">
+<table>
+<thead><tr><th>文件</th><th>在哪</th><th>注意</th></tr></thead>
+<tbody>
+<tr><td><code>spa-keys.env</code></td><td>你的机器</td><td>含<b>全部</b>设备密钥，别给任何一台客户端</td></tr>
+<tr><td><code>clients/&lt;名字&gt;.env</code></td><td>对应设备</td><td>每台只拿自己那一份</td></tr>
+<tr><td><code>/etc/fwknop/access.conf</code></td><td>服务器</td><td>每个 stanza 一台设备，脚本渲染的</td></tr>
+<tr><td><code>~/.fwknoprc</code></td><td>每台客户端</td><td>每个主机一个 stanza，脚本渲染的</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>图</h2>
+<div class="tw">
+<table>
+<thead><tr><th>图</th><th>回答</th><th>页面</th></tr></thead>
+<tbody>
+<tr><td>1 拓扑</td><td>多客户端怎么共用一台服务器</td><td><a href="diagrams/01-spa-topology.html">独立交互版 →</a></td></tr>
+<tr><td>2 时序</td><td><code>ssh server1</code> 背后发生了什么</td><td><a href="diagrams/02-spa-access-sequence.html">独立交互版 →</a></td></tr>
+<tr><td>3 生命周期</td><td>22 端口什么时候开着</td><td><a href="diagrams/03-spa-rule-lifecycle.html">独立交互版 →</a></td></tr>
+</tbody>
+</table>
+</div>
+
+<p style="margin-top:24px"><a href="01-how.html">下一步：工作原理 →</a></p>

@@ -1,0 +1,49 @@
+<h1>5 · 客户端</h1>
+
+<h2>取参数并渲染</h2>
+<pre><code># 你的电脑上
+scp root@你的服务器IP:/etc/sing-box/client.env ./client.env</code></pre>
+
+<h3>一次生成三端</h3>
+<pre><code>OUTDIR=./data bash docs/deploy/scripts/50-render-client.sh ./client.env --all</code></pre>
+<div class="tw">
+<table>
+<thead><tr><th>产出</th><th>入站</th><th>预设覆盖</th></tr></thead>
+<tbody>
+<tr><td><code>sing-box-client-desktop.json</code></td><td>tun + mixed:2080</td><td>无（沿用 client.env）</td></tr>
+<tr><td><code>sing-box-client-android.json</code></td><td>tun</td><td><code>CLIENT_MIXED=0</code>、<code>auto_detect_interface=true</code></td></tr>
+<tr><td><code>sing-box-client-ios.json</code></td><td>tun</td><td>同上</td></tr>
+</tbody>
+</table>
+</div>
+<p>多端模式只覆盖这两项「平台相关」的值，其余（节点、DNS、AI 出口、规则）都来自 <code>client.env</code>，所以三份配置的规则完全一致。</p>
+
+<div class="warn"><b>桌面报 <code>not valid in its context</code></b>（多网卡 / 虚拟网卡的 Windows 常见）：在前面加一个变量即可，只影响桌面那份，Android 仍保持 true：<br>
+<code>AUTO_DETECT_INTERFACE=false OUTDIR=./data bash docs/deploy/scripts/50-render-client.sh ./client.env --all</code></div>
+
+<h3>只生成某一份 / 完全自定义</h3>
+<pre><code># 只生成安卓
+OUTDIR=./data bash docs/deploy/scripts/50-render-client.sh ./client.env android
+
+# 单份模式：完全按 client.env 与命令行变量，输出文件名自己定
+OUT=./me.json bash docs/deploy/scripts/50-render-client.sh ./client.env</code></pre>
+<p>改完 <code>client.env</code> 后重跑即可覆盖同名文件。</p>
+
+<h2>导入</h2>
+<div class="tw">
+<table>
+<thead><tr><th>平台</th><th>客户端</th><th>注意</th></tr></thead>
+<tbody>
+<tr><td>Windows</td><td>GUI.for.SingBox / sing-box 命令行</td><td>开 TUN 需要管理员</td></tr>
+<tr><td>macOS</td><td>sing-box 系 GUI</td><td>首次要授权系统扩展</td></tr>
+<tr><td>Android</td><td>sing-box 官方 App</td><td>用 <code>--all</code> 生成的 <code>-android.json</code></td></tr>
+<tr><td>Windows（多网卡/虚拟网卡）</td><td>同上</td><td>日志出现 <code>not valid in its context</code> 时，渲染加 <code>AUTO_DETECT_INTERFACE=false</code>（见上方）</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>我们生成的配置本地测试端口是 <code>127.0.0.1:2080</code>。如果用 GUI.for.SingBox 自己的配置，端口以它的界面为准。</p>
+
+<p>导入失败、国内站点打不开、要独立 AI 出口 → <a href="troubleshooting.html">排查手册</a>。</p>
+
+<p style="margin-top:24px"><a href="04-hy2.html">← 上一步</a>　·　<a href="06-ops.html">下一步 →</a></p>

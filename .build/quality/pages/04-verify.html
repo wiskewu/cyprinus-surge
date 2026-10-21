@@ -1,0 +1,66 @@
+<h1>4 · 验收与运维</h1>
+<p class="lede">六条能当场跑出来的验收，加上日常使用与长期维护。</p>
+
+<h2>验收</h2>
+<div class="tw">
+<table>
+<thead><tr><th>#</th><th>检查</th><th>怎么做</th><th>通过</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>敲门有效</td><td>客户端 <code>fwknop -n server1</code>；服务器上 <code>iptables -S FWKNOP_INPUT | wc -l</code></td><td>≥1；<code>ACCESS_TIMEOUT</code> 秒后变回 0</td></tr>
+<tr><td>2</td><td>端口不可达</td><td>从<b>另一台外网机器</b> <code>nmap -Pn -p22 &lt;IP&gt;</code></td><td><code>filtered</code>（不是 <code>closed</code>）</td></tr>
+<tr><td>3</td><td>用起来无感</td><td><code>ssh</code> / <code>scp</code> / <code>rsync</code> / VS Code Remote-SSH</td><td>都能直连，不用逐个工具配</td></tr>
+<tr><td>4</td><td>重放无效</td><td>服务端 <code>tcpreplay -i &lt;iface&gt; /tmp/spa.pcap</code></td><td>规则数<b>不增加</b></td></tr>
+<tr><td>5</td><td>单台可吊销</td><td>从密钥包去掉一台，重跑服务端</td><td>该设备敲不开；其余照常</td></tr>
+<tr><td>6</td><td>ufw 看不到临时规则</td><td><code>ufw status</code></td><td>没有（fwknopd 直接动 iptables）</td></tr>
+</tbody>
+</table>
+</div>
+<p>第 4 条要先抓包：<code>sudo tcpdump -i any udp port 62201 -w /tmp/spa.pcap</code>，再在客户端敲一次。</p>
+
+<h2>状态</h2>
+<pre><code>sudo bash 10-server.sh --status
+bash 20-client.sh --keys ~/laptop.env --status</code></pre>
+
+<h2>日常使用</h2>
+<pre><code>ssh server1                          # 透明，不用管敲门
+fwknop -n server1                    # 手动敲一次
+fwknop -n server1 --fw-timeout 300    # 开窗久一点（被 MAX_FW_TIMEOUT 封顶）
+fwknop -n server1 -v                 # 打印它到底发到哪儿了</code></pre>
+
+<h3>长会话</h3>
+<p>窗口到期撤的是<b>新连接</b>许可，已建立的会话不受影响。但端口转发、<code>tail -f</code> 这类要调大 <code>ACCESS_TIMEOUT</code> 后重跑服务端：</p>
+<pre><code># 编辑 spa-keys.env 里的 ACCESS_TIMEOUT
+sudo bash 10-server.sh --keys spa-keys.env</code></pre>
+
+<h2>加设备</h2>
+<pre><code>bash 00-gen-keys.sh --clients "laptop phone tablet" --force
+# 服务器重跑 10-server.sh；新设备拿 clients/tablet.env 跑 20-client.sh</code></pre>
+<p><code>--force</code> 会丢旧密钥。想平滑迁移就把旧条目从 <code>spa-keys.env</code> 里抄出来留着，确认都迁到新包后再删。</p>
+
+<h2>备份</h2>
+<div class="tw">
+<table>
+<thead><tr><th>对象</th><th>丢了会怎样</th></tr></thead>
+<tbody>
+<tr><td><code>spa-keys.env</code></td><td><b>所有客户端一起失效</b>，需全量重发</td></tr>
+<tr><td><code>clients/&lt;名字&gt;.env</code></td><td>该设备要重配</td></tr>
+<tr><td><code>/etc/fwknop/*.conf</code></td><td>不丢：脚本能重建</td></tr>
+<tr><td><code>~/.ssh/config</code> 托管块</td><td>不丢：重跑 20-client.sh</td></tr>
+</tbody>
+</table>
+</div>
+<p>值得备份的只有<b>密钥包</b>和<b>SSH 私钥</b>。放两份：一份在密码管理器，一份在 <code>sops</code>/<code>age</code> 加密的私有仓库。别进 git（哪怕私有），别贴进聊天窗口。</p>
+
+<h2>批量管理</h2>
+<pre><code># group_vars/all/vars.yml
+ansible_ssh_common_args: &gt;-
+  -o ProxyCommand="sh -c 'fwknop -n {{ inventory_hostname }} &gt;/dev/null 2&gt;&amp;1; sleep 2; exec nc %h %p'"</code></pre>
+<ul>
+<li>用 <code>inventory_hostname</code> 不是 <code>%h</code>：<code>%h</code> 是 <code>ansible_host</code> 解析出来的值（可能是 IP），stanza 是按 inventory 主机名命名的</li>
+<li>新机器没装 fwknop 时敲门失败但 <code>nc</code> 会直连（那时 22 还开着），安装前后同一条配置都成立</li>
+<li>配 <code>ControlPersist</code> 后每次 play 只敲一次</li>
+</ul>
+
+<div class="bad"><b>两个角色互相覆盖：</b>一个负责「加公网 SSH 规则」、一个负责「删」，每次 Ansible 都绿但端口又开了。<b>修法不是调顺序，是让两边读同一个变量</b>——谁最后跑结果都一样：<pre><code>linux_base_ssh_public: "{{ not (fwknop_enabled | default(false) | bool) }}"</code></pre></div>
+
+<p style="margin-top:24px"><a href="03-deploy.html">← 上一步</a>　·　<a href="05-ops.html">下一步：排查 →</a></p>

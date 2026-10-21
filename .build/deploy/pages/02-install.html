@@ -1,0 +1,26 @@
+<h1>2 · 安装与密钥</h1>
+
+<pre><code>cd /root/deploy
+bash 10-install-singbox.sh
+bash 20-secrets.sh</code></pre>
+
+<p><code>20-secrets.sh</code> 会问两个问题：</p>
+<ul>
+<li><b>伪装站点</b>（默认 <code>www.apple.com</code>）：必须支持 TLS1.3 + HTTP/2</li>
+<li><b>域名</b>：只有要用 Hysteria2 才需要，留空就只开 REALITY</li>
+</ul>
+
+<h2>产物</h2>
+<div class="tw">
+<table>
+<thead><tr><th>文件</th><th>用途</th><th>注意</th></tr></thead>
+<tbody>
+<tr><td><code>/etc/sing-box/deploy.env</code></td><td>服务端参数</td><td>含 REALITY 私钥，只留服务器</td></tr>
+<tr><td><code>/etc/sing-box/client.env</code></td><td>客户端参数</td><td>第 4 步要复制到客户端</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>离线安装：<code>SING_BOX_PKG=/root/sing-box.tar.gz bash 10-install-singbox.sh</code>（版本可由 <code>SING_BOX_VERSION</code> 指定）。</p>
+
+<p style="margin-top:24px"><a href="01-init.html">← 上一步</a>　·　<a href="03-server.html">下一步 →</a></p>

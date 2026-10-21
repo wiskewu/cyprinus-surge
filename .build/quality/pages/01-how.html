@@ -1,0 +1,45 @@
+<h1>1 · 工作原理</h1>
+<p class="lede">一个加密签名的 UDP 包换你一次临时通行；包里没有你的密钥，服务端就当没看见。</p>
+
+<div class="fig">
+<div class="bar"><b>图 1 · 多客户端访问的 SSH 加固拓扑</b><a href="diagrams/01-spa-topology.html">打开独立交互版 →</a></div>
+<iframe src="diagrams/01-spa-topology.html" title="多客户端访问的 SSH 加固拓扑" loading="lazy"></iframe>
+</div>
+
+<h2>一次访问</h2>
+<div class="fig">
+<div class="bar"><b>图 2 · 一次 SPA 访问的完整链路</b><a href="diagrams/02-spa-access-sequence.html">打开独立交互版 →</a></div>
+<iframe src="diagrams/02-spa-access-sequence.html" title="一次 SPA 访问的完整链路" loading="lazy"></iframe>
+</div>
+
+<pre><code>ssh server1
+  → ProxyCommand: fwknop -n server1      发 UDP/62201（加密 + HMAC 签名）
+  → sleep 2                              等 fwknopd 把 iptables 规则插进去
+  → nc %h %p                             这时 tcp/22 已经对该 IP 放行</code></pre>
+
+<h2>四个要点</h2>
+<div class="tw">
+<table>
+<thead><tr><th>要点</th><th>怎么做 / 为什么</th></tr></thead>
+<tbody>
+<tr><td>用 SPA 不用端口敲击</td><td>敲击序列是<b>明文</b>的，抓下来重放即可，且无认证。SPA 是加密 + 签名，带时间戳和一次性序列号，重放无效</td></tr>
+<tr><td><code>sleep 2</code> 不能省</td><td>在等 fwknopd 插规则。<code>&gt;/dev/null 2&gt;&amp;1</code> 也不能省——<code>ProxyCommand</code> 的 stdout 会被 ssh 当成通道读，fwknop 的输出会污染它</td></tr>
+<tr><td>丢包就重敲</td><td>SPA 走 UDP，可能丢。<code>fwknop</code> 无状态，重复发没有副作用</td></tr>
+<tr><td>窗口到期不断线</td><td>撤的是<b>新连接</b>的许可，已建立的会话由连接跟踪维持。长会话要调大 <code>ACCESS_TIMEOUT</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>扫码器看到什么</h2>
+<pre><code>$ nmap -Pn -p22 203.0.113.10
+Not shown: 22/tcp filtered      ← 不是 closed</code></pre>
+<p><code>closed</code> 是「有东西在监听」，<code>filtered</code> 是「静默丢包，什么都没暴露」。端口不是藏在难猜的号码后面，是真的关着。</p>
+
+<div class="warn"><b>不是万能。</b>它挡的是「没密钥的人连不上 sshd」。OpenSSH 自身的 0day 仍要靠及时打补丁。完整限制见 <a href="05-ops.html#limits">第 5 页</a>。</div>
+
+<div class="fig">
+<div class="bar"><b>图 3 · FWKNOP_INPUT 放行规则的生命周期</b><a href="diagrams/03-spa-rule-lifecycle.html">打开独立交互版 →</a></div>
+<iframe src="diagrams/03-spa-rule-lifecycle.html" title="FWKNOP_INPUT 放行规则的生命周期" loading="lazy"></iframe>
+</div>
+
+<p style="margin-top:24px"><a href="index.html">← 总览</a>　·　<a href="02-keys.html">下一步：多客户端密钥 →</a></p>

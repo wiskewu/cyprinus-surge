@@ -1,5 +1,5 @@
 .archify/
-.build/
+
 data/
 .playwright-mcp/
 
@@ -7,3 +7,4 @@ data/
 docs/deploy/scripts/clients/
 docs/deploy/scripts/*.preview.json
 docs/deploy/scripts/sing-box-client-*.json
+# .archify/ 保留忽略：里面是 archify 的候选 JSON 与回执中间态

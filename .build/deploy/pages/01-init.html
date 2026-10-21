@@ -1,0 +1,46 @@
+<h1>1 · 系统初始化</h1>
+
+<h2>登录并上传脚本</h2>
+<pre><code>ssh root@你的服务器IP
+
+# 在你自己电脑上执行（不是服务器）
+scp -r docs/deploy/scripts root@你的服务器IP:/root/deploy</code></pre>
+
+<h2>运行初始化</h2>
+<pre><code>cd /root/deploy
+bash 00-bootstrap.sh
+
+# SSH 不是 22 端口时：
+SSH_PORT=你的端口 bash 00-bootstrap.sh</code></pre>
+
+<p>它会装依赖、开 BBR、加 1G swap、开时间同步、把 SSH 收成仅公钥登录，并把防火墙收成「只放行 SSH 端口、443/tcp、8443-8447/udp」。幂等，可以重复跑。</p>
+
+<h3>SSH 加固的一处细节</h3>
+<p>脚本会写 <code>/etc/ssh/sshd_config.d/99-proxy.conf</code> 关闭密码登录，但 Ubuntu 镜像自带一个 <code>50-cloud-init.conf</code>，里面写着 <code>PasswordAuthentication yes</code>——而 sshd 对每个关键字取<b>第一个出现的值</b>，<code>50</code> 排在 <code>99</code> 前面，会赢。所以脚本同时会就地改掉那个文件（原文件备份为 <code>.orig</code>）。改完用 <code>sshd -t</code> 验证，通过才重启；不通过就回滚本步改动。</p>
+<div class="warn"><b>没有公钥就不会关密码。</b>脚本先检查 <code>authorized_keys</code>，没有就跳过加固并提示你——先 <code>ssh-copy-id</code> 装好公钥，再重跑这一步。否则一台还没配过密钥的机器会被直接锁死。</div>
+
+<h2>确认</h2>
+<pre><code>systemd-detect-virt                 # kvm
+test -c /dev/net/tun &amp;&amp; echo TUN-OK # TUN-OK
+sysctl net.ipv4.tcp_congestion_control   # bbr
+sshd -T | grep -i '^passwordauthentication'   # passwordauthentication no
+ufw status                          # 里面有你的 SSH 端口和 443</code></pre>
+
+<h2>还有第二层防火墙：云厂商安全组</h2>
+<div class="bad"><b>ufw 只是里层。云厂商控制台里的安全组 / 云防火墙是外层，脚本碰不到。</b>典型症状：443 通但 8443 超时，或者反过来——同一个服务不同端口表现不一致。这时不是配置错，是外层还没放行。</div>
+<p>在服务商控制台里，把下面这几个端口<b>手工</b>加进出站规则（协议必须对）：</p>
+<div class="tw">
+<table>
+<thead><tr><th>端口</th><th>协议</th><th>谁用</th></tr></thead>
+<tbody>
+<tr><td>你的 SSH 端口（默认 22）</td><td>TCP</td><td>你自己登录用</td></tr>
+<tr><td>443</td><td>TCP</td><td>REALITY 主入口</td></tr>
+<tr><td>8443–8447</td><td>UDP</td><td>Hysteria2 备入口 + 端口跳跃（<code>ENABLE_HY2=0</code> 时用不到）</td></tr>
+</tbody>
+</table>
+</div>
+<p>以后再改端口（比如给 REALITY 换高位端口），<b>两层都要改</b>，否则就是上面那个症状。</p>
+
+<div class="note"><b>或者干脆让 SSH 走 fwknop。</b>把公网 22 端口彻底关掉、靠单包授权敲门进来，<a href="../quality/index.html">SSH 加固手册</a>覆盖了整套做法。那之后安全组里就不用留 SSH 端口了。</div>
+
+<p style="margin-top:24px"><a href="index.html">← 总览</a>　·　<a href="02-install.html">下一步 →</a></p>

@@ -1,0 +1,21 @@
+<h1>4 · 可选：Hysteria2 第二入口</h1>
+<p class="lede">不做也可以，REALITY 单入口已经能用。需要你有一个域名，DNS 托管在 Cloudflare。</p>
+
+<h2>准备</h2>
+<ol>
+<li>加一条 A 记录指向你的服务器 IP，<b>关闭 Cloudflare 代理（灰云）</b></li>
+<li>创建 API Token，权限选「编辑区域 DNS」</li>
+</ol>
+
+<h2>执行</h2>
+<pre><code>cd /root/deploy
+bash 35-tls-hy2.sh        # 输入域名 / 邮箱 / Token，自动签发并续期
+bash 30-render-server.sh  # 服务端开始监听 UDP
+bash 40-check-server.sh
+
+# 可选：让客户端的端口跳跃真正可用
+bash 90-port-hop.sh</code></pre>
+
+<p>完成后要回到客户端重新渲染一次配置（它会读到 <code>ENABLE_HY2=1</code>）。</p>
+
+<p style="margin-top:24px"><a href="03-server.html">← 上一步</a>　·　<a href="05-client.html">下一步 →</a></p>

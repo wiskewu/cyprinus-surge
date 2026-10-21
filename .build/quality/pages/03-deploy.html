@@ -1,0 +1,100 @@
+<h1>4 · 部署</h1>
+<p class="lede">三个脚本，彼此独立，可以分别在不同机器上跑。全部幂等：改完配置重跑即可，不会留下半成品。</p>
+
+<h2>把脚本传上去</h2>
+<pre><code>scp -r docs/quality/scripts root@&lt;服务器&gt;:/root/ssh-spa     # 或者只 scp 你要用的那一个</code></pre>
+
+<h2>第 1 步 · 生成密钥</h2>
+<p>在<b>你自己安全的机器</b>上跑，不要在服务器上生成：</p>
+<pre><code>bash 00-gen-keys.sh --hosts "server1=203.0.113.10 server2=198.51.100.7" --clients "laptop phone"</code></pre>
+<p>产出 <code>spa-keys.env</code>（服务端，含全部设备）+ <code>clients/{laptop,phone}.env</code>。详见 <a href="02-keys.html">第 2 页</a>。</p>
+
+<h2>第 2 步 · 服务端</h2>
+<pre><code>scp spa-keys.env root@&lt;服务器&gt;:/root/
+ssh root@&lt;服务器&gt; 'bash /root/ssh-spa/10-server.sh --keys /root/spa-keys.env'</code></pre>
+<p>按顺序做了五件事：</p>
+<ol class="steps">
+<li><b>装 fwknop-server</b>（Debian 包名，客户端才是 <code>fwknop-client</code>）</li>
+<li><b>渲染 <code>/etc/fwknop/fwknopd.conf</b></b>：按默认路由网卡写 <code>PCAP_INTF</code>，嗅探端口取 <code>SPA_PORT</code>，跳转规则放在 <code>INPUT</code> 第 1 位，防重放三项全开。包自带版本备份为 <code>fwknopd.conf.orig</code></li>
+<li><b>渲染 <code>/etc/fwknop/access.conf</code></b>（0600）：从密钥包逐个 stanza 展开，并自检 stanza 数 == 密钥组数</li>
+<li><b>启动 <code>fwknop-server</code></b>：起不来就打日志退出，<b>此时防火墙还没动</b>；起来了还要确认 <code>FWKNOP_INPUT</code> 跳转真的插上了</li>
+<li><b>防火墙</b>：<code>ufw allow 62201/udp</code>，<b>22 保持原样</b>；改完 ufw 后自动重启一次 fwknopd（见 <a href="05-ops.html#ufw">第 5 页</a>）</li>
+</ol>
+
+<details><summary>渲染出来的 fwknopd.conf</summary><div class="body">
+<pre><code>PCAP_INTF                eth0;
+PCAP_FILTER              udp port 62201;
+
+FLUSH_IPT_AT_INIT        Y;
+FLUSH_IPT_AT_EXIT        Y;
+ENABLE_IPT_COMMENT_CHECK Y;
+
+# 防重放：时间戳 + 摘要缓存（进程重启后仍认得旧包）
+ENABLE_SPA_PACKET_AGING  Y;
+MAX_SPA_PACKET_AGE       120;
+ENABLE_DIGEST_PERSISTENCE Y;
+
+# 跳转规则插在 INPUT 第 1 位，因此在 ufw 的链之前求值
+IPT_INPUT_ACCESS         ACCEPT, filter, INPUT, 1, FWKNOP_INPUT, 1;
+ENABLE_IPT_FORWARDING    N;
+ENABLE_IPT_SNAT          N;
+ENABLE_IPT_OUTPUT        N;
+ENABLE_IPT_LOCAL_NAT     N;
+
+SYSLOG_ID                fwknopd;</code></pre>
+</div></details>
+
+<h2>第 3 步 · 客户端</h2>
+<p><b>每台机器各跑一次</b>，只给它自己那一份密钥：</p>
+<pre><code>scp clients/laptop.env &lt;你的机器&gt;:~/
+ssh &lt;你的机器&gt; 'bash 20-client.sh --keys ~/laptop.env'</code></pre>
+<p>做了三件事：装 <code>fwknop</code>；写 <code>~/.fwknoprc</code>（0600）；往 <code>~/.ssh/config</code> 追加一个<b>托管块</b>。</p>
+
+<div class="note"><b>托管块是幂等的。</b>带 <code># BEGIN ssh-spa</code> … <code># END ssh-spa</code> 标记，重跑只原地替换并清掉多余空行，不会越堆越多；<code>--uninstall</code> 摘掉之后与原文件逐字节一致。</div>
+
+<div class="tw">
+<table>
+<thead><tr><th>参数</th><th>作用</th></tr></thead>
+<tbody>
+<tr><td><code>--keys FILE</code></td><td>必填。自己那一份密钥包</td></tr>
+<tr><td><code>--name NAME</code></td><td>覆盖包里的 <code>CLIENT_NAME</code></td></tr>
+<tr><td><code>--no-ssh</code></td><td>只写 <code>~/.fwknoprc</code>，不碰 <code>~/.ssh/config</code></td></tr>
+<tr><td><code>--status</code></td><td>显示当前配置</td></tr>
+<tr><td><code>--uninstall</code></td><td>还原 <code>~/.fwknoprc</code>，删掉托管块</td></tr>
+</tbody>
+</table>
+</div>
+<p>装包路径按顺序探测：brew → apt（<code>fwknop-client</code>）→ pacman。缺 <code>nc</code> 只警告不中止，因为 <code>ProxyCommand</code> 的最后一步要它（Debian/Ubuntu：<code>apt install netcat-openbsd</code>）。</p>
+
+<h2>第 4 步 · 收口</h2>
+<div class="bad"><b>顺序不能反。</b>先在<b>当前这个 SSH 会话</b>里另开一个连接，确认能进得来，再收口。</div>
+<pre><code>bash /root/ssh-spa/10-server.sh --keys /root/spa-keys.env --close-ssh</code></pre>
+<p>它会删除公网 <code>22/tcp</code> 规则（<code>ufw limit</code> 和 <code>ufw allow</code> 两种都试），然后重启 fwknopd 恢复跳转规则。</p>
+
+<h2 id="lockout">锁门急救</h2>
+<p>万一还是锁了——云厂商控制台的 VNC / 串口，或者你之前装了 Tailscale（见 <a href="05-ops.html#backup">第 5 页</a>）：</p>
+<pre><code>sudo systemctl stop fwknop-server
+sudo iptables -D INPUT -j FWKNOP_INPUT
+sudo ufw allow 22/tcp</code></pre>
+<p>或者直接让脚本还原（保留密钥包）：</p>
+<pre><code>sudo bash 10-server.sh --uninstall     # 还原 fwknopd.conf，恢复公网 SSH 规则
+sudo bash 10-server.sh --purge         # 上面这些，再删掉 access.conf 与密钥包</code></pre>
+
+<h2>服务端参数</h2>
+<div class="tw">
+<table>
+<thead><tr><th>参数</th><th>作用</th></tr></thead>
+<tbody>
+<tr><td><code>--keys FILE</code></td><td>密钥包路径，默认 <code>./spa-keys.env</code></td></tr>
+<tr><td><code>--close-ssh</code></td><td>删掉公网 SSH 规则。<b>确认客户端能进门之后再加</b></td></tr>
+<tr><td><code>--status</code></td><td>只看状态，不改任何东西</td></tr>
+<tr><td><code>--uninstall</code></td><td>停服务、还原 <code>fwknopd.conf</code>、恢复公网 SSH 规则</td></tr>
+<tr><td><code>--purge</code></td><td>上面这些，再删掉 <code>access.conf</code> 和密钥包</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>共用函数</h2>
+<p>三个脚本共用 <code>lib.sh</code>（<code>log</code>/<code>warn</code>/<code>die</code>、<code>need_root</code>、<code>load_env</code>、<code>spa_keys_for</code>、<code>valid_name</code>、<code>host_count</code>、<code>gen_key</code>）。改密钥包格式只需要动 <code>spa_keys_for</code> 一个函数。</p>
+
+<p style="margin-top:24px"><a href="02-keys.html">← 上一步</a>　·　<a href="04-verify.html">下一步：验收与运维 →</a></p>

@@ -1,0 +1,25 @@
+<h1>6 · 验收与备份</h1>
+
+<h2>验收（客户端机器）</h2>
+<pre><code>bash docs/deploy/scripts/60-verify-client.sh ./client.env</code></pre>
+<p>退出码：<code>0</code> 全过 / <code>1</code> 有失败项 / <code>2</code> 本地代理没起来（后面的检查已跳过）。<br>
+用 GUI.for.SingBox 时端口不同，要显式指定：<code>PROXY=socks5h://127.0.0.1:GUI端口 bash ...</code></p>
+
+<h2>备份（服务器）</h2>
+<pre><code>cd /root/deploy
+bash 70-backup.sh backup     # 备份到 /root/backups/
+bash 70-backup.sh list
+bash 70-backup.sh restore /root/backups/sing-box-日期.tgz</code></pre>
+<p>备份含私钥，等同机器凭据，别放网盘或仓库。</p>
+
+<h2>日常三条</h2>
+<pre><code>vnstat -m                              # 本月流量（套餐 1TB/月，超了限速 1Mbps）
+journalctl -u sing-box -n 50 --no-pager
+bash 40-check-server.sh</code></pre>
+
+<h2>升级 / 回滚</h2>
+<pre><code>sudo SING_BOX_VERSION=1.15.0 bash 10-install-singbox.sh
+bash 30-render-server.sh &amp;&amp; bash 40-check-server.sh
+# 回滚把版本号换回去，重跑同样两条</code></pre>
+
+<p style="margin-top:24px"><a href="05-client.html">← 上一步</a>　·　<a href="index.html">回到总览</a></p>

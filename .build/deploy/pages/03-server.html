@@ -1,0 +1,16 @@
+<h1>3 · 服务端配置与自检</h1>
+
+<pre><code>cd /root/deploy
+bash 30-render-server.sh
+bash 40-check-server.sh</code></pre>
+
+<p><code>30</code> 用 <code>deploy.env</code> 渲染配置 → <code>sing-box check</code> 校验 → 重启服务。校验不通过就不会覆盖旧配置。</p>
+<p><code>40</code> 有 9 项，全绿再往下走。某几项的含义见 <a href="troubleshooting.html">排查手册</a>。</p>
+
+<h2>常用</h2>
+<pre><code>DRY_RUN=1 bash 30-render-server.sh   # 只生成配置，不动系统
+systemctl status sing-box
+journalctl -u sing-box -n 50 --no-pager
+systemctl restart sing-box</code></pre>
+
+<p style="margin-top:24px"><a href="02-install.html">← 上一步</a>　·　<a href="04-hy2.html">下一步（可选）→</a>　·　<a href="05-client.html">跳过 Hysteria2 →</a></p>

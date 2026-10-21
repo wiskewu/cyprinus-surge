@@ -1,0 +1,30 @@
+<h1>部署步骤</h1>
+<p class="lede">一台 KVM VPS + sing-box，5 步跑通。除第 4 步外，命令都在服务器上执行。</p>
+
+<div class="note"><b>懒人路径：</b>不想逐步执行？<a href="onekey.html">一键脚本 <code>deploy.sh</code></a> 会扫描每一步的状态并让你选「复用 / 覆盖 / 跳过」，也支持一键卸载重装。</div>
+
+<div class="tw">
+<table>
+<thead><tr><th>#</th><th>做什么</th><th>命令</th><th>产物</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>系统初始化</td><td><code>bash 00-bootstrap.sh</code></td><td>加固好的系统</td></tr>
+<tr><td>2</td><td>装 sing-box + 生成密钥</td><td><code>bash 10-install-singbox.sh</code><br><code>bash 20-secrets.sh</code></td><td><code>deploy.env</code> / <code>client.env</code></td></tr>
+<tr><td>3</td><td>服务端配置 + 自检</td><td><code>bash 30-render-server.sh</code><br><code>bash 40-check-server.sh</code></td><td>可连的节点</td></tr>
+<tr><td>4</td><td>客户端配置（在客户端机器）</td><td><code>bash 50-render-client.sh</code></td><td><code>sing-box-client.json</code></td></tr>
+<tr><td>5</td><td>验收 + 备份</td><td><code>bash 60-verify-client.sh</code><br><code>bash 70-backup.sh</code></td><td>验收记录</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>开始前确认</h2>
+<ul>
+<li>KVM 虚拟化：<code>systemd-detect-virt</code> 输出 <code>kvm</code>（LXC / OpenVZ 开不了 TUN）</li>
+<li>系统：Debian 12 / 13 或 Ubuntu 22.04 / 24.04</li>
+<li>SSH 端口：默认 22；不是 22 的话，第 1 步要带 <code>SSH_PORT=你的端口</code></li>
+</ul>
+
+<h2>把脚本传上去</h2>
+<pre><code>scp -r docs/deploy/scripts root@你的服务器IP:/root/deploy</code></pre>
+
+<h2>遇到问题</h2>
+<p>症状、日志含义、字段说明都在 <a href="troubleshooting.html">排查手册</a>，不占用主流程。</p>
