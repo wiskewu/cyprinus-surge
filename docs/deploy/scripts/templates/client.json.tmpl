@@ -11,6 +11,9 @@
     ],
     "final": "dns-remote"
   },
+  "http_clients": [
+    { "tag": "rule-set-download", "detour": "${PROXY_TAG}" }
+  ],
   "inbounds": [
 __INBOUNDS__
   ],
@@ -25,6 +28,7 @@ __RULESETS__
 __RULES__
     ],
     "final": "${PROXY_TAG}",
+    "default_http_client": "rule-set-download",
     "auto_detect_interface": ${AUTO_DETECT_INTERFACE},
     "default_domain_resolver": { "server": "dns-remote" }
   }

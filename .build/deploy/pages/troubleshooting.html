@@ -116,10 +116,10 @@ curl -s -H "Authorization: Bearer $S" "http://$C/connections" | grep -o '"chains
 </ul>
 <p>当前配置下：<b>国内域名走直连 DNS</b>（不依赖隧道），只有海外域名才需要隧道。如果海外域名偶尔 EOF，先确认隧道已就绪再重试。</p>
 
-<h2>可以忽略的两条启动告警</h2>
+<h2>启动告警</h2>
 <ul>
 <li><code>implicit default HTTP client using default outbound for remote rule-sets is deprecated</code><br>
-1.14 起不再隐式用默认出站下载规则集（1.16 会移除）。当前版本仍可用；升级到 1.16 前需要给每个 <code>rule_set</code> 指定 <code>http_client</code>。</li>
+1.14 起不再隐式用默认出站下载规则集（1.16 会移除）。<b>当前模板已修</b>：配置里显式写了顶层 <code>http_clients</code> 与 <code>route.default_http_client</code>，重新渲染一次客户端配置即可，告警会消失。仍看到这条，说明 JSON 是旧版模板生成的。</li>
 <li><code>REALITY: processed invalid connection</code>（见上一节）</li>
 </ul>
 
