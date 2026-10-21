@@ -61,8 +61,9 @@ server_run() {
   sb_check "$T/server.json"
 
   if [ "${DRY_RUN:-0}" = "1" ]; then
-    local out="${OUT:-config.preview.json}"
-    case "$out" in /*) ;; *) out="./$out" ;; esac
+    # 预览也走 data/：脚本目录是入库的，往里写会把服务端配置（含 REALITY 私钥）带进版本控制
+    local out="${OUT:-data/config.preview.json}"
+    mkdir -p "$(dirname "$out")"
     cp "$T/server.json" "$out"
     log "DRY_RUN：已生成 $out"
     return 0

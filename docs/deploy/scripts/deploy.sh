@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ===========================================================================
 # deploy.sh —— 一键脚本（自动生成，勿手改）
-#   生成时间：2026-10-21T10:49:27Z
+#   生成时间：2026-10-21T11:06:21Z
 #   来源：lib.sh + steps/*.sh + onekey/driver.sh
 #   重新生成：bash build-onekey.sh
 # ===========================================================================
@@ -552,8 +552,9 @@ server_run() {
   sb_check "$T/server.json"
 
   if [ "${DRY_RUN:-0}" = "1" ]; then
-    local out="${OUT:-config.preview.json}"
-    case "$out" in /*) ;; *) out="./$out" ;; esac
+    # 预览也走 data/：脚本目录是入库的，往里写会把服务端配置（含 REALITY 私钥）带进版本控制
+    local out="${OUT:-data/config.preview.json}"
+    mkdir -p "$(dirname "$out")"
     cp "$T/server.json" "$out"
     log "DRY_RUN：已生成 $out"
     return 0
