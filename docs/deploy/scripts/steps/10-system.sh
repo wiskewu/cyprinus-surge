@@ -108,16 +108,39 @@ SSHEOF
     # 而 sshd 对每个关键字取「第一个出现的值」，50 排在 99 前面 → 它赢。
     # 所以必须就地改掉，不能只在 99 里写一遍。
     CI=/etc/ssh/sshd_config.d/50-cloud-init.conf
-    if [ -f "$CI" ] && grep -qE '^[[:space:]]*PasswordAuthentication' "$CI"; then
+    if [ -f "$CI" ] && grep -qiE '^[[:space:]]*PasswordAuthentication' "$CI"; then
       [ -f "$CI.orig" ] || cp -a "$CI" "$CI.orig"
-      sed -i 's/^[[:space:]]*PasswordAuthentication.*/PasswordAuthentication no/I' "$CI"
+      # 用 awk 改写而不是 sed -i 's///I'：I 标志是 GNU 独有，BSD sed 会报错
+      awk '{ if (tolower($1) == "passwordauthentication") print "PasswordAuthentication no"; else print }' \
+        "$CI" >"$CI.tmp" && mv "$CI.tmp" "$CI"
     fi
     if sshd -t 2>/dev/null; then
       systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || true
+      # 有些镜像（含部分云厂商自定义镜像）的 sshd_config 压根没有 Include 行，
+      # 那我们写的 99-proxy.conf 就是死文件——drop-in 根本不会被读。
+      # 补一条 Include 到文件最顶部（sshd 对同一关键字取第一个出现的值），验证不过就回滚。
+      SC=/etc/ssh/sshd_config
+      if ! sshd -T 2>/dev/null | grep -qx 'passwordauthentication no' \
+         && [ -r "$SC" ] && ! grep -qiE '^[[:space:]]*Include[[:space:]]' "$SC"; then
+        warn "    ${SC} 里没有 Include sshd_config.d，drop-in 不会被读；补一条到文件顶部（备份 ${SC}.before-include）"
+        [ -f "$SC.before-include" ] || cp -a "$SC" "$SC.before-include"
+        { echo 'Include /etc/ssh/sshd_config.d/*.conf'; cat "$SC.before-include"; } >"$SC"
+        if sshd -t 2>/dev/null; then
+          systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || true
+        else
+          warn "    补 Include 后 sshd -t 不通过，已回滚（sshd 未重启）"
+          cp -a "$SC.before-include" "$SC"
+        fi
+      fi
       if sshd -T 2>/dev/null | grep -qx 'passwordauthentication no'; then
         log "    已生效：passwordauthentication no"
       else
-        warn "    未生效：/etc/ssh/sshd_config 里可能没有 Include sshd_config.d，请手工确认"
+        # 说不清楚就给人看证据：现在到底是多少、谁把它设回去的（第一个出现的值赢）
+        warn "    未生效，当前生效值：$(sshd -T 2>/dev/null | grep -i '^passwordauthentication' || echo '(读不到)')（文件：${SC}）"
+        warn "    设这个关键字的地方（drop-in 按文件名排序，靠前的赢）："
+        grep -rniE --exclude='*.orig' '^[[:space:]]*(PasswordAuthentication|KbdInteractiveAuthentication)' \
+          "$SC" /etc/ssh/sshd_config.d 2>/dev/null | while IFS= read -r l; do warn "      $l"; done
+        warn "    手工修：把靠前的那个 yes 改掉或删掉，再 sshd -t && systemctl restart ssh"
       fi
     else
       warn "sshd 配置有语法错，已回滚本步改动，sshd 未重启"
