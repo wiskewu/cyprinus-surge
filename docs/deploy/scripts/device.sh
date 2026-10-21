@@ -12,13 +12,16 @@
 #
 # 真相源是 $DEVICES_LIST（默认 /etc/sing-box/devices.list），建议纳入 git。
 # 一台设备一个凭据，同时当 VLESS uuid 与 Hysteria2 password——吊销因此是原子的。
+#
+# 在【服务器】上跑：它就地改名单、重渲染服务端、重渲染该设备的客户端 JSON。
+# 本地生成客户端配置请用 50-render-client.sh（默认输出到 ./data）。
 set -euo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib.sh
 . "$SELF_DIR/lib.sh"
 need_root
 
-CLIENT_OUT="${CLIENT_OUT:-$SELF_DIR/clients}"
+CLIENT_OUT="${CLIENT_OUT:-$DEPLOY_DIR/clients}"
 VALID_PLATFORMS="desktop android ios"
 
 # 子脚本（50-render-client.sh / 30-render-server.sh）靠环境变量找这些文件，必须导出
@@ -36,7 +39,7 @@ usage() {
 
 环境变量：
   DEVICES_LIST  设备名单路径（默认 /etc/sing-box/devices.list）
-  CLIENT_OUT    客户端配置输出目录（默认 $SELF_DIR/clients）
+  CLIENT_OUT    客户端配置输出目录（默认 $DEPLOY_DIR/clients）
   CLIENT_ENV    客户端环境文件（默认 /etc/sing-box/client.env）
 
 注意：add / rotate / revoke 都会重启 sing-box。当前有活跃会话时，

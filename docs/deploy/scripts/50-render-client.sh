@@ -6,7 +6,7 @@
 #   bash 50-render-client.sh client.env --all              # 一次生成 desktop / android / ios 三份
 #   bash 50-render-client.sh client.env desktop android    # 只生成指定端
 #   bash 50-render-client.sh deploy.env --device laptop    # 服务端专用：拿该设备的凭据渲染
-#   OUTDIR=./data bash 50-render-client.sh client.env --all
+#   OUTDIR=./data bash 50-render-client.sh client.env --all   # 默认就是 data/
 #
 # --device 从 devices.list 取该设备的凭据并覆盖 UUID / HY2_PASSWORD，
 # 输出文件名带设备名。应在【服务器】上跑（devices.list 在那边），生成好的 JSON 再分发。
@@ -32,9 +32,10 @@ usage() {
   bash 50-render-client.sh deploy.env --device laptop   # 按设备凭据渲染（需在服务器上跑）
   OUTDIR=./data bash 50-render-client.sh client.env --all
 
-单份模式：OUT=... 或默认 ./sing-box-client.json，所有变量由你决定。
+单份模式：OUT=... 或默认 data/sing-box-client.json，所有变量由你决定。
 多端模式：内置预设覆盖平台相关项（CLIENT_MIXED / AUTO_DETECT_INTERFACE），其余来自 client.env。
           桌面若报 not valid in its context，在前面加 AUTO_DETECT_INTERFACE=false。
+产物一律落在 OUTDIR（默认 ./data，已在 .gitignore 里），不要往脚本目录写。
 --device ：从 devices.list 取该设备凭据覆盖 UUID/HY2_PASSWORD，文件名带设备名。
 USAGE
 }
@@ -78,7 +79,7 @@ unset _ov_names _ov_vals _i
 : "${DNS_CN:=223.5.5.5}"
 : "${DNS_REMOTE:=1.1.1.1}"
 : "${AUTO_DETECT_INTERFACE:=true}"
-OUTDIR="${OUTDIR:-.}"
+OUTDIR="${OUTDIR:-data}"
 
 # ---------- 按设备取凭据 ----------
 if [ -n "$DEVICE" ]; then
@@ -191,7 +192,7 @@ validate_common
 
 if [ "${#TARGETS[@]}" -eq 0 ]; then
   # 单份模式：完全按环境变量（保持旧行为）
-  render_one "${OUT:-./sing-box-client.json}"
+  render_one "${OUT:-$OUTDIR/sing-box-client.json}"
   cat <<EOF
 
 导入方法
