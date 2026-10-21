@@ -7,10 +7,30 @@ bash 40-check-server.sh</code></pre>
 <p><code>30</code> 用 <code>deploy.env</code> 渲染配置 → <code>sing-box check</code> 校验 → 重启服务。校验不通过就不会覆盖旧配置。</p>
 <p><code>40</code> 有 9 项，全绿再往下走。某几项的含义见 <a href="troubleshooting.html">排查手册</a>。</p>
 
+<h2>设备名单</h2>
+<p><code>20-secrets.sh</code> 顺便建了 <code>/etc/sing-box/devices.list</code>，第一台叫 <code>main</code>。服务端的 <code>users</code> 数组就是从它渲染的，所以<b>改名单 → 重跑 <code>30</code></b> 就生效。</p>
+<pre><code># 名字 凭据 平台 —— 一台设备一行
+main   af2358a4-df32-419c-9774-63a44c540970  desktop
+phone  9b2c1d70-3e44-4a1b-8c02-7e5d9f10a333  android</code></pre>
+<p>一台设备一个凭据，同时当 VLESS 的 uuid 和 Hysteria2 的 password 用——所以<b>删一行就是吊销那台</b>，两条入口同时失效，不会漏一边。名单建议纳入 git。</p>
+<div class="note">改凭据请用 <a href="#devices"><code>device.sh</code></a>，别手改名单：它会顺手重渲染服务端并重新生成那台的客户端配置。</p></div>
+
 <h2>常用</h2>
 <pre><code>DRY_RUN=1 bash 30-render-server.sh   # 只生成配置，不动系统
 systemctl status sing-box
 journalctl -u sing-box -n 50 --no-pager
 systemctl restart sing-box</code></pre>
+
+<h2 id="devices">设备管理</h2>
+<p><code>device.sh</code> 在<b>服务器</b>上就地完成：改名单 → 重渲染服务端 → 重新生成那台的客户端 JSON，然后你把 JSON 拿去分发。它不自己实现任何 sing-box 逻辑，渲染一律走现有脚本，所以不会和模板漂移。</p>
+<pre><code>sudo bash device.sh list
+sudo bash device.sh add laptop [desktop|android|ios]   # 默认 desktop
+sudo bash device.sh rotate laptop                       # 换凭据，旧配置立刻失效
+sudo bash device.sh revoke laptop                       # 删掉，两条入口同时失效
+sudo bash device.sh render laptop                       # 只重渲染客户端配置</code></pre>
+<p>产物在 <code>/etc/sing-box/clients/sing-box-client-&lt;名字&gt;-&lt;平台&gt;.json</code>：</p>
+<pre><code>scp root@服务器:/etc/sing-box/clients/sing-box-client-laptop-desktop.json laptop@机器:~/</code></pre>
+<div class="warn"><b>每台设备只发它自己那一份。</b>整个 <code>devices.list</code> 落到任何一台机器上，就等于把所有设备的凭据都给了它。名单本身也要进 <code>.gitignore</code> 或单独加密存放。</div>
+<div class="bad"><b>add / rotate / revoke 都会重启 sing-box。</b>当前活跃会话不会断（连接已建立），但新连接会短暂受影响。</div>
 
 <p style="margin-top:24px"><a href="02-install.html">← 上一步</a>　·　<a href="04-hy2.html">下一步（可选）→</a>　·　<a href="05-client.html">跳过 Hysteria2 →</a></p>

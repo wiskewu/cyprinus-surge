@@ -9,12 +9,14 @@
 <tbody>
 <tr><td>1</td><td>系统初始化</td><td><code>bash 00-bootstrap.sh</code></td><td>加固好的系统</td></tr>
 <tr><td>2</td><td>装 sing-box + 生成密钥</td><td><code>bash 10-install-singbox.sh</code><br><code>bash 20-secrets.sh</code></td><td><code>deploy.env</code> / <code>client.env</code></td></tr>
-<tr><td>3</td><td>服务端配置 + 自检</td><td><code>bash 30-render-server.sh</code><br><code>bash 40-check-server.sh</code></td><td>可连的节点</td></tr>
-<tr><td>4</td><td>客户端配置（在客户端机器）</td><td><code>bash 50-render-client.sh</code></td><td><code>sing-box-client.json</code></td></tr>
+<tr><td>3</td><td>服务端配置 + 自检</td><td><code>bash 30-render-server.sh</code><br><code>bash 40-check-server.sh</code></td><td>可连的节点 + <code>devices.list</code></td></tr>
+<tr><td>4</td><td>客户端配置（在客户端机器）</td><td><code>bash 50-render-client.sh</code></td><td><code>data/sing-box-client.json</code></td></tr>
 <tr><td>5</td><td>验收 + 备份</td><td><code>bash 60-verify-client.sh</code><br><code>bash 70-backup.sh</code></td><td>验收记录</td></tr>
 </tbody>
 </table>
 </div>
+
+<p>第 2 步会同时建好设备名单 <code>devices.list</code>。<b>多台设备请用 <code>device.sh</code></b>（服务端 <code>sudo bash device.sh add laptop</code>），不要让多台共用同一份配置——那样没法单独吊销一台。见 <a href="03-server.html#devices">第 3 页</a>。</p>
 
 <h2>开始前确认</h2>
 <ul>
