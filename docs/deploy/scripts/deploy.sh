@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ===========================================================================
 # deploy.sh —— 一键脚本（自动生成，勿手改）
-#   生成时间：2026-10-21T15:19:52Z
+#   生成时间：2026-10-21T17:00:19Z
 #   来源：lib.sh + steps/*.sh + onekey/driver.sh
 #   重新生成：bash build-onekey.sh
 # ===========================================================================
@@ -477,7 +477,11 @@ HY2_UP_MBPS=${HY2_UP_MBPS:-100}
 HY2_DOWN_MBPS=${HY2_DOWN_MBPS:-300}
 OBFS_PASSWORD=$OBFS_PASSWORD
 
-AUTO_DETECT_INTERFACE=${AUTO_DETECT_INTERFACE:-false}
+# 桌面端默认 true：TUN 开着时，auto_detect_interface 负责把出站绑定到物理网卡，
+# 否则 direct 出站会按默认路由又走回 tun（环），表现为「连上立刻被断」。
+# 只有在 Windows 多网卡报 "not valid in its context" 时才关掉，并且要同时指定
+# 网卡（客户端脚本支持 DEFAULT_INTERFACE=en0 之类）。
+AUTO_DETECT_INTERFACE=${AUTO_DETECT_INTERFACE:-true}
 AI_MODE=$AI_MODE
 AI_SOCKS_SERVER=${AI_SOCKS_SERVER:-}
 AI_SOCKS_PORT=${AI_SOCKS_PORT:-1080}
@@ -503,7 +507,11 @@ HY2_HOP_RANGE=${HY2_HOP_RANGE:-8443:8447}
 HY2_PASSWORD=$first_cred
 OBFS_PASSWORD=$OBFS_PASSWORD
 
-AUTO_DETECT_INTERFACE=${AUTO_DETECT_INTERFACE:-false}
+# 桌面端默认 true：TUN 开着时，auto_detect_interface 负责把出站绑定到物理网卡，
+# 否则 direct 出站会按默认路由又走回 tun（环），表现为「连上立刻被断」。
+# 只有在 Windows 多网卡报 "not valid in its context" 时才关掉，并且要同时指定
+# 网卡（客户端脚本支持 DEFAULT_INTERFACE=en0 之类）。
+AUTO_DETECT_INTERFACE=${AUTO_DETECT_INTERFACE:-true}
 AI_MODE=$AI_MODE
 AI_SOCKS_SERVER=${AI_SOCKS_SERVER:-}
 AI_SOCKS_PORT=${AI_SOCKS_PORT:-1080}

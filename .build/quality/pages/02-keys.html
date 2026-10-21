@@ -56,6 +56,10 @@ CLIENTS="laptop=&lt;KEY&gt;:&lt;HMAC&gt; phone=&lt;KEY&gt;:&lt;HMAC&gt;"</code><
 <pre><code>HOSTS="server1=203.0.113.10 server2=198.51.100.7"
 CLIENT_NAME=laptop
 CLIENTS="laptop=&lt;KEY&gt;:&lt;HMAC&gt;"</code></pre>
+<p><b>sshd 监听多个端口时</b>（比如刚挪端口那阵 22 与 4061 并存），写回的值是一整串、必须带引号：</p>
+<pre><code>SSH_PORT="22 4061"           # 不带引号的话，source 时会把 4061 当命令执行
+ACCESS tcp/22,tcp/4061      # 客户端 ~/.fwknoprc 里的写法（逗号分隔）
+OPEN_PORTS tcp/22,tcp/4061; # 服务端 access.conf 里的写法（也是逗号）</code></pre>
 <div class="bad"><b>格式坑：</b>每客户端的键值必须写在<b>一行带引号的 <code>CLIENTS="..."</code></b> 里。写成 <code>CLIENT laptop=...</code> 不是合法 shell 赋值，脚本 source 这个文件时会直接报 <code>CLIENT: command not found</code>。</div>
 
 <h2>渲染出的 access.conf</h2>
@@ -66,6 +70,7 @@ FW_ACCESS_TIMEOUT 120;
 MAX_FW_TIMEOUT 300;
 KEY_BASE64        &lt;laptop 的密钥&gt;;
 HMAC_KEY_BASE64   &lt;laptop 的 HMAC 密钥&gt;;</code></pre>
+<p>多端口时 <code>OPEN_PORTS</code> 是逗号列表：<code>OPEN_PORTS tcp/22,tcp/4061;</code>，与客户端 <code>ACCESS</code> 一一对应。</p>
 <div class="tw">
 <table>
 <thead><tr><th>字段</th><th>含义</th></tr></thead>

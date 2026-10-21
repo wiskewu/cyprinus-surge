@@ -63,7 +63,8 @@ if [ "$ALL" = 1 ]; then TARGETS=(desktop android ios); fi
 # ---------- 读环境：命令行显式传入的优先 ----------
 # AI_SOCKS_* 必须在列表里：client.env 里它们是空值，不加会被 load_env 覆盖成空
 _ov_names=("CLIENT_MIXED" "AI_MODE" "AUTO_DETECT_INTERFACE" "DNS_CN" "DNS_REMOTE" "ENABLE_HY2" \
-           "AI_SOCKS_SERVER" "AI_SOCKS_PORT" "AI_SOCKS_USER" "AI_SOCKS_PASS" "SERVER_HOST")
+           "AI_SOCKS_SERVER" "AI_SOCKS_PORT" "AI_SOCKS_USER" "AI_SOCKS_PASS" "SERVER_HOST" "SERVER_IP" \
+           "DEFAULT_INTERFACE")
 _ov_vals=()
 for _i in "${!_ov_names[@]}"; do _ov_vals[$_i]="${!_ov_names[$_i]:-}"; done
 
@@ -106,6 +107,32 @@ validate_common() {
   if [ "${ENABLE_HY2:-0}" = "1" ]; then PROXY_TAG=auto; else PROXY_TAG=proxy; fi
   if [ "${AI_MODE:-main}" = "dedicated" ]; then AI_OUT_TAG=ai-out; else AI_OUT_TAG="$PROXY_TAG"; fi
   export PROXY_TAG AI_OUT_TAG AUTO_DETECT_INTERFACE DNS_CN DNS_REMOTE
+  # auto_detect_interface=false 的代价：TUN 下 direct 出站的连接会按系统默认路由
+  # 又走回 tun（环），表现为「连上立刻被断」。要关它就得给直连出站指定网卡。
+  resolve_default_interface
+  derive_self_direct
+}
+
+# 到「代理服务器自己」的流量必须直连。
+# 否则开了 TUN 的机器把「连 VPS」也送进隧道，就从隧道出口又绕回这台 VPS（hairpin）：
+# SSH 到服务器、curl 服务器的 443、以及 SPA 敲门包全会被搅坏，而症状看起来像「服务器挂了」。
+# 写成配置里的第一条路由规则（而不是让人去改本机 route），才是通用的解法：
+# Clash/Mihomo 的等价规则是 IP-CIDR,<VPS_IP>/32,DIRECT（多数 GUI 会自己加，命令行配置不会）。
+derive_self_direct() {
+  local ip="${SERVER_IP:-}"
+  # SERVER_IP 没给就退一步用 SERVER_HOST（仅当它本身就是 IP 时；域名不在这里解析）
+  case "$ip" in '' | *[!0-9.]*) ip="" ;; esac
+  if [ -z "$ip" ]; then
+    case "${SERVER_HOST:-}" in '' | *[!0-9.]*) : ;; *) ip="$SERVER_HOST" ;; esac
+  fi
+  if [ -z "$ip" ]; then
+    SELF_DIRECT_RULE=""
+    warn "client.env 里没有可用的 SERVER_IP，无法把「连服务器自己」设为直连"
+    warn "  若本机开着 TUN，SSH 到这台 VPS 会被隧道接走（表现为 nc 能通、ssh 立刻被关）"
+    return 0
+  fi
+  SELF_DIRECT_RULE="      { \"ip_cidr\": [\"${ip}/32\"], \"action\": \"route\", \"outbound\": \"direct\" },"
+  log "直连规则：${ip}/32 → direct（避免 TUN 把到服务器的流量绕进隧道）"
 }
 
 # 端预设：只覆盖平台相关的两项，其余沿用 client.env
@@ -117,6 +144,48 @@ apply_target() {
     android) TARGET_OUT="$OUTDIR/sing-box-client${pre}-$1.json"; CLIENT_MIXED=0; AUTO_DETECT_INTERFACE=true ;;
     ios)     TARGET_OUT="$OUTDIR/sing-box-client${pre}-$1.json";     CLIENT_MIXED=0; AUTO_DETECT_INTERFACE=true ;;
   esac
+}
+
+# auto_detect_interface=false 时，出站不再自动绑定物理网卡，direct 出站会按默认路由
+# 又走回 tun（环）——症状是「连上立刻被断」。这时必须显式指定网卡：
+# 用 DEFAULT_INTERFACE=<网卡名> 渲染，会写进 route.default_interface。
+# 注意：开了 TUN 之后「默认路由」本身就是 utun，必须排除掉它再找物理网卡。
+detect_physical_iface() {
+  local cands=""
+  case "$(uname -s 2>/dev/null)" in
+    Darwin)
+      cands="$(netstat -rn -f inet 2>/dev/null | awk '$1=="default"{print $NF}' \
+        | grep -E '^(en|bridge|pdp_ip)[0-9]+$' | head -n1)"
+      ;;
+    *)
+      if command -v ip >/dev/null 2>&1; then
+        cands="$(ip route show default 2>/dev/null | awk '
+          { for (i=1;i<=NF;i++) if ($i=="dev") { iface=$(i+1); if (iface !~ /^(tun|utun|wg|ipsec|ppp|lo)/) { print iface; exit } } }')"
+      fi
+      ;;
+  esac
+  case "$cands" in utun* | tun* | wg* | ipsec* | ppp* | lo*) cands="" ;; esac
+  printf '%s' "$cands"
+}
+
+resolve_default_interface() {
+  if [ "$AUTO_DETECT_INTERFACE" = "true" ]; then
+    DEFAULT_IFACE_FRAGMENT=""
+    return 0
+  fi
+  if [ -n "${DEFAULT_INTERFACE:-}" ]; then
+    DEFAULT_IFACE_FRAGMENT="    \"default_interface\": \"${DEFAULT_INTERFACE}\","
+    log "auto_detect_interface=false → route.default_interface=${DEFAULT_INTERFACE}（防止直连绕回 tun）"
+    return 0
+  fi
+  DEFAULT_IFACE_FRAGMENT=""
+  local iface; iface="$(detect_physical_iface)"
+  warn "AUTO_DETECT_INTERFACE=false 但没有指定网卡：TUN 开着时 direct 出站会绕回 tun（连上立刻被断）"
+  if [ -n "$iface" ]; then
+    warn "  本机物理网卡是 ${iface}，加一个变量即可：DEFAULT_INTERFACE=${iface}"
+  else
+    warn "  在【目标机器】上重渲染并加 DEFAULT_INTERFACE=<物理网卡名>（macOS: en0，Windows: ipconfig 看）"
+  fi
 }
 
 # 渲染中途失败也别把临时目录留下
@@ -167,10 +236,15 @@ render_one() {
   # 路由 + 组装
   render_vars "$TPL_DIR/rulesets.json.tmpl" "$T/rulesets.json"
   render_vars "$TPL_DIR/rules.json.tmpl" "$T/rules.json"
+  # 「连服务器自己」的直连规则：知道 IP 就插到规则第一条，不知道就空插入（占位符整行去掉）
+  printf '%s' "${SELF_DIRECT_RULE:-}" >"$T/rule-self.json"
+  inject_block "$T/rules.json" "__RULES_SELF__" "$T/rule-self.json"
   render_vars "$TPL_DIR/client.json.tmpl" "$T/client.json"
   inject_block "$T/client.json" "__INBOUNDS__" "$T/inbounds.json"
   inject_block "$T/client.json" "__OUTBOUNDS__" "$T/outbounds.json"
   inject_block "$T/client.json" "__RULESETS__" "$T/rulesets.json"
+  printf '%s' "${DEFAULT_IFACE_FRAGMENT:-}" >"$T/iface.json"
+  inject_block "$T/client.json" "__ROUTE_DEFAULT_IFACE__" "$T/iface.json"
   inject_block "$T/client.json" "__RULES__" "$T/rules.json"
 
   if command -v jq >/dev/null 2>&1; then json_valid "$T/client.json"; fi

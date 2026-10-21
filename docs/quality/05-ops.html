@@ -89,23 +89,37 @@ details .body{padding:4px 14px 14px}
 <tr><td>服务端 fwknopd 起不来</td><td><code>fwknopd -F</code> 前台跑。常见是 <code>access.conf</code> 里混进空格或中文标点</td></tr>
 <tr><td>日志里没有 SPA 记录</td><td>包根本没到。先查云安全组有没有放行 <code>62201/udp</code>，再 <code>tcpdump -i any udp port 62201</code>；两处都正常才是服务商封了 UDP</td></tr>
 <tr><td><code>nmap</code> 显示 22 是 <code>closed</code></td><td>还有别的东西在放行：云安全组、ufw 其他规则</td></tr>
-<tr><td>客户端卡在 resolve</td><td><code>ALLOW_IP resolve</code> 需要能访问外网。固定 IP 在 <code>[default]</code> 里写死 <code>ALLOW_IP &lt;你的IP&gt;</code></td></tr>
+<tr><td>客户端只打印 <code>Use --wget-cmd ...</code>，然后什么都不发生</td><td><code>ALLOW_IP resolve</code> 要先用 wget 查自己的公网 IP，<b>macOS 默认没装 wget</b> → 包根本没发出去。新版脚本默认写 <code>ALLOW_IP source</code>（包里写 0.0.0.0，服务端用包的来源 IP 放行，不需要 wget）；旧配置就改 <code>[default]</code> 里那一行，或 <code>brew install wget</code>，或写死 <code>ALLOW_IP &lt;你的公网IP&gt;</code></td></tr>
+<tr><td><code>Connection closed by UNKNOWN port 65535</code></td><td><b>先查 <code>ProxyCommand</code> 自己能不能跑。</b>ssh 会把这一行改写成 <code>exec &lt;命令&gt;</code>，所以写成 <code>fwknop …; sleep 2; nc …</code> 时，<code>exec</code> 之后的命令根本不执行，握手前就 EOF。必须先包一层 <code>/bin/sh -c '…'</code>（<code>ssh -v</code> 里能看到实际执行的命令）。排除这条之后再看：敲门到了没（<code>journalctl -u fwknop-server</code> / <code>iptables -S FWKNOP_INPUT</code>）、端口对不对（<code>ssh -v</code> 里的 <code>Port</code>）、是不是被 fail2ban / <code>PerSourcePenalties</code> 封了</td></tr>
+<tr><td>走到认证才失败：<code>Permission denied (publickey)</code></td><td>多半是<b>用户名不对</b>：托管块没有 <code>User</code>，ssh 会拿本机用户名登录。用 <code>20-client.sh --keys … --user root</code> 重写托管块</td></tr>
 <tr><td><code>ssh</code> 卡在 <code>kex_exchange_identification</code></td><td>你本机的 TUN 把 SSH 也代理了，见下</td></tr>
-<tr><td>敲门成功但连不上</td><td>客户端 <code>ACCESS tcp/&lt;端口&gt;</code> 与服务器的 sshd 端口不一致。服务端会探测并把实测值写回密钥包，<b>确认你分发给客户端的是跑完 <code>10-server.sh</code> 之后的那份</b>，或直接 <code>SSH_PORT=… bash 20-client.sh</code></td></tr>
+<tr><td>敲门成功但连不上</td><td>客户端 <code>ACCESS</code> 与服务器的 sshd 端口不一致。服务端会探测并把实测值写回密钥包，<b>确认你分发给客户端的是跑完 <code>10-server.sh</code> 之后的那份</b>，或直接 <code>SSH_PORT=… bash 20-client.sh</code>。sshd 监听多个端口时两侧都是逗号列表（<code>tcp/22,tcp/4061</code>）</td></tr>
 <tr><td>测出的延迟漂亮、实际很差</td><td>测量机器自己的 TUN 污染了结果，见下</td></tr>
 </tbody>
 </table>
 </div>
 
 <h2>本机 TUN 捕获 SSH 与测速</h2>
-<p>本机跑着 Clash / sing-box 的 TUN 时，连新服务器的 SSH 也会被隧道接管（新 IP 不在直连规则里）。症状是 <code>kex_exchange_identification</code> 或超时，但服务器明明在跑。</p>
+<p>本机跑着 Clash / sing-box 的 TUN 时，连服务器的流量也会被隧道接管（服务器 IP 不在直连规则里）。症状是 <code>kex_exchange_identification</code>、<code>Connection closed by UNKNOWN port 65535</code>，或超时，但服务器明明在跑。</p>
+<div class="bad"><b>先看一个假象：<code>nc -vz</code> 说「能通」也不可信。</b>TUN 在本地就把 TCP 握手接住了，<i>包括本来没任何服务监听的端口</i>——比如 <code>nc -vz &lt;IP&gt; 62201</code>（SPA 是 UDP，服务器上根本没有 TCP 62201）也会报 <code>succeeded</code>。判断方法一：<code>route -n get &lt;服务器IP&gt; | grep interface</code>，输出 <code>utunX</code> 就是被接管了。方法二（能真正绕开 TUN 的连通性测试，macOS 上是 <code>IP_BOUND_IF</code>）：<code>curl --interface en0 -sS telnet://&lt;服务器IP&gt;:&lt;端口&gt;</code>——打到真 sshd 会出 <code>SSH-2.0-…</code>；用 <code>nc -s &lt;本机en0地址&gt;</code> 不行，那只是绑源地址，路由仍旧走 tun。</div>
+<p><b>通用解法是配置层面的，不是去改本机路由：</b>把服务器自己的地址设为直连——所有客户端都有这个规则，只是命令行配置不像 GUI 那样自动帮你加。</p>
+<div class="warn"><b>注意层级：规则必须加在「真正持有 utun 的那个客户端」里。</b>先确认是谁：<code>pgrep -fl 'clash|mihomo|sing-box|surge|stash'</code> + <code>route -n get &lt;服务器IP&gt; | grep interface</code>。常见误区：机场客户端只把<b>它自己的节点</b>加入直连（否则环路），你自建的 VPS 不在名单里，照样被送进隧道。改 sing-box 的配置文件对 Clash Verge 的隧道毫无影响。</div>
+<pre><code># sing-box：route.rules 的第一条（本手册的 50-render-client.sh 已经自动写进去了）
+{ "ip_cidr": ["&lt;服务器IP&gt;/32"], "action": "route", "outbound": "direct" }
+
+# Clash / Mihomo：加在 rules 里（no-resolve 防止为了匹配规则去解析域名）
+- IP-CIDR,&lt;服务器IP&gt;/32,DIRECT,no-resolve</code></pre>
+<p><b>Clash Verge</b> 里别改订阅自带的那份 profile（一更新就没了），用它的「全局扩展配置 → 规则」模板（<code>prepend:</code>）：</p>
+<pre><code>prepend:
+  - IP-CIDR,&lt;服务器IP&gt;/32,DIRECT,no-resolve</code></pre>
+<p>不加这条的后果不只是 SSH：<b>敲门包也会被送进隧道</b>，到服务端时源 IP 变成隧道出口，<code>ALLOW_IP source</code> 就对不上号了；而 TUN 又会把那个「本地假通」回给你，看起来像 SPA 失效。</p>
+<p>临时手段（不改代理配置时）：把那个 IP 的流量改回真实网关，或干脆关掉 TUN。</p>
 <pre><code># macOS
 sudo route -n add -host &lt;服务器IP&gt; &lt;局域网网关&gt;
 # Linux
 sudo ip route add &lt;服务器IP&gt; via &lt;局域网网关&gt;
 # 用完删掉
 sudo route -n delete -host &lt;服务器IP&gt;</code></pre>
-<p>更简单：部署期间先关掉 TUN。</p>
 <div class="warn"><b>本机有 TUN 时，测出来的每个数字都可能是假的。</b>跑着代理客户端的机器会把 <code>nc</code> / <code>mtr</code> / <code>curl</code> 也送进隧道。验收前先确认测试机器上<b>没有</b>代理客户端在跑。唯一仍可靠的是 <code>ping</code>——ICMP 通常不被代理接管。</div>
 
 <h2 id="ufw">与 ufw 的关系</h2>

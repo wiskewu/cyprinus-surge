@@ -48,8 +48,9 @@ cd /root/deploy &amp;&amp; SSH_PORT=你的SSH端口 bash 00-bootstrap.sh</code><
 echo 'ssh-ed25519 AAAAC3Nza... 你备注' &gt;&gt; ~/.ssh/authorized_keys
 chmod 600 ~/.ssh/authorized_keys</code></pre>
 
-<h3>要把 SSH 挪到非 22 端口（可选）</h3>
+<h3>要把 SSH 挪到非 22 端口（建议做）</h3>
 <p>脚本<b>不会</b>改 sshd 的端口，只会放行。挪端口一律「先开新、再关旧」：</p>
+<div class="warn"><b>22 端口本身就可能不通。</b>某些网络对 22 端口做 RST 注入，表现是 TCP 连上、banner 之前就 <code>Connection reset by peer</code>，ufw 放行了也没用。所以别把 22 当作可用的后备通道——挑个高位端口（本手册示例用 4061）并用下面的方式验证：<code>curl --interface en0 -sS telnet://&lt;IP&gt;:22</code> 应 reset，<code>…:4061</code> 应打出 <code>SSH-2.0-…</code>。</div>
 <pre><code># 1) 两层都先放行新端口：ufw + 云厂商安全组
 ufw allow 4061/tcp
 

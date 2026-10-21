@@ -193,7 +193,8 @@ write_ssh_ports() {
   chmod 600 "$f"
 }
 write_ssh_ports "$KEYS" && log "已把 SSH 端口（${SSH_PORTS}）写回 $KEYS"
-write_ssh_ports "$CLIENT_ENV"
+# 以前这里还写了一份 "$CLIENT_ENV"，那是从部署脚本拷来的变量——本手册根本没有 client.env，
+# 在 set -u 下它直接让脚本死在启动 fwknopd 之前（fwknopd 没起、防火墙也没动）。
 
 # ---- 起服务 ----
 log "4/5 启动 fwknopd"

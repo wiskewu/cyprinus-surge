@@ -136,7 +136,9 @@ curl -s -H "Authorization: Bearer $S" "http://$C/connections" | grep -o '"chains
 <tr><td>国内站点变慢</td><td>规则集没更新或 <code>sniff</code> 未生效；看连接列表的 chains</td></tr>
 <tr><td>突然全部失效且时间异常</td><td>NTP 漂移：<code>timedatectl set-ntp true</code> + 重启 timesyncd</td></tr>
 <tr><td>流量超了变慢</td><td>限速到 1Mbps（不是停机），<code>vnstat -m</code> 确认</td></tr>
+<tr><td>SSH 能连上但立刻 <code>Connection reset</code>（换端口就好）</td><td>端口路径上有 <b>RST 注入</b>（对 22 端口最常见）或服务商的「22 端口保护」。测法：<code>curl --interface en0 -sS telnet://&lt;IP&gt;:22</code> 与 <code>…:其他端口</code> 对比——一个 <code>reset</code>、一个能打出 <code>SSH-2.0-…</code> banner，就是它。解法：sshd 换个高位端口，客户端 <code>Port</code> 同步改</td></tr>
 <tr><td>SSH 端口连不上</td><td>先确认不是云厂商安全组挡的（<a href="01-init.html">第二层防火墙</a>）：控制台里也要放行你的 SSH 端口。然后从控制台执行 <code>ufw allow 你的端口/tcp &amp;&amp; ufw reload</code>，再带 <code>SSH_PORT=</code> 重跑 <code>00</code></td></tr>
+<tr><td>能连上但 <code>ssh</code> / 隧道立刻被断（<code>Connection closed by UNKNOWN port 65535</code>）</td><td>典型是<b>TUN 打环</b>：配置里 <code>auto_detect_interface=false</code>，出站没绑物理网卡，<code>direct</code> 出站又按默认路由走回 tun。加上 <code>"auto_detect_interface": true</code>，或用 <code>DEFAULT_INTERFACE=&lt;物理网卡&gt;</code> 重渲染（写进 <code>route.default_interface</code>）。注意：GUI 客户端导入的是副本，改文件不重导入不生效</td></tr>
 <tr><td><code>00</code> 第 6 步报「未生效：可能没有 Include」</td><td>镜像的 <code>sshd_config</code> 没 <code>Include sshd_config.d</code>，脚本写的 drop-in 就是死文件（新版脚本会自动补一条 Include 并回读验证）。手工版的记法：<code>head -3 /etc/ssh/sshd_config</code> 看有没有 Include，再 <code>sshd -T | grep -i ^passwordauthentication</code> 看当前生效值，把靠前的那个 <code>yes</code> 改掉即可。见 <a href="01-init.html">第 1 页</a></td></tr>
 <tr><td>443 通但 8443 超时（或反过来）</td><td>几乎肯定是云厂商安全组只放行了部分端口。两层都要配</td></tr>
 <tr><td>连新服务器 SSH 卡在 <code>kex_exchange_identification</code></td><td><b>你本机的 TUN 把 SSH 也给代理了。</b>见下方「本机 TUN 捕获 SSH」</td></tr>
@@ -146,8 +148,15 @@ curl -s -H "Authorization: Bearer $S" "http://$C/connections" | grep -o '"chains
 </div>
 
 <h2>本机 TUN 捕获 SSH</h2>
-<p>如果你自己电脑上跑着 Clash / sing-box 之类的 TUN（虚拟网卡），<b>连新服务器的 SSH 也会被隧道接管</b>——新 IP 不在隧道的直连规则里，握手就死在半路。症状是 <code>kex_exchange_identification: Connection closed</code> 或者干脆超时，但服务器明明在跑。</p>
-<p>加一条宿主路由绕开隧道：</p>
+<p>如果你自己电脑上跑着 Clash / sing-box 之类的 TUN（虚拟网卡），<b>连服务器的 SSH 也会被隧道接管</b>——服务器 IP 不在隧道的直连规则里，握手就死在半路。症状是 <code>kex_exchange_identification: Connection closed</code>、<code>Connection closed by UNKNOWN port 65535</code>，或者干脆超时，但服务器明明在跑。</p>
+<div class="bad"><b><code>nc -vz</code> 报「能通」不能当证据。</b>TUN 在本地就把 TCP 握手接住了，连本来没服务监听的端口也会「成功」。判断：<code>route -n get &lt;服务器IP&gt; | grep interface</code>，看到 <code>utunX</code> 就是被接管了。</div>
+<p><b>正确的修法在代理配置里：把服务器自己的 IP 设为直连。</b>规则要加在<b>真正持有 <code>utun</code> 的那个客户端</b>上（先 <code>pgrep -fl 'clash|mihomo|sing-box'</code> 看一眼）；机场客户端通常只把自己的节点加入直连，你自建的 VPS 不在它名单里。（本手册的 <code>50-render-client.sh</code> 现在会自动给 sing-box 写这条规则，旧配置重新渲染一次就修好。）</p>
+<pre><code># sing-box：route.rules 的第一条
+{ "ip_cidr": ["&lt;服务器IP&gt;/32"], "action": "route", "outbound": "direct" }
+
+# Clash / Mihomo / Clash Verge（Verge 用「全局扩展配置 → 规则」的 prepend，别改订阅本體）
+- IP-CIDR,&lt;服务器IP&gt;/32,DIRECT,no-resolve</code></pre>
+<p>临时手段（不想改代理配置时）：加一条宿主路由绕开隧道，或部署期间先关掉 TUN。</p>
 <pre><code># macOS
 sudo route -n add -host &lt;服务器IP&gt; &lt;你的局域网网关&gt;
 # Linux

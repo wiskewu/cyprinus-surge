@@ -28,6 +28,7 @@
 <tr><td>2</td><td>服务器</td><td>装 fwknopd、放行 SPA 端口（<b>SSH 端口仍开着</b>）</td><td><code>sudo bash 10-server.sh --keys spa-keys.env</code></td></tr>
 <tr><td>3</td><td>每台客户端</td><td>写 <code>~/.fwknoprc</code> 与 <code>~/.ssh/config</code></td><td><code>bash 20-client.sh --keys clients/laptop.env</code></td></tr>
 <tr><td>4</td><td>服务器</td><td>确认能进之后，<b>才</b>关公网 SSH 端口</td><td><code>sudo bash 10-server.sh --keys spa-keys.env --close-ssh</code></td></tr>
+<tr><td>退</td><td>服务器 + 客户端</td><td>不想要了：先开回公网 SSH，再拆 SPA</td><td><code>sudo bash 90-uninstall.sh</code> / <code>bash 90-uninstall.sh --client</code></td></tr>
 </tbody>
 </table>
 </div>

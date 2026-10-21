@@ -15,9 +15,9 @@ ssh root@&lt;服务器&gt; 'bash /root/ssh-spa/10-server.sh --keys /root/spa-key
 <p>按顺序做了五件事：</p>
 <ol class="steps">
 <li><b>装 fwknop-server</b>（Debian 包名，客户端才是 <code>fwknop-client</code>）</li>
-<li><b>渲染 <code>/etc/fwknop/fwknopd.conf</b></b>：按默认路由网卡写 <code>PCAP_INTF</code>，嗅探端口取 <code>SPA_PORT</code>，跳转规则放在 <code>INPUT</code> 第 1 位，防重放三项全开。包自带版本备份为 <code>fwknopd.conf.orig</code></li>
+<li><b>渲染 <code>/etc/fwknop/fwknopd.conf</code></b>：按默认路由网卡写 <code>PCAP_INTF</code>，嗅探端口取 <code>SPA_PORT</code>，跳转规则放在 <code>INPUT</code> 第 1 位，防重放三项全开。包自带版本备份为 <code>fwknopd.conf.orig</code></li>
 <li><b>渲染 <code>/etc/fwknop/access.conf</code></b>（0600）：从密钥包逐个 stanza 展开，并自检 stanza 数 == 密钥组数</li>
-<li><b>探测 SSH 端口</b>：三路（当前连接 → <code>ss</code> 监听 → <code>sshd_config</code>），<b>不假设是 22</b>。云厂商给的新机器常是随机端口，按 22 去操作会关错</li>
+<li><b>探测 SSH 端口</b>：四路（当前连接 → <code>ss</code> 监听 → <code>ssh.socket</code> 的 <code>ListenStream</code> → <code>sshd_config</code>），<b>不假设是 22</b>。云厂商给的新机器常是随机端口，按 22 去操作会关错；sshd 同时监听多个端口时每一个都会处理</li>
 <li><b>启动 <code>fwknop-server</code></b>：起不来就打日志退出，<b>此时防火墙还没动</b>；起来了还要确认 <code>FWKNOP_INPUT</code> 跳转真的插上了</li>
 <li><b>防火墙</b>：<code>ufw allow 62201/udp</code>，<b>SSH 端口保持原样</b>；改完 ufw 后自动重启一次 fwknopd（见 <a href="05-ops.html#ufw">第 5 页</a>）</li>
 <li><b>把探测到的端口写回密钥包</b>：客户端配置里的 <code>ACCESS tcp/&lt;端口&gt;</code> 必须和服务端一致，而密钥包是在别的机器上生成的。你分发给客户端的应当是<b>跑完这一步之后</b>的那份</li>
@@ -51,7 +51,23 @@ SYSLOG_ID                fwknopd;</code></pre>
 <pre><code>scp clients/laptop.env &lt;你的机器&gt;:~/
 ssh &lt;你的机器&gt; 'bash 20-client.sh --keys ~/laptop.env'</code></pre>
 <p>做了三件事：装 <code>fwknop</code>；写 <code>~/.fwknoprc</code>（0600）；往 <code>~/.ssh/config</code> 追加一个<b>托管块</b>。</p>
+<p><code>~/.fwknoprc</code> 里关键的是 <code>ALLOW_IP</code>，默认写 <code>source</code>：SPA 包里写 <code>0.0.0.0</code>，服务端按「包从哪个 IP 来」放行——<b>不需要 wget，也不怕你换网络</b>。需要时在密钥包里加一行 <code>ALLOW_IP=…</code> 覆盖：</p>
+<div class="tw">
+<table>
+<thead><tr><th>取值</th><th>客户端要什么</th><th>适合</th></tr></thead>
+<tbody>
+<tr><td><code>source</code>（默认）</td><td>什么都不用</td><td>漫游、家宽 IP 会变。代价：<code>fwknop</code> 官方认为比写死 IP 弱一档（包的价值在「谁发出」）</td></tr>
+<tr><td><code>resolve</code></td><td><b>wget</b>（macOS 默认没有：<code>brew install wget</code>）</td><td>能装 wget、想抗 MITM</td></tr>
+<tr><td><code>&lt;你的公网IP&gt;</code></td><td>什么都不用</td><td>固定 IP（家里的宽带、办公室）</td></tr>
+</tbody>
+</table>
+</div>
 
+<div class="bad"><b>ProxyCommand 必须包一层 <code>/bin/sh -c</code>。</b>ssh 会把 <code>ProxyCommand</code> 改写为 <code>exec &lt;命令&gt;</code> 再执行，所以 <code>exec fwknop …; sleep 2; nc …</code> 里的 <code>sleep</code> / <code>nc</code> <b>永远不会执行</b>——症状是握手之前就 EOF：<code>Connection closed by UNKNOWN port 65535</code>，看起来像 SPA 或端口问题，其实转发程序压根没启动。正确写法：<br>
+<code>ProxyCommand /bin/sh -c 'fwknop -n &lt;别名&gt; &gt;/dev/null 2&gt;&amp;1; sleep 2; exec nc %h %p'</code><br>
+（脚本已按这个写。手工改过配置的一定要对照一下。）</div>
+<div class="note"><b>服务器登录名和本地用户名不一致时，一定要给 <code>--user</code>。</b>托管块里没有 <code>User</code> 的话，ssh 会拿本机用户名去登录（比如 <code>wangyao</code>），而这台机器上可能只有 <code>root</code>——报错是 <code>Permission denied (publickey)</code>，很像「SPA 又坏了」。<br>
+<code>bash 20-client.sh --keys ~/mac.env --user root</code></div>
 <div class="note"><b>托管块是幂等的。</b>带 <code># BEGIN ssh-spa</code> … <code># END ssh-spa</code> 标记，重跑只原地替换并清掉多余空行，不会越堆越多；<code>--uninstall</code> 摘掉之后与原文件逐字节一致。</div>
 
 <div class="tw">
@@ -74,6 +90,19 @@ ssh &lt;你的机器&gt; 'bash 20-client.sh --keys ~/laptop.env'</code></pre>
 <p>它会删除<b>探测到的每一个</b>公网 SSH 端口规则（<code>ufw limit</code> 和 <code>ufw allow</code> 两种都试），<b>然后回读 <code>ufw status</code> 确认规则真的没了</b>——ufw 删一条不存在的规则也返回 0，只看退出码会把「没关上」报成「已关闭」。还有规则残留时脚本直接报错退出。</p>
 <p>sshd 若同时监听多个端口，全部都会被处理：只关一个的话另一个还开着，而 SPA 只放行其中之一，等于多开一扇没用的门。</p>
 <p>收口前会检测 <code>tailscale0</code> / <code>wg0</code> 这类并行通道，没有就提醒你收口后只剩云控制台 VNC 能回来（只提醒，不阻止）。</p>
+
+<h2>退出（回到不敲门的直连）</h2>
+<p>不想用了、换机器了、SPA 把你自己卡住了——用 <code>90-uninstall.sh</code>，别手敲 iptables：</p>
+<pre><code># 服务器：先放行公网 SSH 并回读确认，再停 fwknopd、清跳转、关 SPA 端口、还原配置
+sudo bash 90-uninstall.sh
+sudo bash 90-uninstall.sh --check      # 只看现状，什么都不改
+sudo bash 90-uninstall.sh --purge      # 连 access.conf 与密钥包一起删
+
+# 每台客户端：还原 ~/.fwknoprc，摘掉 ~/.ssh/config 里的托管块
+bash 90-uninstall.sh --client
+bash 90-uninstall.sh --client --purge --keys ~/mac.env   # 连本地那份密钥包一起删</code></pre>
+<div class="bad"><b>顺序是安全的关键。</b>收口之后公网 SSH 规则已经不存在，唯一在放行的是 <code>FWKNOP_INPUT</code> 里那条临时规则。<code>90-uninstall.sh</code> 因此<b>先</b> <code>ufw allow</code> 并回读确认，确认不了就直接退出（此时 SPA 还完整）——绝不在「SSH 没路可走」的状态下先拆 SPA。</div>
+<p>还原之后的状态：公网 SSH 直连、不再需要敲门、<code>fwknopd</code> 停用、<code>fwknopd.conf</code> 用回包自带那份。<b>不会</b>动你的 <code>sshd</code>（密码登录仍是 no）、fail2ban、代理配置。客户端的 <code>~/.ssh/config</code> 里只删带 <code># BEGIN ssh-spa</code> 标记的那一段，你自己的配置原样保留。</p>
 
 <h2 id="lockout">锁门急救</h2>
 <p>万一还是锁了——云厂商控制台的 VNC / 串口，或者你之前装了 Tailscale（见 <a href="05-ops.html#backup">第 5 页</a>）。<b>端口按探测结果恢复，不是 22</b>：</p>

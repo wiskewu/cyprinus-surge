@@ -3,4 +3,8 @@
 # 本地产物：客户端配置、密钥包、渲染预览一律落在这里
 data/
 
+# SSH SPA 密钥包（00-gen-keys.sh 在仓库根跑就会落在这里；含可直接开服务器的口令）
+/spa-keys.env
+/clients/
+
 .playwright-mcp/
