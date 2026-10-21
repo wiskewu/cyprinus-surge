@@ -180,6 +180,16 @@ if command -v ufw >/dev/null 2>&1; then
   ufw allow "$SPA_PORT/udp" >/dev/null
   log "已放行 $SPA_PORT/udp"
   if [ "$CLOSE_SSH" = 1 ]; then
+    # 收口是单向操作：之后只有 SPA 密钥能进门。先看还有没有别的路，没有就提醒
+    _alt=0
+    ip -o link show 2>/dev/null | grep -qE 'tailscale0|wg0|tun[0-9]' && _alt=1
+    if [ "$_alt" = 0 ]; then
+      warn "没检测到并行的接入通道（tailscale0 / wg0 / tun*）。"
+      warn "  收口后如果 SPA 失效，你只能靠云厂商控制台的 VNC / 串口回来。"
+      warn "  建议先装 Tailscale：sudo ufw allow in on tailscale0"
+    else
+      log "检测到并行接入通道，收口后仍有第二条路"
+    fi
     ufw --force delete limit "$SSH_PORT/tcp" >/dev/null 2>&1 || true
     ufw --force delete allow "$SSH_PORT/tcp" >/dev/null 2>&1 || true
     log "已删除公网 $SSH_PORT/tcp 规则"

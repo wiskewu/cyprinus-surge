@@ -7,8 +7,11 @@ system_check() {
   command -v ufw >/dev/null 2>&1 || return 1
   ufw status 2>/dev/null | grep -q '^Status: active' || return 1
   [ "$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null)" = "bbr" ] || return 1
-  # SSH 免密已生效才算加固完成（没有公钥时本步会跳过，这里也会一直报未配置）
-  sshd -T 2>/dev/null | grep -qx 'passwordauthentication no' || return 1
+  # 有可用公钥时，密码登录必须已经关掉；没有公钥则跳过不算未配置
+  # （00-bootstrap 会提示先 ssh-copy-id，不该让 --status 一直报红）
+  if ! sshd -T 2>/dev/null | grep -qx 'passwordauthentication no'; then
+    system_has_authorized_key && return 1
+  fi
   return 0
 }
 
