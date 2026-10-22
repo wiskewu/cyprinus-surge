@@ -43,7 +43,7 @@ sudo bash device.sh render laptop                       # 只重渲染客户端�
 <li><b>验收</b>：在客户端机器上（不带 <code>client.env</code>，只给两个变量）：<br>
 <code>SERVER_IP=你的服务器IP VLESS_PORT=443 bash docs/deploy/scripts/60-verify-client.sh</code><br>
 见 <a href="06-ops.html">第 6 页</a>。</li>
-<li><b>以后要换/要删</b>：<code>rotate</code> → 重新 <code>scp</code> → 客户端重新导入（旧 JSON 的凭据当场失效）；<code>revoke</code> 之后别忘了把对方机器上那份 JSON 删掉。换设备不改名单时，客户端那份旧 JSON 照样能用。</li>
+<li><b>以后要换/要删</b>：<code>rotate</code> → 重新 <code>scp</code> → 客户端重新导入（旧 JSON 的凭据当场失效）；<code>revoke</code> 之后需删除对方机器上的那份 JSON。换设备不改名单时，客户端那份旧 JSON 照样能用。</li>
 </ol>
 <p>一台设备要出<b>多份</b>（比如笔记本同时要桌面与安卓版）：<code>device.sh</code> 只按名单里记的那个平台出一份，多份直接用渲染脚本——在服务器上跑，<code>--device</code> 会替它自己取凭据：</p>
 <pre><code>sudo OUTDIR=/etc/sing-box/clients bash 50-render-client.sh /etc/sing-box/client.env --device laptop desktop android</code></pre>

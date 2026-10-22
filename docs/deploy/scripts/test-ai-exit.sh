@@ -1,23 +1,19 @@
 #!/usr/bin/env bash
-# test-ai-exit.sh —— 验证「AI 走独立出口」这条路真的通。
+# test-ai-exit.sh —— 验证 AI 域名走独立出口这条链路。
 #
-# 背景：AI_MODE=dedicated 这条分支（out-ai.json.tmpl + ai-out 出站 + AI 域名单独分流）
-# 属于「配了但从没跑过」的代码。它一旦在需要时才暴露问题，代价很高。
-# 本脚本在【服务器本机】跑一次完整的端到端验证，不改动任何线上配置：
+# AI_MODE=dedicated 分支在没有线上流量时不会暴露问题，本脚本在服务器本机做端到端验证：
+#   1. 起临时 socks5 监听 127.0.0.1，充当落地机
+#   2. 用现成渲染脚本生成 AI_MODE=dedicated 的客户端配置，只开 mixed
+#   3. 起临时 sing-box 实例
+#   4. 经 mixed 端口请求 AI 域名，检查日志中的 ai-out
+#   5. 关闭进程并删除临时文件
 #
-#   1. 起一个临时 socks5（扮演「落地机」）监听 127.0.0.1
-#   2. 用现有渲染脚本生成一份 AI_MODE=dedicated 的客户端配置（只出 mixed，不起 TUN）
-#   3. 起一个临时 sing-box 实例承载它
-#   4. 通过 mixed 端口请求 AI 域名，检查日志里是否走了 ai-out
-#   5. 全部关掉、临时文件删掉
-#
-# 注意：出口 IP 不会变（落地被放在本机）。它验证的是「路由与出站接线」，
-# 不是「IP 分离」——后者只有真的挂一台远程落地机才能验。
+# 出口 IP 不变，验证的是路由与出站接线，不是 IP 分离。
 #
 # 用法：sudo bash test-ai-exit.sh [要测试的域名，默认 https://chatgpt.com/cdn-cgi/trace]
 set -euo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib.sh
+# shellcheck source=SCRIPTDIR/lib.sh
 . "$SELF_DIR/lib.sh"
 need_root
 need_cmd curl
@@ -39,8 +35,8 @@ cleanup() {
 trap cleanup EXIT
 
 log "0/5 前置检查"
-[ -x "$SB_BIN" ] || die "找不到 ${SB_BIN}，先跑 10-install-singbox.sh"
-[ -s "$CLIENT_ENV" ] || die "缺少 ${CLIENT_ENV}，先跑 20-secrets.sh"
+[[ -x "$SB_BIN" ]] || die "找不到 ${SB_BIN}，先跑 10-install-singbox.sh"
+[[ -s "$CLIENT_ENV" ]] || die "缺少 ${CLIENT_ENV}，先跑 20-secrets.sh"
 for p in "$MIXED_PORT" "$SOCKS_PORT"; do
   ss -tln 2>/dev/null | grep -q ":$p " && die "端口 $p 已被占用，换一个：MIXED_PORT= / SOCKS_PORT="
 done
@@ -88,7 +84,7 @@ curl -s -o /dev/null -w '%{http_code}' --max-time 20 \
 CURL_RC=$?
 set -e
 CODE="$(cat "$TMP/code" 2>/dev/null || echo 000)"
-log "    HTTP ${CODE}（curl 退出码 ${CURL_RC}；403/401 属正常——测的是走没走上，不是能不能访问）"
+log "    HTTP ${CODE}，curl 退出码 ${CURL_RC}；403/401 属正常，此处只验证路由"
 
 log "5/5 核对 ai-out 是否真的被用到"
 grep -o 'outbound/[a-z0-9_-]*' "$TMP/client.log" 2>/dev/null | sort -u >"$TMP/used" || true
@@ -99,11 +95,11 @@ grep -q 'ai-out' "$TMP/used" 2>/dev/null || FAILED=1
 grep -q 'ai-out' "$TMP/client.json" || FAILED=1   # 兜底：配置里至少要有这条出站
 
 echo
-if [ "$FAILED" = 0 ]; then
+if [[ "$FAILED" == 0 ]]; then
   log "通过：AI 域名确实走 ai-out（独立出口）"
   cat <<EOF
-  说明：出口 IP 与不走 AI 出口时相同，因为「落地机」被放在本机。
-  要验证真正的 IP 分离，需要一台远程落地机（见 README 的三层出口设计）。
+  出口 IP 与不走 AI 出口时相同，落地机位于本机。
+  验证真正的 IP 分离需要一台远程落地机。
 EOF
 else
   warn "未通过：AI 域名没有走 ai-out"

@@ -9,21 +9,21 @@
 #   2) 只在拿到真实数据时才记 ✓；空值 / HTTP 000 一律算失败
 #   3) 不依赖 nc / mtr / 第三方 IP 回显站
 #   4) 走 SOCKS 时 time_connect 只是到本地代理的几毫秒，不能当路径指标
-set -uo pipefail
+set -uo pipefail   # 验收脚本要跑完全部检查项，故不启用 -e
 CLIENT_ENV_FILE="${1:-./client.env}"
 ENVFILE="$CLIENT_ENV_FILE"
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib.sh
+# shellcheck source=SCRIPTDIR/lib.sh
 . "$SELF_DIR/lib.sh"
 # 环境文件可有可无：脚本真正用到的只有 SERVER_IP / VLESS_PORT。
 # 用 device.sh 管设备时，客户端手上只有一份 JSON，没必要（也不应该）把 client.env 发过去，
 # 这时直接给变量：SERVER_IP=1.2.3.4 VLESS_PORT=443 bash 60-verify-client.sh
-if [ -f "$ENVFILE" ]; then
+if [[ -f "$ENVFILE" ]]; then
   load_env "$ENVFILE"
-elif [ -n "${SERVER_IP:-}" ]; then
+elif [[ -n "${SERVER_IP:-}" ]]; then
   printf '\033[33m[!]\033[0m 没有 %s，按命令行给的 SERVER_IP / VLESS_PORT 继续\n' "$ENVFILE" >&2
 else
-  die "找不到 ${ENVFILE}（从服务器 /etc/sing-box/client.env 复制过来），或用 SERVER_IP=... VLESS_PORT=... 直接给"
+  die "找不到 ${ENVFILE}，从服务器 /etc/sing-box/client.env 复制一份，或用 SERVER_IP= VLESS_PORT= 直接给"
 fi
 SERVER_IP="${SERVER_IP:-}"
 VLESS_PORT="${VLESS_PORT:-443}"
@@ -57,7 +57,7 @@ body() {
 
 say "0. 本地代理是否可用（${PROXY}）"
 first="$(body https://api.ipify.org 12)"
-if [ -z "$first" ]; then
+if [[ -z "$first" ]]; then
   printf '  \033[31m✗\033[0m 无法通过 %s 完成任何请求\n' "$PROXY"
   cat <<'EOF'
 
@@ -71,7 +71,7 @@ EOF
   exit 2
 fi
 ok "代理可用，境外出口 $first"
-if [ "$first" = "${SERVER_IP}" ]; then
+if [[ "$first" == "${SERVER_IP}" ]]; then
   ok "境外流量确实走 VPS（${SERVER_IP}）"
 else
   no "境外出口是 ${first}，不是 SERVER_IP=${SERVER_IP}（检查 client.env 与配置是否同源）"
@@ -87,9 +87,9 @@ for host in https://www.baidu.com https://www.qq.com; do
   read -r pcode ptfb <<<"$p"
   dcode="${dcode:-000}"; pcode="${pcode:-000}"
   dtfb="$(num "$dtfb")"; ptfb="$(num "$ptfb")"
-  if [ "$pcode" = "000" ]; then
+  if [[ "$pcode" == "000" ]]; then
     no "$host 经代理不可达（代理自身能通的话，多半是「直连出口」解析失败，见下方 DNS 提示）"
-  elif [ "$dcode" != "000" ] && awk -v t="$dtfb" 'BEGIN{exit !(t>0)}'; then
+  elif [[ "$dcode" != "000" ]] && awk -v t="$dtfb" 'BEGIN{exit !(t>0)}'; then
     verdict="$(awk -v d="$dtfb" -v p="$ptfb" 'BEGIN{ x=p-d; if (x<0.08 && x>-0.08) print "same"; else if (x>0.20) print "tunnel"; else print "unclear" }')"
     case "$verdict" in
       same)    ok   "$host 直连 ${dtfb}s / 走代理 ${ptfb}s → 分流生效（未绕行）" ;;
@@ -119,7 +119,7 @@ for host in https://www.google.com https://www.youtube.com; do
   c_code="${c_code:-000}"
   c_dns="$(num "$c_dns")"; c_local="$(num "$c_local")"; c_tls="$(num "$c_tls")"
   c_ttfb="$(num "$c_ttfb")"; c_total="$(num "$c_total")"; w_ttfb="$(num "$w_ttfb")"
-  if [ "$c_code" = "000" ] || [ "$c_ttfb" = "0" ]; then
+  if [[ "$c_code" == "000" ]] || [[ "$c_ttfb" == "0" ]]; then
     no "$host 请求失败（连不上或 TLS 未完成）"
     continue
   fi
@@ -147,16 +147,16 @@ note "另外：如果同时开着两个代理客户端（如 Clash Verge + GUI.f
 say "4. AI 站点可达性"
 read -r code _ <<<"$(one https://chatgpt.com)"
 code="${code:-000}"
-if [ "$code" = "000" ]; then
+if [[ "$code" == "000" ]]; then
   no "chatgpt.com 请求失败（根本不是 HTTP 错误，而是没连上）"
-elif [ "$code" = "403" ] || [ "$code" = "401" ] || [ "$code" = "429" ]; then
-  no "chatgpt.com 返回 $code —— 连上了但被风控，需要换 AI 出口（不是线路问题）"
+elif [[ "$code" == "403" ]] || [[ "$code" == "401" ]] || [[ "$code" == "429" ]]; then
+  no "chatgpt.com 返回 $code，连接成功但被风控，需更换 AI 出口"
 else
   ok "chatgpt.com 返回 $code"
 fi
 read -r code _ <<<"$(one https://www.youtube.com)"
 code="${code:-000}"
-if [ "$code" = "200" ]; then ok "youtube.com 200"; else no "youtube.com 返回 $code"; fi
+if [[ "$code" == "200" ]]; then ok "youtube.com 200"; else no "youtube.com 返回 $code"; fi
 
 say "5. 到服务器的握手质量（客户端 → VPS）"
 # Windows 上的 mtr/ping 可能 "exit 0 但只打一行报错"，所以只能看输出里有没有真实数据
@@ -167,7 +167,7 @@ if command -v mtr >/dev/null 2>&1; then
     printf '%s\n' "$try_out" | tail -3 | sed 's/^/  /'; lat_ok=1
   fi
 fi
-if [ "$lat_ok" = 0 ]; then
+if [[ "$lat_ok" == 0 ]]; then
   for flag in -c -n; do   # -c 用于 GNU/macOS，-n 用于 Windows ping
     try_out="$(ping "$flag" 10 "$SERVER_IP" 2>&1 || true)"
     if printf '%s' "$try_out" | grep -qiE 'ttl=|rtt'; then
@@ -175,26 +175,26 @@ if [ "$lat_ok" = 0 ]; then
     fi
   done
 fi
-[ "$lat_ok" = 0 ] && note "本机没有可用的 mtr / ping（Windows 上常见，不影响其它验收）"
+[[ "$lat_ok" == 0 ]] && note "本机没有可用的 mtr / ping（Windows 上常见，不影响其它验收）"
 
 say "6. 出口是否稳定（连测 5 次）"
 ips=""
 for _ in 1 2 3 4 5; do
   ip="$(body https://api.ipify.org 10)"
-  [ -n "$ip" ] && ips="$ips $ip"
+  [[ -n "$ip" ]] && ips="$ips $ip"
 done
-got="$(printf '%s\n' $ips | grep -c . || true)"
-uniq_n="$(printf '%s\n' $ips | grep . | sort -u | grep -c . || true)"
-if [ "${got:-0}" -lt 3 ]; then
+got="$(tr ' ' '\n' <<<"$ips" | grep -c . || true)"
+uniq_n="$(tr ' ' '\n' <<<"$ips" | grep . | sort -u | grep -c . || true)"
+if [[ "${got:-0}" -lt 3 ]]; then
   no "5 次里只成功 ${got:-0} 次，网络不稳定"
-elif [ "$uniq_n" -eq 1 ]; then
-  ok "5 次出口一致：$(printf '%s\n' $ips | grep . | sort -u)"
+elif [[ "$uniq_n" -eq 1 ]]; then
+  ok "5 次出口一致：$(tr ' ' '\n' <<<"$ips" | grep . | sort -u)"
 else
-  no "出口 IP 在变（$uniq_n 个不同值）：$(printf '%s\n' $ips | grep . | sort -u | paste -sd' ' -)"
+  no "出口 IP 在变，$uniq_n 个不同值：$(tr ' ' '\n' <<<"$ips" | grep . | sort -u | paste -sd' ' -)"
 fi
 
 printf '\n通过 %d 项，失败 %d 项，跳过 %d 项\n' "$PASS" "$FAIL" "$SKIP"
-if [ "$FAIL" -eq 0 ]; then
+if [[ "$FAIL" -eq 0 ]]; then
   printf '\033[32m验收通过。\033[0m\n'
 else
   printf '\033[33m有失败项：先看第 0/1 项（代理与分流），再看 06-ops.html 的故障手册。\033[0m\n'

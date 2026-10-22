@@ -5,14 +5,17 @@ log()  { printf '\033[32m[+]\033[0m %s\n' "$*"; }
 warn() { printf '\033[33m[!]\033[0m %s\n' "$*" >&2; }
 die()  { printf '\033[31m[x]\033[0m %s\n' "$*" >&2; exit 1; }
 
-need_root() { [ "${SKIP_ROOT:-0}" = 1 ] && return 0; [ "$(id -u)" = 0 ] || die "需要 root：sudo bash $0"; }
+need_root() { [[ "${SKIP_ROOT:-0}" == 1 ]] && return 0; [[ "$(id -u)" == 0 ]] || die "需要 root：sudo bash $0"; }
 need_cmd() { command -v "$1" >/dev/null 2>&1 || die "缺少命令 $1"; }
 
 # 读取 KEY=VALUE 环境文件（只做赋值，不执行其中的命令）
 load_env() {
   local f="$1"
-  [ -f "$f" ] || die "找不到密钥包：$f"
-  set -a; . "$f"; set +a
+  [[ -f "$f" ]] || die "找不到密钥包：$f"
+  set -a
+  # shellcheck disable=SC1090  # 路径来自参数
+  . "$f"
+  set +a
 }
 
 # 名字只允许字母数字 . _ -，因为它会进 grep -E 和 fwknop 的 stanza 名
@@ -24,25 +27,27 @@ valid_name() { case "${1:-}" in "" | *[!A-Za-z0-9._-]*) return 1 ;; *) return 0 
 # 不能写成 CLIENT name=... —— 那种行 shell source 不了。
 spa_keys_for() {
   local file="$1" name="${2:-}" line entry
-  [ -n "$name" ] || name="${CLIENT_NAME:-}"
-  if [ -n "$name" ]; then
+  [[ -n "$name" ]] || name="${CLIENT_NAME:-}"
+  if [[ -n "$name" ]]; then
     line="$(grep -E '^CLIENTS=' "$file" | head -n1 || true)"
-    [ -n "$line" ] || die "密钥包里没有 CLIENTS"
+    [[ -n "$line" ]] || die "密钥包里没有 CLIENTS"
     # 值在文件里带引号，base64 字符集不含引号，直接去掉
     for entry in $(printf '%s' "${line#*=}" | tr -d '"'); do
       case "$entry" in
         "$name"=*) printf '%s\n' "${entry#*=}"; return 0 ;;
       esac
     done
-    die "密钥包里没有客户端 ${name}（重新生成时把它写进 --clients）"
+    die "密钥包里没有客户端 ${name}，重新生成时写进 --clients"
   fi
   line="$(grep -E '^SHARED=' "$file" | head -n1 || true)"
-  [ -n "$line" ] || die "密钥包里既没有客户端 $name 也没有 SHARED"
+  [[ -n "$line" ]] || die "密钥包里既没有客户端 $name 也没有 SHARED"
   printf '%s\n' "${line#*=}"
 }
 
 # 数一个 "a=1 b=2" 形式的值里有几项
-host_count() { local v="${1:-}"; [ -n "$v" ] || { echo 0; return; }; set -- $v; echo $#; }
+host_count() { local v="${1:-}"; [[ -n "$v" ]] || { printf '0
+'; return; }; read -r -a _w <<<"$v"; printf '%s
+' "${#_w[@]}"; }
 
 # 32 字节随机 base64，等价于 fwknop --key-gen 的输出格式
 gen_key() { openssl rand -base64 32 | tr -d '\n'; }
@@ -54,7 +59,7 @@ gen_key() { openssl rand -base64 32 | tr -d '\n'; }
 
 ssh_detect_ports() {
   local p=""
-  [ -n "${SSH_CONNECTION:-}" ] && p="$(printf '%s' "$SSH_CONNECTION" | awk '{print $4}')"
+  [[ -n "${SSH_CONNECTION:-}" ]] && p="$(printf '%s' "$SSH_CONNECTION" | awk '{print $4}')"
   if command -v ss >/dev/null 2>&1; then
     p="$p $(ss -tlnpH 2>/dev/null | awk '/sshd/ {print $4}' | sed 's/.*://' | grep -E '^[0-9]+$' | sort -u | paste -sd' ' -)"
   fi
@@ -65,10 +70,10 @@ ssh_detect_ports() {
       | awk '{for(i=1;i<=NF;i++) if ($i ~ /:[0-9]+$/) {n=split($i,a,":"); print a[n]}}' \
       | sort -u | paste -sd' ' -)"
   fi
-  if [ -r /etc/ssh/sshd_config ]; then
+  if [[ -r /etc/ssh/sshd_config ]]; then
     p="$p $(awk 'tolower($1)=="port"{print $2}' /etc/ssh/sshd_config 2>/dev/null | sort -u | paste -sd' ' -)"
   fi
-  printf '%s\n' $p | grep -E '^[0-9]+$' | sort -un | paste -sd' ' -
+  tr ' ' '\n' <<<"$p" | grep -E '^[0-9]+$' | sort -un | paste -sd' ' -
 }
 
 # 实际使用的 SSH 端口列表 = 探测结果 ∪ 显式指定的 SSH_PORT。
@@ -80,19 +85,19 @@ ssh_resolve_ports() {
   local detected explicit missing="" p
   detected="$(ssh_detect_ports)"
   explicit="${SSH_PORT:-}"
-  if [ -n "$detected" ] && [ -n "$explicit" ]; then
+  if [[ -n "$detected" ]] && [[ -n "$explicit" ]]; then
     for p in $explicit; do
-      printf '%s\n' $detected | grep -qx "$p" || missing="$missing $p"
+      tr ' ' '\n' <<<"$detected" | grep -qx "$p" || missing="$missing $p"
     done
-    if [ -n "$missing" ]; then
-      warn "密钥包里填的 SSH_PORT=$explicit 在本机没监听到"
-      warn "  本机 sshd 实际监听：${detected}。若 $explicit 确实存在会一并处理，否则以探测结果为准"
+    if [[ -n "$missing" ]]; then
+      warn "密钥包里的 SSH_PORT=$explicit 在本机未监听"
+      warn "  本机 sshd 监听 ${detected}，两者都会处理"
     fi
   fi
-  if [ -n "$detected" ]; then
-    printf '%s\n' $detected $explicit | grep -E '^[0-9]+$' | sort -un | paste -sd' ' -
+  if [[ -n "$detected" ]]; then
+    { tr ' ' '\n' <<<"$detected"; tr ' ' '\n' <<<"$explicit"; } | grep -E '^[0-9]+$' | sort -un | paste -sd' ' -
     return 0
   fi
-  if [ -n "$explicit" ]; then printf '%s\n' "$explicit"; return 0; fi
-  die "探测不到本机 SSH 端口。请用 SSH_PORT=你的端口 指定（ss -tlnp | grep sshd 可以看）"
+  if [[ -n "$explicit" ]]; then printf '%s\n' "$explicit"; return 0; fi
+  die "探测不到本机 SSH 端口，用 SSH_PORT=<端口> 指定，取值见 ss -tlnp"
 }

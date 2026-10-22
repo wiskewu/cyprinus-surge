@@ -1,9 +1,11 @@
+# shellcheck shell=bash
+# shellcheck disable=SC2034  # 步骤元数据与跨文件变量经 ${!var} 读取
 # 步骤 30：生成密钥与两份环境文件
 secrets_TITLE="生成密钥（deploy.env / client.env / devices.list）"
 secrets_OPTIONAL=0
 
 secrets_check() {
-  [ -s "$ENVFILE" ] && [ -s "$CLIENT_ENV" ] && [ -s "$DEVICES_LIST" ]
+  [[ -s "$ENVFILE" ]] && [[ -s "$CLIENT_ENV" ]] && [[ -s "$DEVICES_LIST" ]]
 }
 
 secrets_run() {
@@ -14,20 +16,20 @@ secrets_run() {
   : "${ENABLE_HY2:=0}"
   : "${AI_MODE:=main}"
 
-  if [ -n "${SERVER_IP:-}" ]; then
+  if [[ -n "${SERVER_IP:-}" ]]; then
     :
   else
     SERVER_IP="$(curl -4 -fsS --max-time 8 https://api.ipify.org 2>/dev/null || true)"
-    [ -n "$SERVER_IP" ] || SERVER_IP="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}')"
+    [[ -n "$SERVER_IP" ]] || SERVER_IP="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}')"
   fi
-  [ -n "$SERVER_IP" ] || die "无法识别公网 IPv4，请用 SERVER_IP=x.x.x.x 指定"
+  [[ -n "$SERVER_IP" ]] || die "无法识别公网 IPv4，请用 SERVER_IP=x.x.x.x 指定"
 
-  if [ -z "${NONINTERACTIVE:-}" ]; then
+  if [[ -z "${NONINTERACTIVE:-}" ]]; then
     printf '\n可直接回车使用方括号里的默认值。\n'
     local _in
     read -r -p "伪装站点 REALITY_DEST [${REALITY_DEST}]（需支持 TLS1.3+H2）: " _in; REALITY_DEST="${_in:-$REALITY_DEST}"
     read -r -p "入口域名 DOMAIN [${DOMAIN:-留空}]（留空则客户端连公网 IP；启用 Hysteria2 时必填）: " _in; DOMAIN="${_in:-$DOMAIN}"
-    if [ -n "$DOMAIN" ]; then
+    if [[ -n "$DOMAIN" ]]; then
       read -r -p "启用 Hysteria2？[Y/n]: " _in
       case "${_in:-y}" in y|Y) ENABLE_HY2=1 ;; *) ENABLE_HY2=0 ;; esac
     else
@@ -44,11 +46,11 @@ secrets_run() {
   REALITY_PUBLIC_KEY="$(printf '%s\n' "$KP" | awk -F': *' '/PublicKey/{print $2}')"
   SHORT_ID="$(openssl rand -hex 4)"
   OBFS_PASSWORD="$(rand_pass 20)"
-  [ -n "$REALITY_PRIVATE_KEY" ] && [ -n "$REALITY_PUBLIC_KEY" ] || die "REALITY 密钥生成失败"
+  [[ -n "$REALITY_PRIVATE_KEY" ]] && [[ -n "$REALITY_PUBLIC_KEY" ]] || die "REALITY 密钥生成失败"
 
   # 设备名单已存在就原样保留：凭据不该因为重跑 secrets 而全变一遍。
   # 现有实例里的 devices.list 优先，Force 重跑也不覆盖。
-  if [ ! -s "$DEVICES_LIST" ]; then
+  if [[ ! -s "$DEVICES_LIST" ]]; then
     umask 077
     cat >"$DEVICES_LIST" <<LIST
 # ssh-sp 设备名单 —— 每行「名字 凭据 平台」，删一行 = 吊销那台设备（两条入口同时失效）
@@ -63,15 +65,14 @@ LIST
 
   # client.env 里的 UUID / HY2_PASSWORD 是 devices.list 首行的镜像，
   # 让「在客户端机器上手动渲染单份」的老用法继续可用；日常以 devices.list 为准。
-  local first_cred first_plat
+  local first_cred
   first_cred="$(device_get "$FIRST_DEVICE" 2>/dev/null | awk '{print $1}')" \
     || first_cred="$(device_rows | head -1 | awk '{print $2}')"
-  [ -n "$first_cred" ] || die "设备名单读不出凭据：$DEVICES_LIST"
-  first_plat="$(device_get "$FIRST_DEVICE" 2>/dev/null | awk '{print $2}')" || first_plat=desktop
+  [[ -n "$first_cred" ]] || die "设备名单读不出凭据：$DEVICES_LIST"
 
   # 节点地址：域名优先，留空就用公网 IP
   SERVER_HOST="$DOMAIN"
-  [ -n "$SERVER_HOST" ] || SERVER_HOST="$SERVER_IP"
+  [[ -n "$SERVER_HOST" ]] || SERVER_HOST="$SERVER_IP"
 
   umask 077
   cat >"$ENVFILE" <<ENV
@@ -145,7 +146,7 @@ ENV
 }
 
 secrets_uninstall() {
-  if [ "${PURGE:-0}" = "1" ]; then
+  if [[ "${PURGE:-0}" == "1" ]]; then
     rm -f "$ENVFILE" "$CLIENT_ENV" "$DEVICES_LIST"
     log "已删除 deploy.env / client.env / devices.list"
   else

@@ -1,3 +1,5 @@
+# shellcheck shell=bash
+# shellcheck disable=SC2034  # 步骤元数据与跨文件变量经 ${!var} 读取
 # 步骤 60（可选）：Hysteria2 端口跳跃
 porthop_TITLE="可选：Hysteria2 端口跳跃（iptables 重定向）"
 porthop_OPTIONAL=1
@@ -6,7 +8,7 @@ porthop_rule_args() {
   PORTHOP_IFACE="$(ip -4 route show default 2>/dev/null | awk '{print $5; exit}')"
   PORTHOP_START="${HY2_PORT:-8443}"
   PORTHOP_END="${HY2_HOP_RANGE##*:}"
-  [ -n "$PORTHOP_IFACE" ] || return 1
+  [[ -n "$PORTHOP_IFACE" ]] || return 1
   return 0
 }
 
@@ -18,7 +20,7 @@ porthop_check() {
 
 porthop_run() {
   load_env "$ENVFILE" 2>/dev/null || true
-  [ "${ENABLE_HY2:-0}" = "1" ] || { warn "ENABLE_HY2=0，跳过端口跳跃"; return 0; }
+  [[ "${ENABLE_HY2:-0}" == "1" ]] || { warn "ENABLE_HY2=0，跳过端口跳跃"; return 0; }
   porthop_rule_args || die "识别不到默认网卡"
   if iptables -t nat -C PREROUTING -i "$PORTHOP_IFACE" -p udp --dport "${PORTHOP_START}:${PORTHOP_END}" -j REDIRECT --to-ports "$PORTHOP_START" 2>/dev/null; then
     log "规则已存在"

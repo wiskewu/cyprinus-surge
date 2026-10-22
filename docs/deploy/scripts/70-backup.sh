@@ -5,7 +5,7 @@
 #       sudo bash 70-backup.sh restore /root/backups/sing-box-2026-10-19.tgz
 set -euo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib.sh
+# shellcheck source=SCRIPTDIR/lib.sh
 . "$SELF_DIR/lib.sh"
 need_root
 BK_DIR=/root/backups
@@ -20,10 +20,10 @@ case "${1:-backup}" in
     warn "这个包里有 REALITY 私钥，等同机器凭据，别放网盘/仓库。"
     ;;
   list)
-    ls -lh "$BK_DIR"/sing-box-*.tgz 2>/dev/null || echo "还没有备份"
+    ls -lh "$BK_DIR"/sing-box-*.tgz 2>/dev/null || printf '无备份\n'
     ;;
   restore)
-    [ -n "${2:-}" ] && [ -f "${2}" ] || die "用法：bash 70-backup.sh restore <文件>"
+    [[ -n "${2:-}" ]] && [[ -f "${2}" ]] || die "用法：bash 70-backup.sh restore <文件>"
     tar -tzf "$2" >/dev/null || die "不是合法压缩包"
     systemctl stop sing-box 2>/dev/null || true
     tar -xzf "$2" -C /

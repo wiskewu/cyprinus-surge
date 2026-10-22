@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "build": "node .build/deploy/build.mjs && node .build/quality/build.mjs",
+    "lint": "bash .build/lint.sh",
     "preview": "npx live-server docs --port=8080 --open=index.html"
   }
 }

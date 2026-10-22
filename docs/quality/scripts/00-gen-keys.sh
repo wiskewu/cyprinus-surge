@@ -6,7 +6,7 @@
 #   密钥格式与 `fwknop --key-gen` 一致：KEY_BASE64 + HMAC_KEY_BASE64。
 set -euo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib.sh
+# shellcheck source=SCRIPTDIR/lib.sh
 . "$SELF_DIR/lib.sh"
 need_cmd openssl
 
@@ -32,7 +32,7 @@ usage() {
 EOF
 }
 
-while [ $# -gt 0 ]; do
+while [[ $# -gt 0 ]]; do
   case "$1" in
     --out) shift; OUT="${1:?--out 需要参数}" ;;
     --out=*) OUT="${1#*=}" ;;
@@ -48,11 +48,11 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-[ "$SHARED" = 1 ] || [ -n "$CLIENTS" ] || { usage; die "--clients 和 --shared 至少给一个"; }
-[ "$SHARED" = 1 ] && [ -n "$CLIENTS" ] && die "--clients 与 --shared 二选一"
+[[ "$SHARED" == 1 ]] || [[ -n "$CLIENTS" ]] || { usage; die "--clients 和 --shared 至少给一个"; }
+[[ "$SHARED" == 1 ]] && [[ -n "$CLIENTS" ]] && die "--clients 与 --shared 二选一"
 CLIENTS_ARG="$CLIENTS"   # 固定下来：load_env 之后 CLIENTS 会被密钥包里的同名变量覆盖
 
-if [ -e "$OUT" ] && [ "$FORCE" != 1 ]; then
+if [[ -e "$OUT" ]] && [[ "$FORCE" != 1 ]]; then
   die "$OUT 已存在。确认要覆盖（旧的密钥会失效）就加 --force"
 fi
 
@@ -61,7 +61,7 @@ OUT_DIR="$(dirname "$OUT")"
 mkdir -p "$OUT_DIR/clients"
 
 # --- 参数校验：主机名格式和客户端名字都要能安全进 grep/sed ---
-if [ -n "$HOSTS" ]; then
+if [[ -n "$HOSTS" ]]; then
   for h in $HOSTS; do
     case "$h" in
       *=?*) valid_name "${h%%=*}" || die "主机名不合法：${h}（只允许字母数字 . _ -）" ;;
@@ -69,7 +69,7 @@ if [ -n "$HOSTS" ]; then
     esac
   done
 fi
-if [ -n "$CLIENTS_ARG" ]; then
+if [[ -n "$CLIENTS_ARG" ]]; then
   for c in $CLIENTS_ARG; do
     valid_name "$c" || die "客户端名不合法：${c}（只允许字母数字 . _ -）"
   done
@@ -86,7 +86,7 @@ write_bundle() {
   # SSH_PORT 不在这里猜：密钥包往往在另一台机器上生成，那时无从知道服务器的真实端口。
   # 服务端跑 10-server.sh 时会探测并回写 client.env；这里只保留用户显式指定的值。
   local sshline=""
-  [ -n "${SSH_PORT:-}" ] && sshline="SSH_PORT=$SSH_PORT"
+  [[ -n "${SSH_PORT:-}" ]] && sshline="SSH_PORT=$SSH_PORT"
   cat > "$1" <<EOF
 $HEADER
 SPA_PORT=62201
@@ -100,7 +100,7 @@ EOF
 }
 
 log "生成密钥"
-if [ "$SHARED" = 1 ]; then
+if [[ "$SHARED" == 1 ]]; then
   pair="$(gen_key):$(gen_key)"   # 服务端包和客户端包必须用同一对
   write_bundle "$OUT" "SHARED=$pair"
   write_bundle "$OUT_DIR/clients/shared.env" "SHARED=$pair"
@@ -120,14 +120,14 @@ fi
 
 # --- 自检：写出来的文件要能被 source 回去，密钥条数要对得上 ---
 load_env "$OUT"
-if [ -n "$CLIENTS_ARG" ]; then
+if [[ -n "$CLIENTS_ARG" ]]; then
   want="$(host_count "$CLIENTS_ARG")"
   got="$(host_count "${CLIENTS:-}")"
-  [ "$got" = "$want" ] || die "自检失败：$OUT 里 $got 条客户端密钥，期望 $want 条"
+  [[ "$got" == "$want" ]] || die "自检失败：$OUT 里 $got 条客户端密钥，期望 $want 条"
   for c in $CLIENTS_ARG; do
     pair="$(spa_keys_for "$OUT" "$c")"
     case "$pair" in
-      *:*) [ -n "${pair%%:*}" ] && [ -n "${pair##*:}" ] || die "自检失败：客户端 $c 密钥对不完整" ;;
+      *:*) [[ -n "${pair%%:*}" ]] && [[ -n "${pair##*:}" ]] || die "自检失败：客户端 $c 密钥对不完整" ;;
       *) die "自检失败：客户端 $c 的密钥对格式不对" ;;
     esac
   done

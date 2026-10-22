@@ -168,16 +168,15 @@ ssh &lt;你的机器&gt; 'bash 20-client.sh --keys ~/laptop.env'</code></pre>
 <p>收口前会检测 <code>tailscale0</code> / <code>wg0</code> 这类并行通道，没有就提醒你收口后只剩云控制台 VNC 能回来（只提醒，不阻止）。</p>
 
 <h2>退出（回到不敲门的直连）</h2>
-<p>不想用了、换机器了、SPA 把你自己卡住了——用 <code>90-uninstall.sh</code>，别手敲 iptables：</p>
+<p>不想用了、换机器了、SPA 把你自己卡住了——用 <code>90-uninstall.sh</code>，别手敲 iptables。登录方式、密钥包去留、是否真的拆，都会逐条问，<b>不替你选默认值</b>：</p>
 <pre><code># 服务器：先放行公网 SSH 并回读确认，再停 fwknopd、清跳转、关 SPA 端口、还原配置
-sudo bash 90-uninstall.sh
+sudo bash 90-uninstall.sh              # 交互式，推荐
 sudo bash 90-uninstall.sh --check      # 只看现状，什么都不改
-sudo bash 90-uninstall.sh --purge      # 连 access.conf 与密钥包一起删
 
-# 密码登录：默认「不动」（部署加固后是 no）。要打开/关掉显式给参数
-sudo bash 90-uninstall.sh --password yes                 # 允许密码登录
-sudo bash 90-uninstall.sh --password no                  # 保持仅公钥（推荐）
-sudo bash 90-uninstall.sh --password yes --root-login yes # root 也能用密码（风险最高）
+# 非交互（脚本、heredoc）：关键步骤必须显式给，缺了就退出
+sudo bash 90-uninstall.sh --password no -y                         # 仅公钥
+sudo bash 90-uninstall.sh --password yes --root-login yes -y       # 密码登录，root 也能用密码
+sudo bash 90-uninstall.sh --password no --purge -y                 # 连 access.conf 与密钥包一起删
 
 # 每台客户端：还原 ~/.fwknoprc，摘掉 ~/.ssh/config 里的托管块
 bash 90-uninstall.sh --client
@@ -185,16 +184,19 @@ bash 90-uninstall.sh --client --purge --keys ~/mac.env   # 连本地那份密钥
 <div class="bad"><b>顺序是安全的关键。</b>收口之后公网 SSH 规则已经不存在，唯一在放行的是 <code>FWKNOP_INPUT</code> 里那条临时规则。<code>90-uninstall.sh</code> 因此<b>先</b> <code>ufw allow</code> 并回读确认，确认不了就直接退出（此时 SPA 还完整）——绝不在「SSH 没路可走」的状态下先拆 SPA。</div>
 <div class="tw">
 <table>
-<thead><tr><th>参数</th><th>作用</th><th>默认</th></tr></thead>
+<thead><tr><th>参数</th><th>作用</th><th>不给会怎样</th></tr></thead>
 <tbody>
-<tr><td><code>--password yes|no|keep</code></td><td>退出后是否允许密码登录；<code>no</code> 时连 <code>KbdInteractiveAuthentication</code> 一起关（键盘交互式也能送密码）</td><td><code>keep</code>（不动，部署加固后是 no）</td></tr>
-<tr><td><code>--root-login yes|prohibit-password|no|keep</code></td><td>只影响 root：<code>prohibit-password</code> = 只允许公钥登 root</td><td><code>keep</code></td></tr>
+<tr><td><code>--password yes|no</code></td><td>退出后是否允许密码登录；<code>no</code> 时连 <code>KbdInteractiveAuthentication</code> 一起关（键盘交互式也能送密码）</td><td>交互式会问；非交互直接退出</td></tr>
+<tr><td><code>--root-login yes|no|prohibit-password</code></td><td>只影响 root：<code>prohibit-password</code> = 只允许公钥登 root</td><td><code>--password yes</code> 且 root 当前是 <code>prohibit-password</code> 时，非交互直接退出（否则只开密码登录等于没解决）</td></tr>
+<tr><td><code>-y, --yes</code></td><td>跳过拆除确认</td><td>交互式会问；非交互直接退出</td></tr>
+<tr><td><code>--purge</code></td><td>连 <code>access.conf</code> 与密钥包一起删</td><td>交互式会问；默认保留</td></tr>
 </tbody>
 </table>
 </div>
 <p>改的是<b>实际生效的那一行</b>：sshd 对每个关键字只取「第一个出现的值」，而 <code>Include sshd_config.d</code> 会按文件名顺序就地展开。所以 <code>50-cloud-init.conf</code> 里若写着 <code>PasswordAuthentication no</code>，脚本改的就是它，而不是自己那份 <code>99-*.conf</code>。改完 <code>sshd -t</code> 校验、reload，并用 <code>sshd -T</code> 回读确认——对不上就把「谁设的」列出来。</p>
 <div class="warn"><b>开密码登录＝回到可被爆破的状态。</b>只在你需要换回旧方式、或机器上没有可用公钥时才开；开着就让 fail2ban 继续跑（<code>fail2ban-client status sshd</code>）。只想恢复访问的话，更稳的做法是把新公钥装进 <code>authorized_keys</code>，密码登录保持 no。</div>
-<p>还原之后的状态：公网 SSH 直连、不再需要敲门、<code>fwknopd</code> 停用、<code>fwknopd.conf</code> 用回包自带那份。<b>不会</b>动你的 <code>sshd</code>（密码登录仍是 no）、fail2ban、代理配置。客户端的 <code>~/.ssh/config</code> 里只删带 <code># BEGIN ssh-spa</code> 标记的那一段，你自己的配置原样保留。</p>
+<p>还原之后的状态：公网 SSH 直连、不再需要敲门、<code>fwknopd</code> 停用、<code>fwknopd.conf</code> 用回包自带那份。fail2ban 与代理配置不动；客户端的 <code>~/.ssh/config</code> 里只删带 <code># BEGIN ssh-spa</code> 标记的那一段，你自己的配置原样保留。</p>
+<p>选「仅公钥」而本机又没找到 <code>authorized_keys</code> 时，脚本会在拆之前警告：拆完只剩云控制台能进。</p>
 
 <h2 id="lockout">锁门急救</h2>
 <p>万一还是锁了——云厂商控制台的 VNC / 串口，或者你之前装了 Tailscale（见 <a href="05-ops.html#backup">第 5 页</a>）。<b>端口按探测结果恢复，不是 22</b>：</p>

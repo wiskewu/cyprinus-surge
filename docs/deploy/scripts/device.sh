@@ -17,7 +17,7 @@
 # 本地生成客户端配置请用 50-render-client.sh（默认输出到 ./data）。
 set -euo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib.sh
+# shellcheck source=SCRIPTDIR/lib.sh
 . "$SELF_DIR/lib.sh"
 need_root
 
@@ -48,7 +48,7 @@ EOF
 }
 
 cmd_list() {
-  [ -s "$DEVICES_LIST" ] || die "设备名单不存在：${DEVICES_LIST}（先跑 20-secrets.sh）"
+  [[ -s "$DEVICES_LIST" ]] || die "设备名单不存在：${DEVICES_LIST}（先跑 20-secrets.sh）"
   printf '\n%-20s %-38s %s\n' "设备" "凭据" "平台"
   printf '%s\n' "--------------------------------------------------------------------------------"
   local n c p
@@ -65,17 +65,17 @@ apply_changes() {
   local log_; log_="$(mktemp)"
   if ! bash "$SELF_DIR/30-render-server.sh" >"$log_" 2>&1; then
     cat "$log_" >&2; rm -f "$log_"
-    die "服务端重渲染失败。名单已改，但配置未生效——先修好再重跑"
+    die "名单已改但服务端重渲染失败，配置未生效"
   fi
   grep -E '^\[' "$log_" || true
   rm -f "$log_"
-  if [ -n "$dev" ]; then render_client "$dev"; fi
+  if [[ -n "$dev" ]]; then render_client "$dev"; fi
 }
 
 render_client() {
   local dev="$1" plat log_
   plat="$(device_get "$dev" | awk '{print $2}')"
-  [ -n "$plat" ] || plat=desktop
+  [[ -n "$plat" ]] || plat=desktop
   mkdir -p "$CLIENT_OUT"
   log_="$(mktemp)"
   if ! OUTDIR="$CLIENT_OUT" bash "$SELF_DIR/50-render-client.sh" "$CLIENT_ENV" --device "$dev" >"$log_" 2>&1; then
@@ -87,7 +87,7 @@ render_client() {
   log "分发：scp $CLIENT_OUT/sing-box-client-$dev-$plat.json <设备>:/root/  （只发这一台的那份）"
 }
 
-[ $# -ge 1 ] || { usage; exit 1; }
+[[ $# -ge 1 ]] || { usage; exit 1; }
 CMD="$1"; shift
 
 case "$CMD" in
@@ -96,12 +96,12 @@ case "$CMD" in
     ;;
 
   add)
-    [ $# -ge 1 ] || { usage; die "add 需要设备名"; }
+    [[ $# -ge 1 ]] || { usage; die "add 需要设备名"; }
     NAME="$1"; PLATFORM="${2:-desktop}"
     valid_device_name "$NAME" || die "设备名不合法：${NAME}（只允许字母数字 . _ -）"
     case " $VALID_PLATFORMS " in *" $PLATFORM "*) ;; *) die "平台只能是：$VALID_PLATFORMS" ;; esac
     device_exists "$NAME" && die "设备 $NAME 已存在（rotate 换凭据 / revoke 删除）"
-    [ -s "$DEVICES_LIST" ] || die "设备名单不存在：${DEVICES_LIST}（先跑 20-secrets.sh）"
+    [[ -s "$DEVICES_LIST" ]] || die "设备名单不存在：${DEVICES_LIST}（先跑 20-secrets.sh）"
     CRED="$("$SB_BIN" generate uuid)"
     printf '%s %s %s\n' "$NAME" "$CRED" "$PLATFORM" >>"$DEVICES_LIST"
     chmod 600 "$DEVICES_LIST"
@@ -110,7 +110,7 @@ case "$CMD" in
     ;;
 
   rotate)
-    [ $# -ge 1 ] || { usage; die "rotate 需要设备名"; }
+    [[ $# -ge 1 ]] || { usage; die "rotate 需要设备名"; }
     NAME="$1"
     device_exists "$NAME" || die "设备名单里没有 $NAME"
     CRED="$("$SB_BIN" generate uuid)"
@@ -128,10 +128,10 @@ case "$CMD" in
     ;;
 
   revoke)
-    [ $# -ge 1 ] || { usage; die "revoke 需要设备名"; }
+    [[ $# -ge 1 ]] || { usage; die "revoke 需要设备名"; }
     NAME="$1"
     device_exists "$NAME" || die "设备名单里没有 $NAME"
-    [ -n "$(device_rows | grep -v "^$NAME[[:space:]]")" ] || die "名单里只剩这一台，不能删空（先 add 再删）"
+    device_rows | grep -qv "^${NAME}[[:space:]]" || die "名单里只剩这一台，先 add 再删"
     awk -v n="$NAME" '
       /^[[:space:]]*#/ || /^[[:space:]]*$/ { print; next }
       $1 == n { next }
@@ -146,7 +146,7 @@ case "$CMD" in
     ;;
 
   render)
-    [ $# -ge 1 ] || { usage; die "render 需要设备名"; }
+    [[ $# -ge 1 ]] || { usage; die "render 需要设备名"; }
     NAME="$1"
     device_exists "$NAME" || die "设备名单里没有 $NAME"
     render_client "$NAME"

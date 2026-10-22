@@ -3,7 +3,7 @@
 #   每台机器跑一次，只给它自己那一份密钥（clients/<name>.env）。
 set -euo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib.sh
+# shellcheck source=SCRIPTDIR/lib.sh
 . "$SELF_DIR/lib.sh"
 
 KEYS=""
@@ -28,7 +28,7 @@ usage() {
 EOF
 }
 
-while [ $# -gt 0 ]; do
+while [[ $# -gt 0 ]]; do
   case "$1" in
     --keys) shift; KEYS="${1:?--keys 需要参数}" ;;
     --keys=*) KEYS="${1#*=}" ;;
@@ -49,7 +49,7 @@ FWKRC="${FWKRC:-$HOME/.fwknoprc}"
 SSHCFG="${SSHCFG:-$HOME/.ssh/config}"
 
 strip_block() {  # 从 ~/.ssh/config 里摘掉托管块，并清掉末尾多余空行（否则重跑会越积越多）
-  [ -f "$SSHCFG" ] || return 0
+  [[ -f "$SSHCFG" ]] || return 0
   local tmp="$SSHCFG.spa.tmp"
   awk -v b="$BEGIN" -v e="$END" '
     $0 == b { skip = 1; next }
@@ -58,27 +58,27 @@ strip_block() {  # 从 ~/.ssh/config 里摘掉托管块，并清掉末尾多余�
   ' "$SSHCFG" | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' > "$tmp" && mv "$tmp" "$SSHCFG"
 }
 
-if [ "$MODE" = status ]; then
+if [[ "$MODE" == status ]]; then
   printf '%s : %s\n' "$FWKRC" "$([ -f "$FWKRC" ] && echo 存在 || echo 不存在)"
-  [ -f "$FWKRC" ] && grep -E '^\[' "$FWKRC" | tr -d '[]' | sed 's/^/  stanza: /'
+  [[ -f "$FWKRC" ]] && grep -E '^\[' "$FWKRC" | tr -d '[]' | sed 's/^/  stanza: /'
   grep -qF "$BEGIN" "$SSHCFG" 2>/dev/null && echo "$SSHCFG : 托管块存在" || echo "$SSHCFG : 无托管块"
   exit 0
 fi
 
-[ -z "$SSH_USER" ] || valid_name "$SSH_USER" || die "登录用户名不合法：$SSH_USER"
+[[ -z "$SSH_USER" ]] || valid_name "$SSH_USER" || die "登录用户名不合法：$SSH_USER"
 
 # --uninstall 是纯清理，不需要密钥包：少了 --keys 也让它跑
-if [ "$MODE" = uninstall ]; then
+if [[ "$MODE" == uninstall ]]; then
   strip_block
-  if [ -f "$FWKRC" ] && grep -qF '由 20-client.sh 生成' "$FWKRC"; then
+  if [[ -f "$FWKRC" ]] && grep -qF '由 20-client.sh 生成' "$FWKRC"; then
     rm -f "$FWKRC"
     log "已删除 $FWKRC"
   fi
-  log "卸载完成。密钥包 ${KEYS:-（未指定）} 自己留着或删掉都行"
+  log "卸载完成，密钥包 ${KEYS:-未指定} 未动。要一并删除：bash 90-uninstall.sh --client --purge --keys <文件>"
   exit 0
 fi
 
-[ -n "$KEYS" ] || { usage; die "--keys 是必填的"; }
+[[ -n "$KEYS" ]] || { usage; die "--keys 是必填的"; }
 
 # ---------------------------------------------------------------- 安装
 
@@ -91,39 +91,32 @@ if ! command -v fwknop >/dev/null 2>&1; then
   elif command -v pacman >/dev/null 2>&1; then
     sudo pacman -S --noconfirm fwknop >/dev/null
   else
-    die "没找到 fwknop，手工装一个（Debian/Ubuntu: apt install fwknop-client）"
+    die "未找到 fwknop。Debian/Ubuntu: apt install fwknop-client"
   fi
 fi
 command -v fwknop >/dev/null 2>&1 || die "fwknop 装完仍找不到"
-command -v nc >/dev/null 2>&1 || warn "没有 nc，ProxyCommand 里的最后一步会失败（Debian/Ubuntu: apt install netcat-openbsd）"
+command -v nc >/dev/null 2>&1 || warn "未找到 nc，ProxyCommand 末段会失败。Debian/Ubuntu: apt install netcat-openbsd"
 
 # ---------------------------------------------------------------- 渲染 ~/.fwknoprc
 
 load_env "$KEYS"
-[ -n "$NAME" ] && { valid_name "$NAME" || die "客户端名不合法：$NAME"; CLIENT_NAME="$NAME"; }
+[[ -n "$NAME" ]] && { valid_name "$NAME" || die "客户端名不合法：$NAME"; CLIENT_NAME="$NAME"; }
 : "${SPA_PORT:=62201}" "${ACCESS_TIMEOUT:=120}"
-# SSH_PORT 不给默认值：填错的话 SPA 会去开一个 sshd 根本不在的端口，表现是
-# 「敲门成功但连不上」，且很难查。这个值由服务端 10-server.sh 探测后写进 client.env。
-[ -n "${SSH_PORT:-}" ] || die "$KEYS 里没有 SSH_PORT。用服务端 10-server.sh 处理过的那份 client.env（SSH_PORT 由它探测写入）；确认无误再手工加一行 SSH_PORT=你的端口"
-# sshd 可能同时监听多个端口（比如刚挪端口那阵 22 与 4061 并存），服务端探测到的是一串，
-# 写回密钥包时也带引号成 "22 4061"。fwknop 的 ACCESS 语法是逗号分隔，不是空格。
+# SSH_PORT 不给默认值：填错会让 SPA 去开 sshd 不在的端口，表现为敲门成功但连不上。
+[[ -n "${SSH_PORT:-}" ]] || die "$KEYS 缺少 SSH_PORT，改用服务端 10-server.sh 回写过的密钥包"
+# 服务端探测到多端口时写回的值是 "22 4061"，fwknop 的 ACCESS 语法为逗号分隔。
 ACCESS_PORTS=""
 for _p in $SSH_PORT; do
   case "$_p" in
-    '' | *[!0-9]*) die "SSH_PORT 里不是一个端口：'$_p'（密钥包里应当是 SSH_PORT=22 或 SSH_PORT=\"22 4061\"）" ;;
+    '' | *[!0-9]*) die "SSH_PORT 含非端口值：$_p" ;;
   esac
   ACCESS_PORTS="${ACCESS_PORTS:+$ACCESS_PORTS,}tcp/$_p"
 done
 unset _p
-[ -n "${HOSTS:-}" ] || die "密钥包里没有 HOSTS，重新生成或手工加一行 HOSTS=\"名字=地址\""
+[[ -n "${HOSTS:-}" ]] || die "密钥包缺少 HOSTS"
 
-# ALLOW_IP 三选一（对应 fwknop 的 -s / -R / -a）：
-#   source  → 包里写 0.0.0.0，服务端按「包从哪个 IP 来」放行。不需要 wget
-#   resolve → 客户端经 wget 查自己的公网 IP（macOS 默认没装 wget：会只打一行
-#             "Use --wget-cmd ..."，包根本没发出去）
-#   <IP>    → 写死 IP，最抗 MITM，但换网络就得改
-# 默认 source：漫游 / 家宽 IP 会变时这是唯一不需要额外依赖的做法。
-# 想换：密钥包里写一行 ALLOW_IP=…，或跑脚本时 ALLOW_IP=… 。
+# ALLOW_IP 三选一：source 由服务端按包源 IP 放行；resolve 由客户端 wget 查公网 IP；
+# 写死 IP 最抗 MITM，换网就得改。默认 source，漫游时不依赖外部命令。
 ALLOW_IP_MODE="${ALLOW_IP:-source}"
 case "$ALLOW_IP_MODE" in
   source | resolve) ;;
@@ -134,9 +127,8 @@ esac
 PAIR="$(spa_keys_for "$KEYS" "${CLIENT_NAME:-}")"
 WHO="${CLIENT_NAME:-shared（共用密钥组）}"
 
-# 本机开着 TUN/VPN 时，到服务器的流量会被隧道接走：敲门包的源 IP 会变成隧道出口，
-# 而 TUN 在本地就把 TCP 握手接住了，于是出现「nc 能通、ssh 立刻被关」的假象。
-# 这里只提醒，不改任何东西——修法是在代理配置里把服务器 IP 设为直连。
+# 本机开着 TUN/VPN 时敲门包源 IP 会变成隧道出口，TUN 在本地接住 TCP 握手，
+# 表现为 nc 能通而 ssh 立刻断开。只提醒，不改任何东西。
 warn_if_tunneled() {
   local h ip iface
   for h in $HOSTS; do
@@ -150,14 +142,11 @@ warn_if_tunneled() {
     fi
     case "${iface:-}" in
       utun* | tun* | wg* | ipsec*)
-        warn "到 $ip 的流量走的是 ${iface}（本机 TUN / VPN）"
-        warn "  后果：敲门包源 IP 变成隧道出口（ALLOW_IP source 会对不上）；SSH 也可能被隧道绕死"
-        warn "  症状：nc 能通但 ssh 立刻被关（TUN 在本地就接了握手，那个「通」是假的）"
-        warn "  谁在持有这个网卡（规则必须加在那个客户端里，改别人的配置没用）："
-        warn "    pgrep -fl 'clash|mihomo|sing-box|surge|stash'"
-        warn "  解法（配置层面，别去改本机 route）：把 $ip 设为直连"
+        warn "到 $ip 的流量走 ${iface}，敲门包源 IP 会是隧道出口，SSH 也可能被隧道接住"
+        warn "  查持有该网卡的进程：pgrep -fl 'clash|mihomo|sing-box|surge|stash'"
+        warn "  在代理配置里把 $ip 设为直连，不要改本机 route"
         warn "    sing-box: route.rules 顶部加 { \"ip_cidr\": [\"$ip/32\"], \"action\": \"route\", \"outbound\": \"direct\" }"
-        warn "    Clash/Mihomo: IP-CIDR,$ip/32,DIRECT（多数 GUI 会自动加，命令行配置要手写）"
+        warn "    Clash/Mihomo: IP-CIDR,$ip/32,DIRECT"
         ;;
     esac
   done
@@ -168,10 +157,10 @@ warn_if_tunneled
 log "2/3 渲染 ${FWKRC}（客户端 ${WHO}）"
 umask 077
 # fwknop 装完会丢一个全注释的样例，只有那类文件值得备份；我们生成的版本不用备
-[ -f "$FWKRC" ] && ! grep -qF '由 20-client.sh 生成' "$FWKRC" && cp -a "$FWKRC" "$FWKRC.bak"
+[[ -f "$FWKRC" ]] && ! grep -qF '由 20-client.sh 生成' "$FWKRC" && cp -a "$FWKRC" "$FWKRC.bak"
 {
   printf '# 由 20-client.sh 生成，勿手改。重跑脚本即可更新。\n'
-  printf '# 客户端 %s（服务端在 access.conf 里按这把密钥逐个 stanza 试）\n\n' "$WHO"
+  printf '# 客户端 %s\n\n' "$WHO"
   printf '[default]\n'
   printf 'SPA_SERVER_PROTO  udp\n'
   printf 'USE_HMAC          Y\n'
@@ -198,41 +187,40 @@ case "$PAIR" in
 esac
 
 # 下面的提示文案要用：第一个主机名与第一个 SSH 端口
-FIRST_HOST="$(printf '%s\n' $HOSTS | head -n1)"
+FIRST_HOST="$(tr ' ' '\n' <<<"$HOSTS" | head -n1)"
 FIRST_HOST="${FIRST_HOST%%=*}"
 # 多端口时优先挑一个非 22 的（SSH_PORT 可能是 "22 4061"）；只有 22 才退回它
 FIRST_PORT=""
 for _p in $SSH_PORT; do
   case "$_p" in
-    22) [ -n "$FIRST_PORT" ] || FIRST_PORT=22 ;;
+    22) [[ -n "$FIRST_PORT" ]] || FIRST_PORT=22 ;;
     *) FIRST_PORT="$_p"; break ;;
   esac
 done
-[ -n "$FIRST_PORT" ] || FIRST_PORT="${SSH_PORT%% *}"
+[[ -n "$FIRST_PORT" ]] || FIRST_PORT="${SSH_PORT%% *}"
 
 # ---------------------------------------------------------------- ~/.ssh/config
 
-if [ "$SSH_CONFIG" = 1 ]; then
+if [[ "$SSH_CONFIG" == 1 ]]; then
   log "3/3 写 $SSHCFG 托管块"
   mkdir -p "$(dirname "$SSHCFG")"; chmod 700 "$(dirname "$SSHCFG")"
   strip_block
   # 备份摘掉托管块之后的版本：备份里不含我们塞的东西
-  [ -s "$SSHCFG" ] && cp -a "$SSHCFG" "$SSHCFG.bak"
+  [[ -s "$SSHCFG" ]] && cp -a "$SSHCFG" "$SSHCFG.bak"
   {
     # 首次配置时 ~/.ssh/config 可能还不存在；分隔行追加在末尾，否则每重跑一次就多一个空行
-    if [ -f "$SSHCFG" ]; then cat "$SSHCFG"; printf '\n'; fi
+    if [[ -f "$SSHCFG" ]]; then cat "$SSHCFG"; printf '\n'; fi
     printf '%s\n' "$BEGIN"
     for h in $HOSTS; do
       printf 'Host %s\n' "${h%%=*}"
       printf '  HostName %s\n' "${h#*=}"
-      # 不写 User 的话 ssh 会用本机用户名登录，服务器上没有同名账号时只会看到
-      # Permission denied (publickey)——很像「SPA 又坏了」，其实只是用户名不对。
-      [ -n "$SSH_USER" ] && printf '  User %s\n' "$SSH_USER"
-      # ssh 默认端口是 22；用探测到的那个（优先非 22：22 常被 RST 注入/被服务商拦）
-      [ "$FIRST_PORT" != "22" ] && printf '  Port %s\n' "$FIRST_PORT"
-      # 【必须】包一层 sh -c：ssh 会把 ProxyCommand 改写成 "exec <命令>"，
-      # 于是 "exec fwknop ...; sleep 2; nc ..." 里的 sleep 和 nc 永远不会执行——
-      # 症状是握手前就 EOF：Connection closed by UNKNOWN port 65535。
+      # 不写 User 时 ssh 用本机用户名登录，服务器无同名账号只会得到
+      # Permission denied (publickey)。
+      [[ -n "$SSH_USER" ]] && printf '  User %s\n' "$SSH_USER"
+      # 用探测到的端口，优先非 22：22 常被 RST 注入或被服务商拦截
+      [[ "$FIRST_PORT" != "22" ]] && printf '  Port %s\n' "$FIRST_PORT"
+      # 必须包一层 sh -c：ssh 会把 ProxyCommand 改写成 "exec <命令>"，
+      # 否则 sleep 与 nc 不会执行，握手前即 EOF。
       printf '  ProxyCommand /bin/sh -c '"'"'fwknop -n %s >/dev/null 2>&1; sleep 2; exec nc %%h %%p'"'"'\n' "${h%%=*}"
     done
     printf '%s\n' "$END"
@@ -243,17 +231,16 @@ fi
 
 cat <<EOF
 
-客户端就绪。测一下（下面用第一个主机、第一个 SSH 端口举例）：
-  fwknop -n ${FIRST_HOST} -v     # 手动敲一次；服务端 sudo iptables -S FWKNOP_INPUT 会多一条规则
-  ssh -p ${FIRST_PORT} ${FIRST_HOST}$([ "$FIRST_PORT" = 22 ] && printf '   # 端口是 22 时 -p 可省')
-                                # ProxyCommand 里已经带了敲门，感知不到
+客户端就绪。
+  fwknop -n ${FIRST_HOST} -v          手动敲门一次，服务端 iptables -S FWKNOP_INPUT 会多一条规则
+  ssh ${FIRST_HOST}                   ProxyCommand 已包含敲门
 
-ssh 仍不通时，先分清是「敲门没到」还是「端口不通」：
-  服务端：sudo journalctl -u fwknop-server -n 20      # 有没有 SPA 包、有没有 ACCEPT
-  服务端：sudo iptables -S FWKNOP_INPUT              # 有没有为你的 IP 开端口
-  本机：  nc -vz <服务器IP> ${FIRST_PORT}              # 能连上但立刻断 → 多半是 fail2ban 封了你
+ssh 不通时区分两类原因：
+  敲门未到达：sudo journalctl -u fwknop-server -n 20
+  规则未生成：sudo iptables -S FWKNOP_INPUT
+  端口不通：nc -vz <服务器IP> ${FIRST_PORT}，能连上但立即断开多为 fail2ban 封禁
 
-被自己锁在门外时的急救（本机另开一个终端，不要关掉现在这个）：
+锁门急救，另开一个终端，不要关闭当前会话：
   sudo systemctl stop fwknop-server && sudo iptables -D INPUT -j FWKNOP_INPUT
   sudo ufw allow ${FIRST_PORT}/tcp
 EOF
