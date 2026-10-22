@@ -8,3 +8,6 @@ data/
 /clients/
 
 .playwright-mcp/
+
+# live-server 本地依赖
+/node_modules/

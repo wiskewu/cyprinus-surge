@@ -1,0 +1,9 @@
+{
+  "name": "cyprinus-surge-docs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node .build/deploy/build.mjs && node .build/quality/build.mjs",
+    "preview": "npx live-server docs --port=8080 --open=index.html"
+  }
+}
