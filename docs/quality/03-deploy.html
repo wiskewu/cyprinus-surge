@@ -72,9 +72,9 @@ details .body{padding:4px 14px 14px}
 </head>
 <body>
 <header class="top"><div class="wrap"><a class="home" href="index.html">SSH 加固手册</a><span class="crumb">3 · 部署</span></div></header>
-<nav class="nav"><div class="wrap"><a href="index.html">0 · 总览</a><a href="01-how.html">1 · 工作原理</a><a href="02-keys.html">2 · 多客户端密钥</a><a href="03-deploy.html" aria-current="page">3 · 部署</a><a href="04-verify.html">4 · 验收与运维</a><a href="05-ops.html">5 · 排查</a></div></nav>
+<nav class="nav"><div class="wrap"><a href="index.html">0 · 总览</a><a href="01-how.html">1 · 工作原理</a><a href="02-keys.html">2 · 多客户端密钥</a><a href="03-deploy.html" aria-current="page">3 · 部署</a><a href="04-verify.html">4 · 验收与运维</a><a href="05-ops.html">5 · 排查</a><a href="06-rollback.html">6 · 卸载与回退</a></div></nav>
 <main class="wrap">
-<h1>4 · 部署</h1>
+<h1>3 · 部署</h1>
 <p class="lede">三个脚本，彼此独立，可以分别在不同机器上跑。全部幂等：改完配置重跑即可，不会留下半成品。</p>
 
 <h2>把脚本传上去</h2>
@@ -139,11 +139,10 @@ ssh &lt;你的机器&gt; 'bash 20-client.sh --keys ~/laptop.env'</code></pre>
 </table>
 </div>
 
-<div class="bad"><b>ProxyCommand 必须包一层 <code>/bin/sh -c</code>。</b>ssh 会把 <code>ProxyCommand</code> 改写为 <code>exec &lt;命令&gt;</code> 再执行，所以 <code>exec fwknop …; sleep 2; nc …</code> 里的 <code>sleep</code> / <code>nc</code> <b>永远不会执行</b>——症状是握手之前就 EOF：<code>Connection closed by UNKNOWN port 65535</code>，看起来像 SPA 或端口问题，其实转发程序压根没启动。正确写法：<br>
-<code>ProxyCommand /bin/sh -c 'fwknop -n &lt;别名&gt; &gt;/dev/null 2&gt;&amp;1; sleep 2; exec nc %h %p'</code><br>
-（脚本已按这个写。手工改过配置的一定要对照一下。）</div>
-<div class="note"><b>服务器登录名和本地用户名不一致时，一定要给 <code>--user</code>。</b>托管块里没有 <code>User</code> 的话，ssh 会拿本机用户名去登录（比如 <code>wangyao</code>），而这台机器上可能只有 <code>root</code>——报错是 <code>Permission denied (publickey)</code>，很像「SPA 又坏了」。<br>
-<code>bash 20-client.sh --keys ~/mac.env --user root</code></div>
+<div class="bad"><b>ProxyCommand 必须包一层 <code>/bin/sh -c</code>。</b>ssh 会把这一行改写成 <code>exec &lt;命令&gt;</code>，<code>fwknop …; sleep 2; nc …</code> 里的 <code>sleep</code> 与 <code>nc</code> 因此不会执行，握手前就 EOF：<code>Connection closed by UNKNOWN port 65535</code>。<br>
+<code>ProxyCommand /bin/sh -c 'fwknop -n &lt;别名&gt; &gt;/dev/null 2&gt;&amp;1; sleep 2; exec nc %h %p'</code></div>
+<div class="note"><b>服务器登录名和本地用户名不一致时，一定要给 <code>--user</code>。</b>托管块里没有 <code>User</code> 的话，ssh 会拿本机用户名去登录，而这台机器上可能只有 <code>root</code>——报错是 <code>Permission denied (publickey)</code>，很像「SPA 又坏了」。<br>
+<code>bash 20-client.sh --keys ~/laptop.env --user root</code></div>
 <div class="note"><b>托管块是幂等的。</b>带 <code># BEGIN ssh-spa</code> … <code># END ssh-spa</code> 标记，重跑只原地替换并清掉多余空行，不会越堆越多；<code>--uninstall</code> 摘掉之后与原文件逐字节一致。</div>
 
 <div class="tw">
@@ -166,49 +165,9 @@ ssh &lt;你的机器&gt; 'bash 20-client.sh --keys ~/laptop.env'</code></pre>
 <p>它会删除<b>探测到的每一个</b>公网 SSH 端口规则（<code>ufw limit</code> 和 <code>ufw allow</code> 两种都试），<b>然后回读 <code>ufw status</code> 确认规则真的没了</b>——ufw 删一条不存在的规则也返回 0，只看退出码会把「没关上」报成「已关闭」。还有规则残留时脚本直接报错退出。</p>
 <p>sshd 若同时监听多个端口，全部都会被处理：只关一个的话另一个还开着，而 SPA 只放行其中之一，等于多开一扇没用的门。</p>
 <p>收口前会检测 <code>tailscale0</code> / <code>wg0</code> 这类并行通道，没有就提醒你收口后只剩云控制台 VNC 能回来（只提醒，不阻止）。</p>
+<p>不想要了就退回去，步骤见 <a href="06-rollback.html">第 6 页</a>。</p>
 
-<h2>退出（回到不敲门的直连）</h2>
-<p>不想用了、换机器了、SPA 把你自己卡住了——用 <code>90-uninstall.sh</code>，别手敲 iptables。登录方式、密钥包去留、是否真的拆，都会逐条问，<b>不替你选默认值</b>：</p>
-<pre><code># 服务器：先放行公网 SSH 并回读确认，再停 fwknopd、清跳转、关 SPA 端口、还原配置
-sudo bash 90-uninstall.sh              # 交互式，推荐
-sudo bash 90-uninstall.sh --check      # 只看现状，什么都不改
-
-# 非交互（脚本、heredoc）：关键步骤必须显式给，缺了就退出
-sudo bash 90-uninstall.sh --password no -y                         # 仅公钥
-sudo bash 90-uninstall.sh --password yes --root-login yes -y       # 密码登录，root 也能用密码
-sudo bash 90-uninstall.sh --password no --purge -y                 # 连 access.conf 与密钥包一起删
-
-# 每台客户端：还原 ~/.fwknoprc，摘掉 ~/.ssh/config 里的托管块
-bash 90-uninstall.sh --client
-bash 90-uninstall.sh --client --purge --keys ~/mac.env   # 连本地那份密钥包一起删</code></pre>
-<div class="bad"><b>顺序是安全的关键。</b>收口之后公网 SSH 规则已经不存在，唯一在放行的是 <code>FWKNOP_INPUT</code> 里那条临时规则。<code>90-uninstall.sh</code> 因此<b>先</b> <code>ufw allow</code> 并回读确认，确认不了就直接退出（此时 SPA 还完整）——绝不在「SSH 没路可走」的状态下先拆 SPA。</div>
-<div class="tw">
-<table>
-<thead><tr><th>参数</th><th>作用</th><th>不给会怎样</th></tr></thead>
-<tbody>
-<tr><td><code>--password yes|no</code></td><td>退出后是否允许密码登录；<code>no</code> 时连 <code>KbdInteractiveAuthentication</code> 一起关（键盘交互式也能送密码）</td><td>交互式会问；非交互直接退出</td></tr>
-<tr><td><code>--root-login yes|no|prohibit-password</code></td><td>只影响 root：<code>prohibit-password</code> = 只允许公钥登 root</td><td><code>--password yes</code> 且 root 当前是 <code>prohibit-password</code> 时，非交互直接退出（否则只开密码登录等于没解决）</td></tr>
-<tr><td><code>-y, --yes</code></td><td>跳过拆除确认</td><td>交互式会问；非交互直接退出</td></tr>
-<tr><td><code>--purge</code></td><td>连 <code>access.conf</code> 与密钥包一起删</td><td>交互式会问；默认保留</td></tr>
-</tbody>
-</table>
-</div>
-<p>改的是<b>实际生效的那一行</b>：sshd 对每个关键字只取「第一个出现的值」，而 <code>Include sshd_config.d</code> 会按文件名顺序就地展开。所以 <code>50-cloud-init.conf</code> 里若写着 <code>PasswordAuthentication no</code>，脚本改的就是它，而不是自己那份 <code>99-*.conf</code>。改完 <code>sshd -t</code> 校验、reload，并用 <code>sshd -T</code> 回读确认——对不上就把「谁设的」列出来。</p>
-<div class="warn"><b>开密码登录＝回到可被爆破的状态。</b>只在你需要换回旧方式、或机器上没有可用公钥时才开；开着就让 fail2ban 继续跑（<code>fail2ban-client status sshd</code>）。只想恢复访问的话，更稳的做法是把新公钥装进 <code>authorized_keys</code>，密码登录保持 no。</div>
-<p>还原之后的状态：公网 SSH 直连、不再需要敲门、<code>fwknopd</code> 停用、<code>fwknopd.conf</code> 用回包自带那份。fail2ban 与代理配置不动；客户端的 <code>~/.ssh/config</code> 里只删带 <code># BEGIN ssh-spa</code> 标记的那一段，你自己的配置原样保留。</p>
-<p>选「仅公钥」而本机又没找到 <code>authorized_keys</code> 时，脚本会在拆之前警告：拆完只剩云控制台能进。</p>
-
-<h2 id="lockout">锁门急救</h2>
-<p>万一还是锁了——云厂商控制台的 VNC / 串口，或者你之前装了 Tailscale（见 <a href="05-ops.html#backup">第 5 页</a>）。<b>端口按探测结果恢复，不是 22</b>：</p>
-<pre><code>sudo systemctl stop fwknop-server
-sudo iptables -D INPUT -j FWKNOP_INPUT
-ss -tlnp | grep sshd          # 看看真实端口
-sudo ufw limit 那个端口/tcp</code></pre>
-<p>或者直接让脚本还原（它会自己探测端口）：</p>
-<pre><code>sudo bash 10-server.sh --uninstall     # 还原 fwknopd.conf，恢复公网 SSH 规则
-sudo bash 10-server.sh --purge         # 上面这些，再删掉 access.conf 与密钥包</code></pre>
-
-<h2>服务端参数</h2>
+<h2 id="server-params">服务端参数</h2>
 <div class="tw">
 <table>
 <thead><tr><th>参数</th><th>作用</th></tr></thead>

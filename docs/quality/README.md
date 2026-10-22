@@ -141,6 +141,41 @@ sudo ufw limit 那个端口/tcp
 
 或者 `sudo bash 10-server.sh --uninstall`（保留密钥；`--purge` 连密钥一起删）——它会自己探测端口来恢复。
 
+### 退出（回到不敲门的直连）
+
+```bash
+# 服务器：先放行公网 SSH 并回读确认，再停 fwknopd、清跳转、关 SPA 端口、还原配置
+sudo bash 90-uninstall.sh              # 交互式，推荐
+sudo bash 90-uninstall.sh --check      # 只看现状，什么都不改
+
+# 非交互：--password 与 -y 必须显式给，缺了就退出
+sudo bash 90-uninstall.sh --password no -y
+sudo bash 90-uninstall.sh --password yes --root-login yes -y
+sudo bash 90-uninstall.sh --password no --purge -y
+
+# 每台客户端：还原 ~/.fwknoprc，摘掉 ~/.ssh/config 里的托管块
+bash 90-uninstall.sh --client
+bash 90-uninstall.sh --client --purge --keys ~/laptop.env
+```
+
+收口之后公网 SSH 规则已经不存在，唯一在放行的是 `FWKNOP_INPUT` 里的临时规则。脚本因此**先** `ufw allow` 并回读确认，确认不了就直接退出，此时 SPA 还完整。
+
+服务器收尾打印四行，逐条对应：
+
+- **`fail2ban-client status sshd`**：拆掉 SPA 又开密码登录，端口重新对全网开放，这个 jail 是密码登录期间唯一的限速手段。输出 `Status for the jail: sshd` 即生效；`Sorry but the jail 'sshd' does not exist` 说明 jail 没启用，要么在 `/etc/fail2ban/jail.local` 补 sshd 段，要么把 `PasswordAuthentication` 改回 `no`。系统没有 syslog 时需要 `backend = systemd`，否则 `Total failed` 一直是 0。
+- **验证密码登录**：公钥可用时客户端先用公钥过去，密码这条路根本走不到，必须显式关掉公钥。命令末尾的 `true` 是远程命令，认证通过就以退出码 0 静默收场，**没有输出不等于失败**。
+
+  ```bash
+  ssh -o PubkeyAuthentication=no -o PreferredAuthentications=password \
+      -o KbdInteractiveAuthentication=no -o NumberOfPasswordPrompts=1 \
+      -p <SSH端口> root@<服务器IP> 'whoami; hostname'; echo "exit=$?"
+  ```
+
+  静默且 `exit=0` 即成功；`Permission denied (publickey,password)` 说明 sshd 提供了密码方法但凭据被拒；`Permission denied (publickey)` 说明密码方法没生效；连接超时是被 fail2ban 或 `PerSourcePenalties` 封禁。服务端用 `journalctl -u ssh | grep -i accepted` 闭环。
+- **客户端各自还原**：服务端脚本够不到客户端的 home 目录，凡跑过 `20-client.sh` 的机器各自执行 `--client`。还原是纯清理，不需要密钥包；只有 `--purge` 才碰 `spa-keys.env`。`~/.fwknoprc` 里没有「由 20-client.sh 生成」标记时脚本不删。
+
+开密码登录等于回到可被爆破的状态。已经有可用公钥时，更稳的做法是把新公钥装进 `authorized_keys`，密码登录保持 `no`。
+
 ## 5. 验收
 
 | # | 检查 | 怎么做 | 通过 |
@@ -229,6 +264,7 @@ docs/quality/
     00-gen-keys.sh    生成密钥包：服务端一份 + 每客户端一份
     10-server.sh      装 fwknopd、渲染配置、改防火墙（--close-ssh / --status / --uninstall / --purge）
     20-client.sh      装 fwknop、写 ~/.fwknoprc 与 ~/.ssh/config 托管块
+    90-uninstall.sh   拆掉 SPA 回到公网直连（服务端 / --client 还原客户端）
   diagrams/           三张已校验的图（拓扑 / 访问链路 / 规则生命周期）
 ```
 

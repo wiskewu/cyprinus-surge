@@ -72,7 +72,7 @@ details .body{padding:4px 14px 14px}
 </head>
 <body>
 <header class="top"><div class="wrap"><a class="home" href="index.html">SSH 加固手册</a><span class="crumb">0 · 总览</span></div></header>
-<nav class="nav"><div class="wrap"><a href="index.html" aria-current="page">0 · 总览</a><a href="01-how.html">1 · 工作原理</a><a href="02-keys.html">2 · 多客户端密钥</a><a href="03-deploy.html">3 · 部署</a><a href="04-verify.html">4 · 验收与运维</a><a href="05-ops.html">5 · 排查</a></div></nav>
+<nav class="nav"><div class="wrap"><a href="index.html" aria-current="page">0 · 总览</a><a href="01-how.html">1 · 工作原理</a><a href="02-keys.html">2 · 多客户端密钥</a><a href="03-deploy.html">3 · 部署</a><a href="04-verify.html">4 · 验收与运维</a><a href="05-ops.html">5 · 排查</a><a href="06-rollback.html">6 · 卸载与回退</a></div></nav>
 <main class="wrap">
 <h1>SSH 加固</h1>
 <p class="lede">用 fwknop 的单包授权（SPA）把 22 端口关到互联网上不可达。配好之后 <code>ssh server1</code> 用法不变，敲门发生在 <code>ProxyCommand</code> 里。</p>
@@ -104,7 +104,7 @@ details .body{padding:4px 14px 14px}
 <tr><td>2</td><td>服务器</td><td>装 fwknopd、放行 SPA 端口（<b>SSH 端口仍开着</b>）</td><td><code>sudo bash 10-server.sh --keys spa-keys.env</code></td></tr>
 <tr><td>3</td><td>每台客户端</td><td>写 <code>~/.fwknoprc</code> 与 <code>~/.ssh/config</code></td><td><code>bash 20-client.sh --keys clients/laptop.env</code></td></tr>
 <tr><td>4</td><td>服务器</td><td>确认能进之后，<b>才</b>关公网 SSH 端口</td><td><code>sudo bash 10-server.sh --keys spa-keys.env --close-ssh</code></td></tr>
-<tr><td>退</td><td>服务器 + 客户端</td><td>不想要了：先开回公网 SSH，再拆 SPA</td><td><code>sudo bash 90-uninstall.sh</code> / <code>bash 90-uninstall.sh --client</code></td></tr>
+<tr><td>退</td><td>服务器 + 客户端</td><td>不想要了：先开回公网 SSH，再拆 SPA，步骤见<a href="06-rollback.html">第 6 页</a></td><td><code>sudo bash 90-uninstall.sh</code> / <code>bash 90-uninstall.sh --client</code></td></tr>
 </tbody>
 </table>
 </div>

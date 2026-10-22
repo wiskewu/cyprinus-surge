@@ -14,6 +14,7 @@ const pages = [
   { file: '03-deploy.html', title: '部署', crumb: '3 · 部署' },
   { file: '04-verify.html', title: '验收与运维', crumb: '4 · 验收与运维' },
   { file: '05-ops.html', title: '排查', crumb: '5 · 排查' },
+  { file: '06-rollback.html', title: '卸载与回退', crumb: '6 · 卸载与回退' },
 ];
 
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
