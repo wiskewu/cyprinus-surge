@@ -12,7 +12,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.75 "PingFang SC"
 .wrap{max-width:1040px;margin:0 auto;padding:0 20px}
 a{color:var(--acc);text-decoration:none;border-bottom:1px solid rgba(13,107,88,.28)}
 a:hover{border-bottom-color:var(--acc)}
-code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.88em;background:var(--line2);border:1px solid var(--line);border-radius:4px;padding:.05em .35em}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.88em;background:var(--line2);border:1px solid var(--line);border-radius:4px;padding:.05em .35em;overflow-wrap:anywhere}
 .top{background:#fff;border-bottom:1px solid var(--line)}
 .top .wrap{display:flex;align-items:baseline;gap:12px;padding:12px 20px}
 .top .home{font-weight:700;border:0}
@@ -32,7 +32,7 @@ p{margin:8px 0}
 ul,ol{margin:8px 0;padding-left:22px}
 li{margin:4px 0}
 pre{position:relative;background:#0f172a;color:#e2e8f0;border-radius:var(--r);padding:14px 16px;overflow-x:auto;font:13px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;margin:10px 0}
-pre code{background:none;border:0;padding:0;color:inherit;font-size:inherit}
+pre code{background:none;border:0;padding:0;color:inherit;font-size:inherit;overflow-wrap:normal}
 pre .copy{position:absolute;top:8px;right:8px;background:#1e293b;color:#cbd5e1;border:1px solid #334155;border-radius:6px;font-size:12px;padding:2px 8px;cursor:pointer}
 pre .copy:hover{background:#334155}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;margin:12px 0}
@@ -85,11 +85,11 @@ details .body{padding:4px 14px 14px}
 <table>
 <thead><tr><th>阶段</th><th>做什么</th><th>公网 SSH 端口</th><th>密码登录</th><th>谁能进来</th></tr></thead>
 <tbody>
-<tr><td>0 拿到机器</td><td>厂商分配的端口（可能是随机的）</td><td class="tag warn">开</td><td>看厂商设置</td><td>你</td></tr>
-<tr><td>1 装公钥</td><td><a href="../deploy/01-init.html">部署第 1 步</a></td><td class="tag warn">开</td><td class="tag ok">关</td><td>持钥者</td></tr>
-<tr><td>2 部署节点</td><td><a href="../deploy/index.html">部署第 2–6 步</a></td><td class="tag warn">开</td><td class="tag ok">关</td><td>持钥者</td></tr>
-<tr><td>3 上 SPA</td><td>本手册第 1–3 步（可选）</td><td class="tag warn">开</td><td class="tag ok">关</td><td>持钥者 + 持 SPA 密钥者</td></tr>
-<tr><td>4 收口</td><td>本手册第 4 步</td><td class="tag bad">关</td><td class="tag ok">关</td><td>只剩 SPA 密钥者</td></tr>
+<tr><td>0 拿到机器</td><td>厂商分配的端口（可能是随机的）</td><td><span class="tag warn">开</span></td><td>看厂商设置</td><td>你</td></tr>
+<tr><td>1 装公钥</td><td><a href="../deploy/01-init.html">部署第 1 步</a></td><td><span class="tag warn">开</span></td><td><span class="tag ok">关</span></td><td>持钥者</td></tr>
+<tr><td>2 部署节点</td><td><a href="../deploy/index.html">部署第 2–6 步</a></td><td><span class="tag warn">开</span></td><td><span class="tag ok">关</span></td><td>持钥者</td></tr>
+<tr><td>3 上 SPA</td><td>本手册第 1–3 步（可选）</td><td><span class="tag warn">开</span></td><td><span class="tag ok">关</span></td><td>持钥者 + 持 SPA 密钥者</td></tr>
+<tr><td>4 收口</td><td>本手册第 4 步</td><td><span class="tag bad">关</span></td><td><span class="tag ok">关</span></td><td>只剩 SPA 密钥者</td></tr>
 </tbody>
 </table>
 </div>
