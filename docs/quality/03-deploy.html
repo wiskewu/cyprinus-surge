@@ -84,6 +84,7 @@ details .body{padding:4px 14px 14px}
 <p>在<b>你自己安全的机器</b>上跑，不要在服务器上生成：</p>
 <pre><code>bash 00-gen-keys.sh --hosts "server1=203.0.113.10 server2=198.51.100.7" --clients "laptop phone"</code></pre>
 <p>产出 <code>spa-keys.env</code>（服务端，含全部设备）+ <code>clients/{laptop,phone}.env</code>。详见 <a href="02-keys.html">第 2 页</a>。</p>
+<p>手上只剩服务端那份 <code>spa-keys.env</code> 时不要重新生成：密钥已经存在，用 <code>--split</code> 把它拆回客户端包，见 <a href="02-keys.html#split">从服务端包拆出客户端包</a>。</p>
 
 <h2>第 2 步 · 服务端</h2>
 <pre><code>scp spa-keys.env root@&lt;服务器&gt;:/root/
@@ -117,16 +118,15 @@ IPT_INPUT_ACCESS         ACCEPT, filter, INPUT, 1, FWKNOP_INPUT, 1;
 ENABLE_IPT_FORWARDING    N;
 ENABLE_IPT_SNAT          N;
 ENABLE_IPT_OUTPUT        N;
-ENABLE_IPT_LOCAL_NAT     N;
-
-SYSLOG_ID                fwknopd;</code></pre>
+ENABLE_IPT_LOCAL_NAT     N;</code></pre>
 </div></details>
 
 <h2>第 3 步 · 客户端</h2>
-<p><b>每台机器各跑一次</b>，只给它自己那一份密钥：</p>
-<pre><code>scp clients/laptop.env &lt;你的机器&gt;:~/
-ssh &lt;你的机器&gt; 'bash 20-client.sh --keys ~/laptop.env'</code></pre>
-<p>做了三件事：装 <code>fwknop</code>；写 <code>~/.fwknoprc</code>（0600）；往 <code>~/.ssh/config</code> 追加一个<b>托管块</b>。</p>
+<p><b>每台机器各跑一次</b>，只给它自己那一份密钥。脚本路径、密钥路径、登录名按实际情况填：</p>
+<pre><code>scp -r docs/quality/scripts clients/laptop.env &lt;客户端&gt;:~/
+ssh &lt;客户端&gt; 'cd ~/scripts &amp;&amp; SSH_PORT="22 4061" bash 20-client.sh --keys ~/laptop.env --user root'</code></pre>
+<p><code>--user</code> 写服务器上的登录名，不是本机用户名。不给就用本机用户名去连，服务器没有同名账号时表现为一直要密码或 <code>Permission denied</code>。<code>SSH_PORT</code> 只在密钥包里没写回端口时才需要：服务端 <code>10-server.sh</code> 跑完会把探测值回写进包，分发的若是那份就不用这条。</p>
+<p>做了三件事：装 <code>fwknop</code>；写 <code>~/.fwknoprc</code>（0600）；往 <code>~/.ssh/config</code> 追加带 <code># BEGIN/END ssh-spa</code> 标记的托管块，重跑只原地替换不叠加，<code>--uninstall</code> 摘掉后与原文件逐字节一致。</p>
 <p><code>~/.fwknoprc</code> 里关键的是 <code>ALLOW_IP</code>，默认写 <code>source</code>：SPA 包里写 <code>0.0.0.0</code>，服务端按「包从哪个 IP 来」放行——<b>不需要 wget，也不怕你换网络</b>。需要时在密钥包里加一行 <code>ALLOW_IP=…</code> 覆盖：</p>
 <div class="tw">
 <table>
@@ -139,17 +139,15 @@ ssh &lt;你的机器&gt; 'bash 20-client.sh --keys ~/laptop.env'</code></pre>
 </table>
 </div>
 
-<div class="bad"><b>ProxyCommand 必须包一层 <code>/bin/sh -c</code>。</b>ssh 会把这一行改写成 <code>exec &lt;命令&gt;</code>，<code>fwknop …; sleep 2; nc …</code> 里的 <code>sleep</code> 与 <code>nc</code> 因此不会执行，握手前就 EOF：<code>Connection closed by UNKNOWN port 65535</code>。<br>
+<div class="bad"><b>托管块里的 <code>ProxyCommand</code> 必须包一层 <code>/bin/sh -c</code>。</b>ssh 会把它改写成 <code>exec &lt;命令&gt;</code>，不包的话 <code>sleep 2</code> 与 <code>nc</code> 不执行，握手前就 EOF：<code>Connection closed by UNKNOWN port 65535</code>。<br>
 <code>ProxyCommand /bin/sh -c 'fwknop -n &lt;别名&gt; &gt;/dev/null 2&gt;&amp;1; sleep 2; exec nc %h %p'</code></div>
-<div class="note"><b>服务器登录名和本地用户名不一致时，一定要给 <code>--user</code>。</b>托管块里没有 <code>User</code> 的话，ssh 会拿本机用户名去登录，而这台机器上可能只有 <code>root</code>——报错是 <code>Permission denied (publickey)</code>，很像「SPA 又坏了」。<br>
-<code>bash 20-client.sh --keys ~/laptop.env --user root</code></div>
-<div class="note"><b>托管块是幂等的。</b>带 <code># BEGIN ssh-spa</code> … <code># END ssh-spa</code> 标记，重跑只原地替换并清掉多余空行，不会越堆越多；<code>--uninstall</code> 摘掉之后与原文件逐字节一致。</div>
 
 <div class="tw">
 <table>
 <thead><tr><th>参数</th><th>作用</th></tr></thead>
 <tbody>
 <tr><td><code>--keys FILE</code></td><td>必填。自己那一份密钥包</td></tr>
+<tr><td><code>--user NAME</code></td><td>写进托管块的登录用户。服务器登录名与本机用户名不同时必须给</td></tr>
 <tr><td><code>--name NAME</code></td><td>覆盖包里的 <code>CLIENT_NAME</code></td></tr>
 <tr><td><code>--no-ssh</code></td><td>只写 <code>~/.fwknoprc</code>，不碰 <code>~/.ssh/config</code></td></tr>
 <tr><td><code>--status</code></td><td>显示当前配置</td></tr>
@@ -160,7 +158,7 @@ ssh &lt;你的机器&gt; 'bash 20-client.sh --keys ~/laptop.env'</code></pre>
 <p>装包路径按顺序探测：brew → apt（<code>fwknop-client</code>）→ pacman。缺 <code>nc</code> 只警告不中止，因为 <code>ProxyCommand</code> 的最后一步要它（Debian/Ubuntu：<code>apt install netcat-openbsd</code>）。</p>
 
 <h2>第 4 步 · 收口</h2>
-<div class="bad"><b>顺序不能反。</b>先在<b>当前这个 SSH 会话</b>里另开一个连接，确认能进得来，再收口。</div>
+<div class="bad"><b>顺序不能反，而且要先验证敲门。</b>在当前 SSH 会话里另开一个连接确认能进；同时客户端 <code>fwknop -n &lt;别名&gt;</code> 之后 <code>sudo iptables -S FWKNOP_INPUT</code> 必须出现该端口的 ACCEPT。脚本只探测端口就删公网规则，不替你验证敲门链路——敲不通时收口等于锁死自己。</div>
 <pre><code>bash /root/ssh-spa/10-server.sh --keys /root/spa-keys.env --close-ssh</code></pre>
 <p>它会删除<b>探测到的每一个</b>公网 SSH 端口规则（<code>ufw limit</code> 和 <code>ufw allow</code> 两种都试），<b>然后回读 <code>ufw status</code> 确认规则真的没了</b>——ufw 删一条不存在的规则也返回 0，只看退出码会把「没关上」报成「已关闭」。还有规则残留时脚本直接报错退出。</p>
 <p>sshd 若同时监听多个端口，全部都会被处理：只关一个的话另一个还开着，而 SPA 只放行其中之一，等于多开一扇没用的门。</p>

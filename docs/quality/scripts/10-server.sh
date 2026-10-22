@@ -95,6 +95,12 @@ command -v fwknopd >/dev/null 2>&1 || die "fwknopd 装完仍找不到，检查 a
 
 load_env "$KEYS"
 : "${SPA_PORT:=62201}" "${ACCESS_TIMEOUT:=120}" "${MAX_FW_TIMEOUT:=300}"
+# 与客户端保持一致：fwknopd 的 stanza 不写这一项时固定按 SHA256 校验 HMAC
+: "${HMAC_DIGEST_TYPE:=SHA512}"
+case "$HMAC_DIGEST_TYPE" in
+  MD5 | SHA1 | SHA256 | SHA384 | SHA512 | SHA3_256 | SHA3_512) ;;
+  *) die "HMAC_DIGEST_TYPE 取值不合法：$HMAC_DIGEST_TYPE" ;;
+esac
 
 # SSH 端口一律探测，不默认 22：云厂商给的新机器常是随机端口
 SSH_PORTS="$(ssh_resolve_ports)"
@@ -127,10 +133,9 @@ ENABLE_IPT_FORWARDING    N;
 ENABLE_IPT_SNAT          N;
 ENABLE_IPT_OUTPUT        N;
 ENABLE_IPT_LOCAL_NAT     N;
-
-SYSLOG_ID                fwknopd;
 EOF
-chmod 644 "$FWD_CONF"
+# fwknopd 要求 0600：权限过宽会在启动时打警告
+chmod 600 "$FWD_CONF"
 
 # ---- 渲染 access.conf：一个客户端一个 stanza ----
 # fwknopd 依次尝试每个 stanza，用各自密钥解密，对上的那个才开规则，所以统一写 SOURCE ANY。
@@ -143,6 +148,7 @@ render_stanza() {
   printf 'OPEN_PORTS %s;\n' "$ports"
   printf 'FW_ACCESS_TIMEOUT %s;\n' "$ACCESS_TIMEOUT"
   printf 'MAX_FW_TIMEOUT %s;\n' "$MAX_FW_TIMEOUT"
+  printf 'HMAC_DIGEST_TYPE %s;\n' "$HMAC_DIGEST_TYPE"
   printf 'KEY_BASE64 %s;\n' "${1%%:*}"
   printf 'HMAC_KEY_BASE64 %s;\n' "${1##*:}"
   printf '\n'

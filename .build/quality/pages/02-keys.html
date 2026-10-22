@@ -26,6 +26,8 @@
 <tr><td><code>--clients "laptop phone"</code></td><td>每台客户端各一对独立密钥</td><td><code>clients/&lt;名字&gt;.env</code> 一份；服务端包里一行 <code>CLIENTS="laptop=… phone=…"</code>，在 <code>access.conf</code> 里各成一个 stanza</td></tr>
 <tr><td><code>--shared</code></td><td>所有客户端共用一对（与 <code>--clients</code> 二选一）</td><td>仍生成 <code>clients/shared.env</code>；吊销只能全换</td></tr>
 <tr><td><code>--out FILE</code></td><td>服务端包路径，默认 <code>spa-keys.env</code></td><td>客户端的包总落在同目录的 <code>clients/</code></td></tr>
+<tr><td><code>--split FILE</code></td><td>不生成新密钥，从已有服务端包拆出客户端包</td><td>写入 <code>clients/&lt;名字&gt;.env</code>；见<a href="#split">下文</a></td></tr>
+<tr><td><code>--clients-dir DIR</code></td><td>拆分输出的目录，默认 <code>clients</code></td><td>只对 <code>--split</code> 生效</td></tr>
 </tbody>
 </table>
 </div>
@@ -50,10 +52,12 @@
 SSH_PORT=22
 ACCESS_TIMEOUT=120
 MAX_FW_TIMEOUT=300
+HMAC_DIGEST_TYPE=SHA512
 HOSTS="server1=203.0.113.10 server2=198.51.100.7"
 CLIENTS="laptop=&lt;KEY&gt;:&lt;HMAC&gt; phone=&lt;KEY&gt;:&lt;HMAC&gt;"</code></pre>
-<p>每台客户端那份只含自己：</p>
-<pre><code>HOSTS="server1=203.0.113.10 server2=198.51.100.7"
+<p>每台客户端那份只含自己，其余字段与上面相同：</p>
+<pre><code>HMAC_DIGEST_TYPE=SHA512
+HOSTS="server1=203.0.113.10 server2=198.51.100.7"
 CLIENT_NAME=laptop
 CLIENTS="laptop=&lt;KEY&gt;:&lt;HMAC&gt;"</code></pre>
 <p><b>sshd 监听多个端口时</b>（比如刚挪端口那阵 22 与 4061 并存），写回的值是一整串、必须带引号：</p>
@@ -62,12 +66,25 @@ ACCESS tcp/22,tcp/4061      # 客户端 ~/.fwknoprc 里的写法（逗号分隔�
 OPEN_PORTS tcp/22,tcp/4061; # 服务端 access.conf 里的写法（也是逗号）</code></pre>
 <div class="bad"><b>格式坑：</b>每客户端的键值必须写在<b>一行带引号的 <code>CLIENTS="..."</code></b> 里。写成 <code>CLIENT laptop=...</code> 不是合法 shell 赋值，脚本 source 这个文件时会直接报 <code>CLIENT: command not found</code>。</div>
 
+<h2 id="split">只有服务端包时，怎么拿回客户端包</h2>
+<p>常见情形：换机器时 <code>clients/</code> 丢了，服务端那份 <code>spa-keys.env</code> 还在。密钥是同一对，不需要重新生成，直接拆：</p>
+<pre><code># 在服务端跑，与 spa-keys.env 同目录
+bash 00-gen-keys.sh --split spa-keys.env
+bash 00-gen-keys.sh --split spa-keys.env --clients-dir /root/clients   # 指定输出目录
+
+ls clients/
+# laptop.env  phone.env</code></pre>
+<p>拆出来的是拷贝：<code>SPA_PORT</code>、<code>SSH_PORT</code>、<code>ACCESS_TIMEOUT</code>、<code>MAX_FW_TIMEOUT</code>、<code>HOSTS</code> 原样带过去，再按名字补 <code>CLIENT_NAME</code> 与该设备那一行 <code>CLIENTS</code>。密钥不变，服务端 <code>access.conf</code> 不用重跑，拿着新包直接跑 <code>20-client.sh</code> 即可。</p>
+<p>源文件里的 <code>SHARED=…</code> 也能拆，输出为 <code>clients/shared.env</code>。重复跑安全：目标文件内容与源一致时跳过，不一致才改写。</p>
+<div class="bad"><b>不要用 <code>--clients</code> 重新生成来补客户端包。</b>那会换掉全部密钥，得重跑 <code>10-server.sh</code>、逐台重配，手上还在用的设备会全部敲门失败。<code>--force</code> 同效，不是修丢失，是轮换。</div>
+
 <h2>渲染出的 access.conf</h2>
 <pre><code># --- laptop ---
 SOURCE ANY;
 OPEN_PORTS tcp/22;
 FW_ACCESS_TIMEOUT 120;
 MAX_FW_TIMEOUT 300;
+HMAC_DIGEST_TYPE SHA512;
 KEY_BASE64        &lt;laptop 的密钥&gt;;
 HMAC_KEY_BASE64   &lt;laptop 的 HMAC 密钥&gt;;</code></pre>
 <p>多端口时 <code>OPEN_PORTS</code> 是逗号列表：<code>OPEN_PORTS tcp/22,tcp/4061;</code>，与客户端 <code>ACCESS</code> 一一对应。</p>
@@ -78,6 +95,7 @@ HMAC_KEY_BASE64   &lt;laptop 的 HMAC 密钥&gt;;</code></pre>
 <tr><td><code>OPEN_PORTS</code></td><td>收到有效包后开哪些端口，服务端说了算</td></tr>
 <tr><td><code>FW_ACCESS_TIMEOUT</code></td><td>规则保留多少秒（不设默认 30）</td></tr>
 <tr><td><code>MAX_FW_TIMEOUT</code></td><td>封顶，客户端 <code>--fw-timeout</code> 也拿不到超过这个值（不设默认 300）</td></tr>
+<tr><td><code>HMAC_DIGEST_TYPE</code></td><td>HMAC 摘要算法，<b>必须与客户端 <code>~/.fwknoprc</code> 的取值相同</b>。stanza 不写这一项时 fwknopd 固定按 <code>SHA256</code> 校验，客户端声明 <code>SHA512</code> 就永久报 <code>Non-corresponding HMAC</code>，密钥全对也一样</td></tr>
 </tbody>
 </table>
 </div>

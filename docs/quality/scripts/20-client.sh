@@ -102,6 +102,12 @@ command -v nc >/dev/null 2>&1 || warn "未找到 nc，ProxyCommand 末段会失�
 load_env "$KEYS"
 [[ -n "$NAME" ]] && { valid_name "$NAME" || die "客户端名不合法：$NAME"; CLIENT_NAME="$NAME"; }
 : "${SPA_PORT:=62201}" "${ACCESS_TIMEOUT:=120}"
+# 必须与服务端 stanza 的 HMAC_DIGEST_TYPE 相同，否则密钥对得上也验不过 HMAC
+HMAC_DIGEST="${HMAC_DIGEST_TYPE:-SHA512}"
+case "$HMAC_DIGEST" in
+  MD5 | SHA1 | SHA256 | SHA384 | SHA512 | SHA3_256 | SHA3_512) ;;
+  *) die "HMAC_DIGEST_TYPE 取值不合法：$HMAC_DIGEST" ;;
+esac
 # SSH_PORT 不给默认值：填错会让 SPA 去开 sshd 不在的端口，表现为敲门成功但连不上。
 [[ -n "${SSH_PORT:-}" ]] || die "$KEYS 缺少 SSH_PORT，改用服务端 10-server.sh 回写过的密钥包"
 # 服务端探测到多端口时写回的值是 "22 4061"，fwknop 的 ACCESS 语法为逗号分隔。
@@ -164,7 +170,7 @@ umask 077
   printf '[default]\n'
   printf 'SPA_SERVER_PROTO  udp\n'
   printf 'USE_HMAC          Y\n'
-  printf 'HMAC_DIGEST_TYPE  SHA512\n'
+  printf 'HMAC_DIGEST_TYPE  %s\n' "$HMAC_DIGEST"
   printf 'ALLOW_IP          %s\n' "$ALLOW_IP_MODE"
   printf 'ACCESS            %s\n' "$ACCESS_PORTS"
   printf 'KEY_BASE64        %s\n' "${PAIR%%:*}"

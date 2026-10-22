@@ -92,6 +92,7 @@ details .body{padding:4px 14px 14px}
 </table>
 </div>
 <p>第 4 条要先抓包：<code>sudo tcpdump -i any udp port 62201 -w /tmp/spa.pcap</code>，再在客户端敲一次。</p>
+<div class="bad"><b>第 1 条过不了，就不能跑 <code>--close-ssh</code>。</b>收口后唯一的门就是 <code>FWKNOP_INPUT</code>，而脚本删公网规则前只探测端口，不验证敲门。日志里反复出现 <code>Non-corresponding HMAC for this stanza</code> 时，先查两端 <code>HMAC_DIGEST_TYPE</code> 是否一致，见<a href="05-ops.html">第 5 页</a>速查表。</div>
 
 <h2>状态</h2>
 <pre><code>sudo bash 10-server.sh --status

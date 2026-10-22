@@ -63,6 +63,7 @@ Host server1
 SPA_PORT=62201
 ACCESS_TIMEOUT=120
 MAX_FW_TIMEOUT=300
+HMAC_DIGEST_TYPE=SHA512
 HOSTS="server1=203.0.113.10 server2=198.51.100.7"
 CLIENTS="laptop=<KEY>:<HMAC> phone=<KEY>:<HMAC>"
 ```
@@ -71,6 +72,19 @@ CLIENTS="laptop=<KEY>:<HMAC> phone=<KEY>:<HMAC>"
 
 > **格式坑：** 每客户端的键值必须写在**一行带引号的 `CLIENTS="..."`** 里。写成 `CLIENT laptop=...` 不是合法 shell 赋值，脚本 source 这个文件时会报 `CLIENT: command not found`。
 
+**只有服务端包时，怎么拿回客户端包**：换机器时 `clients/` 丢了、服务器上那份 `spa-keys.env` 还在，直接拆，不要重新生成。
+
+```bash
+# 在服务端跑，与 spa-keys.env 同目录
+bash 00-gen-keys.sh --split spa-keys.env
+bash 00-gen-keys.sh --split spa-keys.env --clients-dir /root/clients
+ls clients/           # laptop.env  phone.env
+```
+
+拆出来的是拷贝：`SPA_PORT`、`SSH_PORT`、`ACCESS_TIMEOUT`、`MAX_FW_TIMEOUT`、`HOSTS` 原样带过，再按名字补 `CLIENT_NAME` 与该设备那一行 `CLIENTS`。密钥不变，服务端 `access.conf` 不用重跑。源里是 `SHARED=…` 时输出 `clients/shared.env`。重复跑安全：内容一致就跳过。
+
+`--clients` 重新生成会换掉全部密钥，得重跑 `10-server.sh` 并逐台重配，手上在用的设备全部敲门失败——那是轮换，不是补丢失。
+
 服务端渲染出的 stanza：
 
 ```
@@ -78,6 +92,7 @@ SOURCE ANY;
 OPEN_PORTS tcp/22;
 FW_ACCESS_TIMEOUT 120;      # 规则保留秒数，不设默认 30
 MAX_FW_TIMEOUT 300;         # 封顶，客户端 --fw-timeout 也拿不到超过这个值
+HMAC_DIGEST_TYPE SHA512;    # 必须与客户端 ~/.fwknoprc 一致；不写则固定按 SHA256 校验
 KEY_BASE64        <该设备的密钥>;
 HMAC_KEY_BASE64   <该设备的 HMAC 密钥>;
 ```
@@ -112,11 +127,13 @@ ssh root@<服务器> 'bash /root/ssh-spa/10-server.sh --keys /root/spa-keys.env'
 ### 第 3 步 · 客户端（每台各跑一次）
 
 ```bash
-scp clients/laptop.env <机器>:~/
-ssh <机器> 'SSH_PORT=50022 bash 20-client.sh --keys ~/laptop.env'   # 用服务端探测出的那个值
+scp -r docs/quality/scripts clients/laptop.env <客户端>:~/
+ssh <客户端> 'cd ~/scripts && SSH_PORT="22 4061" bash 20-client.sh --keys ~/laptop.env --user root'
 ```
 
-写 `~/.fwknoprc`，往 `~/.ssh/config` 追加托管块。托管块是幂等的，带 `# BEGIN/END ssh-spa` 标记，重跑只原地替换并清掉多余空行，`--uninstall` 摘掉之后与原文件逐字节一致。
+`--user` 写服务器上的登录名，不是本机用户名。不给就用本机用户名去连，服务器没有同名账号时表现为一直要密码或 `Permission denied`。`SSH_PORT` 只在密钥包里没写回端口时才需要：服务端 `10-server.sh` 跑完会把探测值回写进包。
+
+写 `~/.fwknoprc`，往 `~/.ssh/config` 追加带 `# BEGIN/END ssh-spa` 标记的托管块，重跑只原地替换不叠加，`--uninstall` 摘掉后与原文件逐字节一致。
 
 ### 第 4 步 · 收口
 
@@ -261,7 +278,7 @@ docs/quality/
   README.md           本文
   scripts/
     lib.sh            共用函数
-    00-gen-keys.sh    生成密钥包：服务端一份 + 每客户端一份
+    00-gen-keys.sh    生成密钥包：服务端一份 + 每客户端一份（--split 从服务端包还原客户端包）
     10-server.sh      装 fwknopd、渲染配置、改防火墙（--close-ssh / --status / --uninstall / --purge）
     20-client.sh      装 fwknop、写 ~/.fwknoprc 与 ~/.ssh/config 托管块
     90-uninstall.sh   拆掉 SPA 回到公网直连（服务端 / --client 还原客户端）
