@@ -150,7 +150,7 @@ code="${code:-000}"
 if [[ "$code" == "000" ]]; then
   no "chatgpt.com 请求失败（根本不是 HTTP 错误，而是没连上）"
 elif [[ "$code" == "403" ]] || [[ "$code" == "401" ]] || [[ "$code" == "429" ]]; then
-  no "chatgpt.com 返回 $code，连接成功但被风控，需更换 AI 出口"
+  no "chatgpt.com 返回 ${code}，连接成功但被风控，需更换 AI 出口"
 else
   ok "chatgpt.com 返回 $code"
 fi
