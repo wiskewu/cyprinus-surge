@@ -83,7 +83,17 @@ details .body{padding:4px 14px 14px}
 <pre><code>SERVER_IP=你的服务器IP VLESS_PORT=443 bash docs/deploy/scripts/60-verify-client.sh
 
 # 用 GUI.for.SingBox 且端口不同时，两个变量一起给
-SERVER_IP=你的服务器IP PROXY=socks5h://127.0.0.1:20122 bash docs/deploy/scripts/60-verify-client.sh</code></pre>
+SERVER_IP=你的服务器IP PROXY=socks5h://127.0.0.1:20122 bash docs/deploy/scripts/60-verify-client.sh
+
+# 只验 Hysteria2 出站：脚本自己派生配置、起临时实例、跑完清理（需要本机有 sing-box）
+HY2_ONLY=1 CONFIG=./client.json SERVER_IP=你的服务器IP VLESS_PORT=443 \
+  bash docs/deploy/scripts/60-verify-client.sh
+
+# 没有 sing-box CLI：只生成一份只走 hy2 的配置，导入图形客户端后再验收
+HY2_ONLY=emit CONFIG=./client.json HY2_OUT=./hy2-only.json \
+  bash docs/deploy/scripts/60-verify-client.sh
+# 导入后：PROXY=socks5h://127.0.0.1:<客户端端口> SERVER_IP=你的服务器IP \
+#   bash docs/deploy/scripts/60-verify-client.sh</code></pre>
 <p>没 env 文件时脚本会打一行提示后继续（<code>VLESS_PORT</code> 默认 443）；<code>SERVER_IP</code> 也不给才会报错退出。<code>SERVER_IP</code> 不是凭据，全设备通用，回服务器看一眼就知道：</p>
 <pre><code>grep SERVER_IP /etc/sing-box/client.env     # 只是取 IP，不是拷走凭据
 sudo bash device.sh list                   # 确认这台在名单里</code></pre>

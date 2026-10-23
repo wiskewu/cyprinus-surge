@@ -3,22 +3,40 @@
 # 用法： bash 60-verify-client.sh client.env
 #       PROXY=socks5h://127.0.0.1:20122 bash 60-verify-client.sh client.env   # GUI 的端口
 #       SERVER_IP=1.2.3.4 VLESS_PORT=443 bash 60-verify-client.sh             # 没 client.env（device.sh 流程）
+#       HY2_ONLY=1 CONFIG=client.json bash 60-verify-client.sh client.env     # 只测 Hysteria2 出站
+#       HY2_ONLY=emit CONFIG=client.json HY2_OUT=hy2.json bash 60-verify-client.sh  # 只生成配置给图形客户端导入
 #
 # 设计原则：
 #   1) 代理不通就直接停（exit 2），不打印一堆误导性的结果
 #   2) 只在拿到真实数据时才记 ✓；空值 / HTTP 000 一律算失败
 #   3) 不依赖 nc / mtr / 第三方 IP 回显站
 #   4) 走 SOCKS 时 time_connect 只是到本地代理的几毫秒，不能当路径指标
+#   5) HY2_ONLY=1：只拿 Hysteria2 出站跑一遍，用来证明第二入口真的能用
 set -uo pipefail   # 验收脚本要跑完全部检查项，故不启用 -e
 CLIENT_ENV_FILE="${1:-./client.env}"
 ENVFILE="$CLIENT_ENV_FILE"
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=SCRIPTDIR/lib.sh
 . "$SELF_DIR/lib.sh"
+PROXY="${PROXY:-socks5h://127.0.0.1:2080}"
+# HY2_ONLY=1：不改手上那份配置，从 CONFIG 派生一份只留 Hysteria2 出站的副本，
+# 用临时 mixed 端口前台跑起来再验收。端口与 tag 都能改。
+HY2_ONLY="${HY2_ONLY:-0}"
+CONFIG="${CONFIG:-./client.json}"
+HY2_TAG="${HY2_TAG:-proxy-hy2}"
+HY2_PROBE_PORT="${HY2_PROBE_PORT:-2081}"
+# 没有 CLI 的图形客户端（SFM / GUI.for.SingBox）把核心装在扩展或 App 里，
+# 那条路要走 GUI 侧的出站选择，见 docs/deploy/04-hy2.html#verify。
+SING_BOX_BIN="${SING_BOX_BIN:-sing-box}"
+# HY2_ONLY=emit 时写出的文件；留空则落在当前目录 hy2-only.json
+HY2_OUT="${HY2_OUT:-}"
 # 环境文件可有可无：脚本真正用到的只有 SERVER_IP / VLESS_PORT。
 # 用 device.sh 管设备时，客户端手上只有一份 JSON，没必要（也不应该）把 client.env 发过去，
 # 这时直接给变量：SERVER_IP=1.2.3.4 VLESS_PORT=443 bash 60-verify-client.sh
-if [[ -f "$ENVFILE" ]]; then
+if [[ "$HY2_ONLY" == "emit" ]] && [[ ! -f "$ENVFILE" ]] && [[ -z "${SERVER_IP:-}" ]]; then
+  # 只生成配置、不联网，SERVER_IP / client.env 都用不到
+  printf '\033[33m[!]\033[0m HY2_ONLY=emit 只写文件、不联网，跳过 %s\n' "$ENVFILE" >&2
+elif [[ -f "$ENVFILE" ]]; then
   load_env "$ENVFILE"
 elif [[ -n "${SERVER_IP:-}" ]]; then
   printf '\033[33m[!]\033[0m 没有 %s，按命令行给的 SERVER_IP / VLESS_PORT 继续\n' "$ENVFILE" >&2
@@ -28,7 +46,6 @@ fi
 SERVER_IP="${SERVER_IP:-}"
 VLESS_PORT="${VLESS_PORT:-443}"
 
-PROXY="${PROXY:-socks5h://127.0.0.1:2080}"
 PASS=0; FAIL=0; SKIP=0
 
 say()  { printf '\n\033[1m%s\033[0m\n' "$*"; }
@@ -54,6 +71,132 @@ one() {
 body() {
   curl --proxy "$PROXY" -fsS --max-time "${2:-12}" "$1" 2>/dev/null || true
 }
+
+# ---------------------------------------------------------------- HY2_ONLY
+# 派生配置：把所有指向其它代理出站的引用改写成目标 tag，再裁到只剩目标与 direct；
+# 入站只留一个本地 mixed 端口，这样不需要 root、不和 GUI 抢 TUN。
+port_open() {
+  local p="$1"
+  if command -v nc >/dev/null 2>&1; then
+    nc -z 127.0.0.1 "$p" >/dev/null 2>&1
+    return
+  fi
+  # 没有 nc 时退回到 bash 的内建 TCP 连接（bash 3.2 起可用）
+  if (exec 3<>"/dev/tcp/127.0.0.1/$p") >/dev/null 2>&1; then
+    exec 3<&- 3>&- 2>/dev/null || true
+    return 0
+  fi
+  return 1
+}
+
+# 派生配置：只改「引用其它代理出站」的那几处，不能整篇替换字符串——出站自己的
+# tag 也叫 proxy / auto，一起换掉会造出重复 tag，sing-box 直接拒绝启动。
+# $3 = local：入站换成一个本地 mixed 端口，前台跑、不用 root。
+# $3 = keep ：入站原样保留，给图形客户端导入用。
+derive_hy2_config() {
+  local cfg="$1" out="$2" inb="$3"
+  jq --arg t "$HY2_TAG" --argjson p "$HY2_PROBE_PORT" --arg inb "$inb" '
+    def ref: if . == "auto" or . == "proxy" or . == "ai-out" then $t else . end;
+    .route.final = ((.route.final // $t) | ref)
+    | (.route.rules? // []) |= map(if has("outbound") then .outbound |= ref else . end)
+    | (.route.rule_set? // []) |= map(if has("download_detour") then .download_detour |= ref else . end)
+    | (.http_clients? // []) |= map(if has("detour") then .detour |= ref else . end)
+    | (.dns.servers? // []) |= (
+        if type == "array" then map(if has("detour") then .detour |= ref else . end)
+        elif type == "object" then with_entries(.value |= (if has("detour") then .detour |= ref else . end))
+        else . end)
+    | .outbounds = [ .outbounds[] | select(.tag == $t or .tag == "direct") ]
+    | (if $inb == "local" then
+         .inbounds = [ { type: "mixed", tag: "mixed-in", listen: "127.0.0.1", listen_port: $p } ]
+       else . end)
+  ' "$cfg" >"$out"
+}
+
+# HY2_ONLY=emit：只生成文件，不起进程、不需要 sing-box。给 SFM / GUI.for.SingBox 导入用。
+emit_hy2_only() {
+  need_cmd jq
+  [[ -f "$CONFIG" ]] || die "CONFIG 指向的客户端配置不存在：$CONFIG"
+  jq -e --arg t "$HY2_TAG" 'any(.outbounds[]; .tag == $t)' "$CONFIG" >/dev/null 2>&1 ||
+    die "$CONFIG 里没有出站 ${HY2_TAG}，这份配置没启用 Hysteria2"
+  local out="${HY2_OUT:-hy2-only.json}"
+  derive_hy2_config "$CONFIG" "$out" keep
+  jq -e '.route.final and ([.outbounds[].tag] | unique | length) == 2' "$out" >/dev/null ||
+    die "派生结果校验失败：$out"
+  printf '  \033[32m✓\033[0m 已生成只走 %s 的配置：%s\n' "$HY2_TAG" "$out"
+  printf '  \033[36m·\033[0m 出站：%s；入站原样保留，导入图形客户端即用它自己的 TUN\n' \
+    "$(jq -c '[.outbounds[].tag]' "$out")"
+  cat <<EOF
+
+下一步：
+  1) 把 $out 导入客户端（SFM / GUI.for.SingBox 都是导入 sing-box 配置）
+  2) 确认客户端已按这份配置启动，再看它的本地 mixed 端口
+  3) PROXY=socks5h://127.0.0.1:<该端口> SERVER_IP=<服务器IP> bash $0
+
+要命令行直接跑、不导入客户端： HY2_ONLY=1（需要本机有 sing-box）
+EOF
+  exit 0
+}
+
+cleanup_hy2() {
+  [[ -n "${SB_PID:-}" ]] && { kill "$SB_PID" 2>/dev/null || true; wait "$SB_PID" 2>/dev/null || true; }
+  [[ -n "${TMP_DIR:-}" ]] && rm -rf "$TMP_DIR"
+  return 0
+}
+
+start_hy2_only() {
+  need_cmd jq
+  if ! command -v "$SING_BOX_BIN" >/dev/null 2>&1; then
+    die "HY2_ONLY=1 需要一个能跑 -c 的 sing-box：brew install sing-box / apt install sing-box
+       已装图形客户端但没有 CLI 时，两条路选一条：
+       1) 装 CLI：brew install sing-box，或把已有的二进制路径给 SING_BOX_BIN=/path/to/sing-box
+       2) 不装：在客户端里把出站选择改成只走 ${HY2_TAG}，然后直接跑
+          PROXY=socks5h://127.0.0.1:<端口> SERVER_IP=<服务器IP> bash $0"
+  fi
+  [[ -f "$CONFIG" ]] || die "CONFIG 指向的客户端配置不存在：$CONFIG"
+  jq -e --arg t "$HY2_TAG" 'any(.outbounds[]; .tag == $t)' "$CONFIG" >/dev/null 2>&1 ||
+    die "$CONFIG 里没有出站 ${HY2_TAG}，这份配置没启用 Hysteria2"
+  if port_open "$HY2_PROBE_PORT"; then
+    die "127.0.0.1:${HY2_PROBE_PORT} 已被占用，换端口：HY2_PROBE_PORT=2082 bash $0 ..."
+  fi
+
+  TMP_DIR="$(mktemp -d)"
+  trap cleanup_hy2 EXIT INT TERM
+  derive_hy2_config "$CONFIG" "$TMP_DIR/hy2-only.json" local
+
+  printf '  \033[36m·\033[0m HY2_ONLY=1：只保留出站 %s，入站 127.0.0.1:%s\n' "$HY2_TAG" "$HY2_PROBE_PORT"
+  if ! "$SING_BOX_BIN" check -c "$TMP_DIR/hy2-only.json" >"$TMP_DIR/check.log" 2>&1; then
+    printf '  \033[31m✗\033[0m 派生配置未通过 sing-box check：\n' >&2
+    sed 's/^/      /' "$TMP_DIR/check.log" >&2
+    exit 2
+  fi
+
+  "$SING_BOX_BIN" run -c "$TMP_DIR/hy2-only.json" >"$TMP_DIR/run.log" 2>&1 &
+  SB_PID=$!
+  # 只探测一次就记结果：反复 connect 会打扰刚起来的监听端
+  local _wait=0 _up=0
+  while [[ "$_wait" -lt 40 ]]; do
+    if port_open "$HY2_PROBE_PORT"; then _up=1; break; fi
+    kill -0 "$SB_PID" 2>/dev/null || break
+    sleep 0.25
+    _wait=$((_wait + 1))
+  done
+  if [[ "$_up" != 1 ]]; then
+    printf '  \033[31m✗\033[0m 临时实例没起来，日志尾部：\n' >&2
+    tail -n 15 "$TMP_DIR/run.log" 2>/dev/null | sed 's/^/      /' >&2
+    exit 2
+  fi
+  PROXY="socks5h://127.0.0.1:${HY2_PROBE_PORT}"
+  printf '  \033[32m✓\033[0m 临时实例已监听 %s（日志 %s）\n' "$PROXY" "$TMP_DIR/run.log"
+}
+
+if [[ "$HY2_ONLY" == "emit" ]]; then
+  say "HY2_ONLY=emit：生成只走 ${HY2_TAG} 的配置，供图形客户端导入"
+  emit_hy2_only
+fi
+if [[ "$HY2_ONLY" == "1" ]]; then
+  say "HY2_ONLY：先起一个只走 ${HY2_TAG} 的临时实例"
+  start_hy2_only
+fi
 
 say "0. 本地代理是否可用（${PROXY}）"
 first="$(body https://api.ipify.org 12)"

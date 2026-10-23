@@ -11,3 +11,6 @@ data/
 
 # live-server 本地依赖
 /node_modules/
+
+# 60-verify-client.sh HY2_ONLY=emit 的默认输出
+/hy2-only.json
