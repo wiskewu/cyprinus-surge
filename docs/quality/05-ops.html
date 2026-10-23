@@ -123,6 +123,8 @@ sudo ip route add &lt;服务器IP&gt; via &lt;局域网网关&gt;
 sudo route -n delete -host &lt;服务器IP&gt;</code></pre>
 <div class="warn"><b>本机有 TUN 时，测出来的每个数字都可能是假的。</b>跑着代理客户端的机器会把 <code>nc</code> / <code>mtr</code> / <code>curl</code> 也送进隧道。验收前先确认测试机器上<b>没有</b>代理客户端在跑。唯一仍可靠的是 <code>ping</code>——ICMP 通常不被代理接管。</div>
 
+<div class="note"><b>隧道与系统代理是两件事。</b>停掉 TUN 客户端后仍然没网、或浏览器报错而终端正常，排查步骤与验收清单见 <a href="../issue/macos-tunnel-proxy.html">问题记录 1 · 隧道与系统代理残留</a>。</div>
+
 <h2 id="ufw">与 ufw 的关系</h2>
 <pre><code>IPT_INPUT_ACCESS   ACCEPT, filter, INPUT, 1, FWKNOP_INPUT, 1;
 #                                        ↑ 第 1 位，先于 ufw 的链求值</code></pre>

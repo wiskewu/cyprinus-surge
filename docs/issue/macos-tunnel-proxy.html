@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>macOS 隧道与系统代理残留 · 问题记录</title>
+<style>
+:root{--ink:#161a21;--ink2:#4a5361;--ink3:#6f7886;--line:#e4e8ee;--line2:#f0f3f7;--bg:#f7f8fa;--card:#fff;--acc:#0d6b58;--acc2:#e9f5f2;--warn:#9a5608;--warn2:#fdf4e7;--bad:#a21f36;--bad2:#fdeef1;--info:#1d4ed8;--info2:#eef2ff;--r:10px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.75 "PingFang SC","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1040px;margin:0 auto;padding:0 20px}
+a{color:var(--acc);text-decoration:none;border-bottom:1px solid rgba(13,107,88,.28)}
+a:hover{border-bottom-color:var(--acc)}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.88em;background:var(--line2);border:1px solid var(--line);border-radius:4px;padding:.05em .35em;overflow-wrap:anywhere}
+.top{background:#fff;border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;align-items:baseline;gap:12px;padding:12px 20px}
+.top .home{font-weight:700;border:0}
+.top .crumb{color:var(--ink3);font-size:13px}
+.nav{background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:9}
+.nav .wrap{display:flex;gap:6px;overflow-x:auto;padding:8px 20px;font-size:13.5px}
+.nav a{padding:4px 10px;border-radius:999px;border:0;color:var(--ink2);white-space:nowrap}
+.nav a:hover{background:var(--line2)}
+.nav a[aria-current="page"]{background:var(--acc);color:#fff}
+main{padding:28px 0 60px}
+h1{font-size:26px;margin:6px 0 10px;letter-spacing:-.01em}
+h2{font-size:20px;margin:34px 0 10px;padding-top:10px;border-top:1px solid var(--line)}
+h2:first-of-type{border-top:0;padding-top:0}
+h3{font-size:16px;margin:22px 0 8px}
+p{margin:8px 0}
+.lede{color:var(--ink2);font-size:15.5px;margin-bottom:16px}
+ul,ol{margin:8px 0;padding-left:22px}
+li{margin:4px 0}
+pre{position:relative;background:#0f172a;color:#e2e8f0;border-radius:var(--r);padding:14px 16px;overflow-x:auto;font:13px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;margin:10px 0}
+pre code{background:none;border:0;padding:0;color:inherit;font-size:inherit;overflow-wrap:normal}
+pre .copy{position:absolute;top:8px;right:8px;background:#1e293b;color:#cbd5e1;border:1px solid #334155;border-radius:6px;font-size:12px;padding:2px 8px;cursor:pointer}
+pre .copy:hover{background:#334155}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;margin:12px 0}
+.card h3{margin-top:0}
+.note,.warn,.bad{border-radius:0 var(--r) var(--r) 0;padding:11px 15px;margin:12px 0;font-size:14px;border-left:3px solid}
+.note{background:var(--acc2);border-color:var(--acc);color:#0a4a3d}
+.warn{background:var(--warn2);border-color:#d79a3f;color:#6b3d06}
+.bad{background:var(--bad2);border-color:#cf5b70;color:#7c1a2c}
+.note b,.warn b,.bad b{font-weight:650}
+table{border-collapse:collapse;width:100%;font-size:13.8px;background:#fff;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line2);vertical-align:top}
+th{background:#f8fafb;font-size:12.4px;color:var(--ink3);text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+.tw{overflow-x:auto;margin:12px 0}
+.tag{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:5px;background:var(--line2);color:var(--ink2)}
+.tag.ok{background:var(--acc2);color:var(--acc)}
+.tag.warn{background:var(--warn2);color:var(--warn)}
+.tag.bad{background:var(--bad2);color:var(--bad)}
+.tag.info{background:var(--info2);color:var(--info)}
+.steps{counter-reset:s;list-style:none;padding:0}
+.steps>li{counter-increment:s;position:relative;padding-left:38px;margin:14px 0}
+.steps>li::before{content:counter(s);position:absolute;left:0;top:1px;width:24px;height:24px;border-radius:50%;background:var(--acc);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.kv{display:grid;grid-template-columns:140px 1fr;gap:2px 12px;font-size:14px;margin:8px 0}
+.kv dt{color:var(--ink3)}
+.kv dd{margin:0}
+details{margin:10px 0;border:1px solid var(--line);border-radius:var(--r);background:#fff}
+details>summary{cursor:pointer;padding:10px 14px;font-weight:600;font-size:14px;color:var(--acc)}
+details[open]>summary{border-bottom:1px solid var(--line)}
+details .body{padding:4px 14px 14px}
+.fig{background:#fff;border:1px solid var(--line);border-radius:var(--r);margin:14px 0;overflow:hidden}
+.fig .bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 14px;border-bottom:1px solid var(--line);font-size:13px;color:var(--ink3);background:#fbfcfd}
+.fig .bar b{color:var(--ink);font-weight:600}
+.fig iframe{display:block;width:100%;height:640px;border:0}
+.foot{border-top:1px solid var(--line);background:#fff;padding:20px 0 40px;font-size:13px;color:var(--ink3)}
+@media(max-width:640px){h1{font-size:22px}.kv{grid-template-columns:1fr}.fig iframe{height:520px}}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap"><a class="home" href="index.html">问题记录</a><span class="crumb">1 · 隧道与代理残留</span></div></header>
+<nav class="nav"><div class="wrap"><a href="index.html">索引</a><a href="macos-tunnel-proxy.html" aria-current="page">1 · 隧道与代理残留</a></div></nav>
+<main class="wrap">
+<h1>1 · 隧道与系统代理残留</h1>
+<p class="lede">停掉 TUN 客户端之后仍然上不了网。真实原因是两件事叠在一起：隧道由系统扩展持有，图形界面退出不等于断开；网络服务上还挂着指向某个本地端口的系统代理。</p>
+
+<h2>现象</h2>
+<div class="tw">
+<table>
+<thead><tr><th>观察</th><th>当时的实际状态</th></tr></thead>
+<tbody>
+<tr><td>终端里 <code>curl https://www.baidu.com</code></td><td><code>200</code>，正常</td></tr>
+<tr><td>浏览器与多数图形界面程序</td><td>提示「无法连接互联网」</td></tr>
+<tr><td><code>ifconfig utun0</code> 之类的隧道网卡</td><td>时有时无，客户端退出后仍残留</td></tr>
+<tr><td>客户端图标是否出现在程序坞</td><td>已经退出，进程表里也查不到对应进程</td></tr>
+</tbody>
+</table>
+</div>
+<p>这组现象同时出现时，不要往「网络坏了」方向查。命令行通而图形界面不通，问题必然在应用层读取的配置上，要么代理，要么 DNS。</p>
+
+<h2>排查顺序</h2>
+<ol class="steps">
+<li>
+<p><b>先证明系统层是通的。</b>命令行工具默认不读系统代理，它通就说明链路没问题：</p>
+<pre><code>curl -m 8 -sS -o /dev/null -w '%{http_code}\n' https://www.baidu.com
+dig +short www.baidu.com | head -3</code></pre>
+</li>
+<li>
+<p><b>看谁持有默认路由与 DNS。</b>隧道网卡存在时，默认路由与解析器都会指向它；网卡消失后应当自动回落到物理网卡：</p>
+<pre><code>netstat -rn -f inet | awk '$1=="default"'
+route -n get 8.8.8.8 | grep interface
+scutil --dns | grep -m2 nameserver
+ifconfig | grep -E '^utun[0-9]+:' -A3 | grep inet</code></pre>
+</li>
+<li>
+<p><b>判断隧道宿主是不是图形界面进程。</b>基于 Network Extension 的客户端把核心装在系统扩展里，退出 App 不会断开隧道：</p>
+<pre><code>systemextensionsctl list
+ps ax -o pid,user,etime,comm | grep -i PacketTunnel
+scutil --nc list</code></pre>
+</li>
+<li>
+<p><b>再看系统代理落在哪个网络服务上。</b>这一步是本次的根因，且 <code>scutil --proxy</code> 可能读不到实时值，用 <code>networksetup</code>：</p>
+<pre><code>for s in $(networksetup -listallnetworkservices | tail -n +2); do
+  printf '%s: ' "$s"
+  networksetup -getwebproxy "$s" | tr '\n' ' '; echo
+done
+networksetup -getsecurewebproxy  "Wi-Fi"
+networksetup -getsocksfirewallproxy "Wi-Fi"</code></pre>
+</li>
+</ol>
+
+<h2>结论一：退出图形界面不会断开隧道</h2>
+<p>客户端注册的是一个 NetworkExtension 服务，隧道由系统扩展进程以 root 身份运行，由系统的会话管理器托管。图形界面只是配置面板，退出它之后 <code>scutil --nc list</code> 里那条记录仍然是已连接状态，隧道网卡、默认路由、TUN 内 DNS 全部照旧。</p>
+<pre><code># 列表里对应的服务名来自客户端注册的 VPN 配置，用你自己的那个名字
+scutil --nc stop "&lt;服务名&gt;"
+
+ifconfig | grep utun                       # 隧道网卡应消失
+route -n get 8.8.8.8 | grep interface      # 应回落到物理网卡
+scutil --dns | grep -m2 nameserver         # 不应再有隧道内的解析器</code></pre>
+<p>要长期关掉，在「系统设置 → 通用 → 登录项与扩展 → 网络扩展」里取消勾选该扩展；彻底移除用 <code>sudo systemextensionsctl uninstall &lt;teamID&gt; &lt;bundleID&gt;</code>，参数取自 <code>systemextensionsctl list</code>。代价是这类客户端在没有扩展时无法建立隧道，等于不可用。</p>
+
+<h2>结论二：系统代理残留在网络服务上</h2>
+<p>另一个客户端的系统代理设置被写进了当前 Wi-Fi 服务，指向它自己的本地混合端口。那个客户端早已退出，端口无人监听，于是所有读取系统代理的程序——浏览器、聊天工具、应用内更新——一律连不上；<code>curl</code> 不读系统代理，所以一切正常。</p>
+<pre><code># 关掉三条代理设置，需要管理员授权
+sudo networksetup -setwebproxystate        "Wi-Fi" off
+sudo networksetup -setsecurewebproxystate  "Wi-Fi" off
+sudo networksetup -setsocksfirewallproxystate "Wi-Fi" off
+
+networksetup -getwebproxy "Wi-Fi"           # 应为 Enabled: No</code></pre>
+<p>图形界面的等价操作是「系统设置 → 网络 → Wi-Fi → 详细信息 → 代理」，把三个开关关掉。改完重启浏览器，系统代理是在进程启动时读取的。</p>
+
+<h2>三个容易误判的点</h2>
+<div class="bad"><b><code>curl</code> 不读系统代理。</b>它只看环境变量里的代理配置。用它验证「网络是否通」是对的，用它验证「浏览器为什么不通」一定会跑偏。要复现浏览器处境，显式指定代理：<code>curl -x http://127.0.0.1:&lt;端口&gt; ...</code>。</div>
+<div class="warn"><b><code>--interface</code> 只绑源地址，不改路由。</b>默认路由仍在隧道时，<code>curl --interface en0</code> 照样走隧道。判断真实出处只有两条：<code>route -n get &lt;IP&gt;</code> 的 <code>interface</code> 字段，或者把隧道摘掉再测。</div>
+<div class="warn"><b><code>scutil --proxy</code> 不是判据。</b>网络服务上的代理项存在时它也可能显示为空，因为它读的是已发布的偏好状态。查代理一律用 <code>networksetup -get*proxy</code>。</div>
+
+<h2>退出客户端后的验收清单</h2>
+<p>三条全部满足才算收拾干净，缺一条就会在某个程序上表现为「没网」：</p>
+<pre><code>ifconfig | grep -E '^utun[0-9]+:' -A3 | grep inet     # 无输出
+route -n get 8.8.8.8 | grep interface                 # 物理网卡
+networksetup -getwebproxy "Wi-Fi"                     # Enabled: No
+scutil --dns | grep -m2 nameserver                    # 物理网卡的 DNS</code></pre>
+
+<h2>避免复发</h2>
+<ul>
+<li><b>同一时间只留一个出口。</b>两个客户端并存时，一个走 TUN 抢路由，另一个往网络服务里写系统代理，故障现象会互相掩盖。</li>
+<li><b>用客户端的「断开连接」，不要用「退出」。</b>有的客户端退出时会还原系统代理，被强杀或崩溃时不会；不可依赖，退出后照着上面的清单核一遍。</li>
+<li><b>把兜底策略改成直连。</b>TUN 客户端的路由规则若把 <code>final</code> 指向节点，隧道一断就是全断，连国内站点都受影响。规则里让国内域名与常用站点走 <code>direct</code>，只把需要代理的域名指到节点，隧道故障就降级为「部分站点不可用」。</li>
+</ul>
+
+<h2>本次用到的命令汇总</h2>
+<div class="tw">
+<table>
+<thead><tr><th>目的</th><th>命令</th></tr></thead>
+<tbody>
+<tr><td>系统层连通性</td><td><code>curl -m 8 -sS -o /dev/null -w '%{http_code}\n' &lt;URL&gt;</code></td></tr>
+<tr><td>默认路由归属</td><td><code>route -n get 8.8.8.8 | grep interface</code></td></tr>
+<tr><td>隧道网卡</td><td><code>ifconfig | grep -E '^utun[0-9]+:' -A3</code></td></tr>
+<tr><td>解析器来源</td><td><code>scutil --dns | grep -m2 nameserver</code></td></tr>
+<tr><td>隧道宿主</td><td><code>systemextensionsctl list</code> · <code>scutil --nc list</code></td></tr>
+<tr><td>断开隧道</td><td><code>scutil --nc stop "&lt;服务名&gt;"</code></td></tr>
+<tr><td>系统代理</td><td><code>networksetup -getwebproxy &lt;服务名&gt;</code> · <code>networksetup -setwebproxystate &lt;服务名&gt; off</code></td></tr>
+<tr><td>清理残留默认路由</td><td><code>sudo route delete default -interface &lt;隧道网卡&gt;</code></td></tr>
+<tr><td>刷新解析缓存</td><td><code>sudo killall -HUP mDNSResponder</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<p style="margin-top:24px"><a href="index.html">← 回到索引</a>　·　<a href="../quality/05-ops.html">相关：本机 TUN 捕获 SSH 的排查 →</a></p>
+
+</main>
+<footer class="foot"><div class="wrap">
+记录排查过程与处置命令，供同类问题复用。与 <a href="../quality/index.html">SSH 加固手册</a> · <a href="../deploy/index.html">节点部署手册</a> · <a href="../index.html">方案总览</a> 并列。命令在文中标注的平台版本上验证；仅限本人自用科研学习，遵守所在地法律法规与服务条款。
+</div></footer>
+<script>
+document.querySelectorAll('pre').forEach(function(pre){
+  var b=document.createElement('button');b.className='copy';b.type='button';b.textContent='复制';
+  b.onclick=function(){
+    var t=pre.innerText.replace(/复制$|已复制$/,'');
+    var done=function(){b.textContent='已复制';setTimeout(function(){b.textContent='复制'},1200)};
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(done,function(){fallback(t,done)})}
+    else{fallback(t,done)}
+  };
+  function fallback(t,cb){var ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');cb()}catch(e){}document.body.removeChild(ta)}
+  pre.appendChild(b);
+});
+</script>
+</body>
+</html>

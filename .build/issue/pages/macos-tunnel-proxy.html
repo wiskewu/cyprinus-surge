@@ -1,0 +1,106 @@
+<h1>1 · 隧道与系统代理残留</h1>
+<p class="lede">停掉 TUN 客户端之后仍然上不了网。真实原因是两件事叠在一起：隧道由系统扩展持有，图形界面退出不等于断开；网络服务上还挂着指向某个本地端口的系统代理。</p>
+
+<h2>现象</h2>
+<div class="tw">
+<table>
+<thead><tr><th>观察</th><th>当时的实际状态</th></tr></thead>
+<tbody>
+<tr><td>终端里 <code>curl https://www.baidu.com</code></td><td><code>200</code>，正常</td></tr>
+<tr><td>浏览器与多数图形界面程序</td><td>提示「无法连接互联网」</td></tr>
+<tr><td><code>ifconfig utun0</code> 之类的隧道网卡</td><td>时有时无，客户端退出后仍残留</td></tr>
+<tr><td>客户端图标是否出现在程序坞</td><td>已经退出，进程表里也查不到对应进程</td></tr>
+</tbody>
+</table>
+</div>
+<p>这组现象同时出现时，不要往「网络坏了」方向查。命令行通而图形界面不通，问题必然在应用层读取的配置上，要么代理，要么 DNS。</p>
+
+<h2>排查顺序</h2>
+<ol class="steps">
+<li>
+<p><b>先证明系统层是通的。</b>命令行工具默认不读系统代理，它通就说明链路没问题：</p>
+<pre><code>curl -m 8 -sS -o /dev/null -w '%{http_code}\n' https://www.baidu.com
+dig +short www.baidu.com | head -3</code></pre>
+</li>
+<li>
+<p><b>看谁持有默认路由与 DNS。</b>隧道网卡存在时，默认路由与解析器都会指向它；网卡消失后应当自动回落到物理网卡：</p>
+<pre><code>netstat -rn -f inet | awk '$1=="default"'
+route -n get 8.8.8.8 | grep interface
+scutil --dns | grep -m2 nameserver
+ifconfig | grep -E '^utun[0-9]+:' -A3 | grep inet</code></pre>
+</li>
+<li>
+<p><b>判断隧道宿主是不是图形界面进程。</b>基于 Network Extension 的客户端把核心装在系统扩展里，退出 App 不会断开隧道：</p>
+<pre><code>systemextensionsctl list
+ps ax -o pid,user,etime,comm | grep -i PacketTunnel
+scutil --nc list</code></pre>
+</li>
+<li>
+<p><b>再看系统代理落在哪个网络服务上。</b>这一步是本次的根因，且 <code>scutil --proxy</code> 可能读不到实时值，用 <code>networksetup</code>：</p>
+<pre><code>for s in $(networksetup -listallnetworkservices | tail -n +2); do
+  printf '%s: ' "$s"
+  networksetup -getwebproxy "$s" | tr '\n' ' '; echo
+done
+networksetup -getsecurewebproxy  "Wi-Fi"
+networksetup -getsocksfirewallproxy "Wi-Fi"</code></pre>
+</li>
+</ol>
+
+<h2>结论一：退出图形界面不会断开隧道</h2>
+<p>客户端注册的是一个 NetworkExtension 服务，隧道由系统扩展进程以 root 身份运行，由系统的会话管理器托管。图形界面只是配置面板，退出它之后 <code>scutil --nc list</code> 里那条记录仍然是已连接状态，隧道网卡、默认路由、TUN 内 DNS 全部照旧。</p>
+<pre><code># 列表里对应的服务名来自客户端注册的 VPN 配置，用你自己的那个名字
+scutil --nc stop "&lt;服务名&gt;"
+
+ifconfig | grep utun                       # 隧道网卡应消失
+route -n get 8.8.8.8 | grep interface      # 应回落到物理网卡
+scutil --dns | grep -m2 nameserver         # 不应再有隧道内的解析器</code></pre>
+<p>要长期关掉，在「系统设置 → 通用 → 登录项与扩展 → 网络扩展」里取消勾选该扩展；彻底移除用 <code>sudo systemextensionsctl uninstall &lt;teamID&gt; &lt;bundleID&gt;</code>，参数取自 <code>systemextensionsctl list</code>。代价是这类客户端在没有扩展时无法建立隧道，等于不可用。</p>
+
+<h2>结论二：系统代理残留在网络服务上</h2>
+<p>另一个客户端的系统代理设置被写进了当前 Wi-Fi 服务，指向它自己的本地混合端口。那个客户端早已退出，端口无人监听，于是所有读取系统代理的程序——浏览器、聊天工具、应用内更新——一律连不上；<code>curl</code> 不读系统代理，所以一切正常。</p>
+<pre><code># 关掉三条代理设置，需要管理员授权
+sudo networksetup -setwebproxystate        "Wi-Fi" off
+sudo networksetup -setsecurewebproxystate  "Wi-Fi" off
+sudo networksetup -setsocksfirewallproxystate "Wi-Fi" off
+
+networksetup -getwebproxy "Wi-Fi"           # 应为 Enabled: No</code></pre>
+<p>图形界面的等价操作是「系统设置 → 网络 → Wi-Fi → 详细信息 → 代理」，把三个开关关掉。改完重启浏览器，系统代理是在进程启动时读取的。</p>
+
+<h2>三个容易误判的点</h2>
+<div class="bad"><b><code>curl</code> 不读系统代理。</b>它只看环境变量里的代理配置。用它验证「网络是否通」是对的，用它验证「浏览器为什么不通」一定会跑偏。要复现浏览器处境，显式指定代理：<code>curl -x http://127.0.0.1:&lt;端口&gt; ...</code>。</div>
+<div class="warn"><b><code>--interface</code> 只绑源地址，不改路由。</b>默认路由仍在隧道时，<code>curl --interface en0</code> 照样走隧道。判断真实出处只有两条：<code>route -n get &lt;IP&gt;</code> 的 <code>interface</code> 字段，或者把隧道摘掉再测。</div>
+<div class="warn"><b><code>scutil --proxy</code> 不是判据。</b>网络服务上的代理项存在时它也可能显示为空，因为它读的是已发布的偏好状态。查代理一律用 <code>networksetup -get*proxy</code>。</div>
+
+<h2>退出客户端后的验收清单</h2>
+<p>三条全部满足才算收拾干净，缺一条就会在某个程序上表现为「没网」：</p>
+<pre><code>ifconfig | grep -E '^utun[0-9]+:' -A3 | grep inet     # 无输出
+route -n get 8.8.8.8 | grep interface                 # 物理网卡
+networksetup -getwebproxy "Wi-Fi"                     # Enabled: No
+scutil --dns | grep -m2 nameserver                    # 物理网卡的 DNS</code></pre>
+
+<h2>避免复发</h2>
+<ul>
+<li><b>同一时间只留一个出口。</b>两个客户端并存时，一个走 TUN 抢路由，另一个往网络服务里写系统代理，故障现象会互相掩盖。</li>
+<li><b>用客户端的「断开连接」，不要用「退出」。</b>有的客户端退出时会还原系统代理，被强杀或崩溃时不会；不可依赖，退出后照着上面的清单核一遍。</li>
+<li><b>把兜底策略改成直连。</b>TUN 客户端的路由规则若把 <code>final</code> 指向节点，隧道一断就是全断，连国内站点都受影响。规则里让国内域名与常用站点走 <code>direct</code>，只把需要代理的域名指到节点，隧道故障就降级为「部分站点不可用」。</li>
+</ul>
+
+<h2>本次用到的命令汇总</h2>
+<div class="tw">
+<table>
+<thead><tr><th>目的</th><th>命令</th></tr></thead>
+<tbody>
+<tr><td>系统层连通性</td><td><code>curl -m 8 -sS -o /dev/null -w '%{http_code}\n' &lt;URL&gt;</code></td></tr>
+<tr><td>默认路由归属</td><td><code>route -n get 8.8.8.8 | grep interface</code></td></tr>
+<tr><td>隧道网卡</td><td><code>ifconfig | grep -E '^utun[0-9]+:' -A3</code></td></tr>
+<tr><td>解析器来源</td><td><code>scutil --dns | grep -m2 nameserver</code></td></tr>
+<tr><td>隧道宿主</td><td><code>systemextensionsctl list</code> · <code>scutil --nc list</code></td></tr>
+<tr><td>断开隧道</td><td><code>scutil --nc stop "&lt;服务名&gt;"</code></td></tr>
+<tr><td>系统代理</td><td><code>networksetup -getwebproxy &lt;服务名&gt;</code> · <code>networksetup -setwebproxystate &lt;服务名&gt; off</code></td></tr>
+<tr><td>清理残留默认路由</td><td><code>sudo route delete default -interface &lt;隧道网卡&gt;</code></td></tr>
+<tr><td>刷新解析缓存</td><td><code>sudo killall -HUP mDNSResponder</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<p style="margin-top:24px"><a href="index.html">← 回到索引</a>　·　<a href="../quality/05-ops.html">相关：本机 TUN 捕获 SSH 的排查 →</a></p>
