@@ -28,6 +28,18 @@ fwknop -n server1                    # 手动敲一次
 fwknop -n server1 --fw-timeout 300    # 开窗久一点（被 MAX_FW_TIMEOUT 封顶）
 fwknop -n server1 -v                 # 打印它到底发到哪儿了</code></pre>
 
+<h3>收口后取文件</h3>
+<p>公网 SSH 规则删掉之后，<code>scp</code> / <code>rsync</code> 也走托管块，把 <code>root@&lt;IP&gt;</code> 换成别名即可，别再写 <code>-P</code> 和 IP：</p>
+<pre><code>scp server1:/etc/sing-box/clients/one.json ./data/  # 单个文件
+scp -r server1:/etc/sing-box/clients ./data/        # 整个目录
+rsync -av server1:/etc/sing-box/clients/ ./data/clients/</code></pre>
+<div class="bad"><b>写成 <code>scp -P &lt;端口&gt; root@&lt;IP&gt;:…</code> 一定失败。</b><code>Host</code> 段只匹配别名，写成 IP 匹配不到任何一段，<code>ProxyCommand</code> 不执行：既不敲门、端口也没开门。<code>-P</code> 本身也不解决问题，它只是覆盖端口。</div>
+<p>不想用别名时的等价写法，把敲门链内联进去：</p>
+<pre><code>scp -P &lt;端口&gt; -o "ProxyCommand=/bin/sh -c 'fwknop -n server1 &gt;/dev/null 2&gt;&amp;1; sleep 2; exec nc %h %p'" \
+    root@&lt;IP&gt;:/etc/sing-box/clients/one.json ./data/</code></pre>
+<p>窗口到期只撤新连接的许可，已建立的那条 TCP 不受影响，大文件传到一半不会断；中途重连会重新敲一次门。传之前先用 <code>ssh &lt;别名&gt; 'echo ok'</code> 验一次通道。</p>
+<p>落地目录放仓库的 <code>data/</code>，它已在 <code>.gitignore</code> 里，客户端配置不会被误提交。</p>
+
 <h3>长会话</h3>
 <p>窗口到期撤的是<b>新连接</b>许可，已建立的会话不受影响。但端口转发、<code>tail -f</code> 这类要调大 <code>ACCESS_TIMEOUT</code> 后重跑服务端：</p>
 <pre><code># 编辑 spa-keys.env 里的 ACCESS_TIMEOUT
