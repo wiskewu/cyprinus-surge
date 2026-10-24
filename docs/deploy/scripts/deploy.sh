@@ -2,7 +2,7 @@
 # shellcheck disable=SC2034  # 步骤元数据与跨文件变量由间接展开读取
 # ===========================================================================
 # deploy.sh，一键脚本。自动生成，勿手改。
-#   生成时间：2026-10-24T17:04:27Z
+#   生成时间：2026-10-24T17:11:27Z
 #   来源：lib.sh + steps/*.sh + onekey/driver.sh
 #   重新生成：bash build-onekey.sh
 # ===========================================================================
@@ -651,8 +651,14 @@ server_run() {
   # clash_api 只读面板：绑回环，配合 SSH 隧道用。关掉时片段留空，experimental 变空对象
   local exp_frag="${T}/experimental.json"
   if [[ "${ENABLE_CLASH_API:-0}" == "1" ]]; then
-    printf '    "clash_api": { "external_controller": "%s" }\n' \
-      "${CLASH_API_LISTEN:-127.0.0.1:9090}" >"${exp_frag}"
+    # 面板文件放在运行目录下，不进 /etc 备份；没有就在只读接口模式下工作
+    if [[ -d /var/lib/sing-box/ui ]]; then
+      printf '    "clash_api": { "external_controller": "%s", "external_ui": "/var/lib/sing-box/ui" }\n' \
+        "${CLASH_API_LISTEN:-127.0.0.1:9090}" >"${exp_frag}"
+    else
+      printf '    "clash_api": { "external_controller": "%s" }\n' \
+        "${CLASH_API_LISTEN:-127.0.0.1:9090}" >"${exp_frag}"
+    fi
   else
     : >"${exp_frag}"
   fi

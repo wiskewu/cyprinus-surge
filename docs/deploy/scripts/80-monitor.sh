@@ -22,6 +22,7 @@ usage() {
 
   （不带选项）        安装：打开 clash_api（重新渲染并重启 sing-box）+ 装 5 分钟探针定时器
   --clash-api on|off  只切换 clash_api；on 会重渲染服务端配置
+  --ui                下载面板（metacubexd）到运行目录，之后 /ui 可用
   --probe             立刻跑一次探针，结果追加到 probe.log
   --status            看最近 20 条探针与 clash_api 概览
   --uninstall         停并删定时器，关掉 clash_api
@@ -45,6 +46,7 @@ while [[ $# -gt 0 ]]; do
       CLASH_ARG="${1#*=}"
       MODE=clash
       ;;
+    --ui) MODE=ui ;;
     --probe) MODE=probe ;;
     --status) MODE=status ;;
     --uninstall) MODE=uninstall ;;
@@ -189,6 +191,32 @@ set_clash_api() {
   fi
 }
 
+# ---------------------------------------------------------------- 面板
+UI_DIR="/var/lib/sing-box/ui"
+
+install_ui() {
+  need_root
+  local url="https://github.com/MetaCubeX/metacubexd/releases/latest/download/compressed-dist.tgz"
+  command -v curl >/dev/null 2>&1 || die "缺少 curl"
+  local pkg
+  mktemp_dir pkg
+  log "下载面板到 ${UI_DIR}"
+  curl -fsSL -m 120 -o "${pkg}/ui.tgz" "${url}" \
+    || die "下载失败；可手工把 metacubexd 的 dist 解到 ${UI_DIR}"
+  install -d -m 750 "${UI_DIR}"
+  tar xzf "${pkg}/ui.tgz" -C "${UI_DIR}" || die "解包失败"
+  local owner
+  owner="$(systemctl show -p User --value sing-box 2>/dev/null || true)"
+  [[ -n "${owner}" ]] || owner=root
+  chown -R "${owner}:$(id -gn "${owner}")" "${UI_DIR}"
+  find "${UI_DIR}" -type d -exec chmod 750 {} +
+  find "${UI_DIR}" -type f -exec chmod 640 {} +
+  log "面板就位：$(du -sh "${UI_DIR}" | cut -f1)"
+  printf '  打开方式：ssh -N -L 9090:127.0.0.1:9090 <服务器>，然后访问 http://127.0.0.1:9090/ui\n'
+  # 让配置带上 external_ui
+  bash "${SELF_DIR}/30-render-server.sh"
+}
+
 # ---------------------------------------------------------------- 定时器
 install_timer() {
   need_root
@@ -239,6 +267,10 @@ case "${MODE}" in
     ;;
   clash)
     set_clash_api "${CLASH_ARG}"
+    exit 0
+    ;;
+  ui)
+    install_ui
     exit 0
     ;;
   uninstall)

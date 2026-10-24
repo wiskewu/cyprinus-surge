@@ -139,6 +139,7 @@ sudo bash 80-monitor.sh --uninstall</code></pre>
 <p>开关由 <code>deploy.env</code> 的 <code>ENABLE_CLASH_API</code> 控制，开启后重渲染配置并写进 <code>experimental.clash_api</code>，只绑 <code>127.0.0.1:9090</code>。远程看要开 SSH 隧道：</p>
 <pre><code>ssh -N -L 9090:127.0.0.1:9090 root@你的服务器IP
 # 浏览器打开 http://127.0.0.1:9090/ui</code></pre>
+<div class="warn"><b><code>/ui</code> 需要面板文件。</b>clash_api 只提供 REST 接口，不自带前端，没装面板时访问 <code>/ui</code> 是 404。装一次即可：<code>sudo bash 80-monitor.sh --ui</code>，它下载 metacubexd 到 <code>/var/lib/sing-box/ui</code> 并重渲染配置写入 <code>external_ui</code>。面板文件放在运行目录而不是 <code>/etc/sing-box</code>，避免被 <code>70-backup.sh</code> 打进每次备份。</div>
 <div class="bad"><b>不要把它绑到 0.0.0.0。</b>面板能看到全部连接与规则命中，暴露公网等于把控制面交出去；本脚本固定写回环地址。</div>
 <div class="note">要按出口看连接数：<code>curl -s http://127.0.0.1:9090/connections | jq '[.connections[].chains[-1]] | group_by(.) | map({(.[0]): length}) | add'</code>。<code>--status</code> 已经做了这一步，没装 <code>jq</code> 时退回原始输出。</div>
 
