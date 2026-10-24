@@ -32,21 +32,21 @@ EOF
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --keys)
-            shift
-                   KEYS="${1:?--keys 需要参数}"
-                                                    ;;
+      shift
+      KEYS="${1:?--keys 需要参数}"
+      ;;
     --keys=*) KEYS="${1#*=}" ;;
     --close-ssh) CLOSE_SSH=1 ;;
     --status) MODE=status ;;
     --uninstall) MODE=uninstall ;;
     --purge)
-             MODE=uninstall
-                             PURGE=1
-                                     ;;
+      MODE=uninstall
+      PURGE=1
+      ;;
     -h | --help)
-               usage
-                      exit 0
-                             ;;
+      usage
+      exit 0
+      ;;
     *) die "未知参数：$1（--help 看用法）" ;;
   esac
   shift
@@ -73,8 +73,8 @@ show_status() {
 }
 
 if [[ "${MODE}" == status ]]; then
-                                   show_status
-                                                exit 0
+  show_status
+  exit 0
 fi
 
 # ---------------------------------------------------------------- 卸载
@@ -82,12 +82,12 @@ fi
 if [[ "${MODE}" == uninstall ]]; then
   systemctl disable --now fwknop-server >/dev/null 2>&1 || true
   [[ -f "${FWD_ORIG}" ]] && {
-                              mv "${FWD_ORIG}" "${FWD_CONF}"
-                                                              log "已还原 fwknopd.conf"
+    mv "${FWD_ORIG}" "${FWD_CONF}"
+    log "已还原 fwknopd.conf"
   }
   [[ "${PURGE}" == 1 ]] && {
-                             rm -f "${ACCESS_CONF}" "${KEYS}"
-                                                               log "已删除 access.conf 与密钥包"
+    rm -f "${ACCESS_CONF}" "${KEYS}"
+    log "已删除 access.conf 与密钥包"
   }
   if command -v ufw >/dev/null 2>&1; then
     ufw --force delete allow 62201/udp >/dev/null 2>&1 || true
@@ -131,7 +131,7 @@ IFACE="$(ip -4 route show default 2>/dev/null | awk '{print $5; exit}')"
 log "2/5 渲染 ${FWD_CONF}（网卡 ${IFACE}，SPA 端口 ${SPA_PORT}）"
 mkdir -p "${FWK_DIR}"
 [[ -f "${FWD_ORIG}" ]] || { [[ -f "${FWD_CONF}" ]] && cp -a "${FWD_CONF}" "${FWD_ORIG}"; }
-cat >"${FWD_CONF}"  <<EOF
+cat >"${FWD_CONF}" <<EOF
 # 由 10-server.sh 生成，勿手改。包自带版本备份在 ${FWD_ORIG}
 PCAP_INTF                ${IFACE};
 PCAP_FILTER              udp port ${SPA_PORT};

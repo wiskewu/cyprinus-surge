@@ -19,12 +19,13 @@ else
 fi
 printf 'shellcheck 通过：%d 个文件\n' "${#files[@]}"
 
-# 布局统一：两空格缩进、case 分支缩进、二元运算符前置、保留 case 对齐。
-# 与仓库既有风格一致；改完跑 shfmt -i 2 -ci -bn -kp -w <文件>。
+# 布局统一：两空格缩进、case 分支缩进、二元运算符前置。
+# 不加 -kp：它会把一行里的多条语句按原列宽摊开，case 分支会变成阶梯缩进。
+# 改完跑 shfmt -i 2 -ci -bn -w <文件>。
 if command -v shfmt >/dev/null 2>&1; then
-  unformatted="$(shfmt -i 2 -ci -bn -kp -l "${files[@]}")"
+  unformatted="$(shfmt -i 2 -ci -bn -l "${files[@]}")"
   if [[ -n "${unformatted}" ]]; then
-    printf '以下脚本格式与 shfmt 不一致：\n%s\n跑 shfmt -i 2 -ci -bn -kp -w 修\n' "${unformatted}" >&2
+    printf '以下脚本格式与 shfmt 不一致：\n%s\n跑 shfmt -i 2 -ci -bn -w 修\n' "${unformatted}" >&2
     exit 1
   fi
   printf 'shfmt 格式检查通过：%d 个文件\n' "${#files[@]}"

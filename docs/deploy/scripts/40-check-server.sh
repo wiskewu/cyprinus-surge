@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 40-check-server.sh —— 服务端自检：进程、监听、日志、时间、BBR、伪装站点、IP 一致性。
 # 用法： sudo bash 40-check-server.sh
-set -uo pipefail   # 自检脚本要跑完全部检查项，故不启用 -e
+set -uo pipefail # 自检脚本要跑完全部检查项，故不启用 -e
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=SCRIPTDIR/lib.sh
 . "${SELF_DIR}/lib.sh"
@@ -13,20 +13,20 @@ for v in SERVER_IP VLESS_PORT REALITY_DEST; do
 done
 
 ok=0
-      bad=0
+bad=0
 chk() { # chk "名称" "命令" "期望片段"
   local name="$1" out="$2" want="${3:-}"
   if [[ -n "${want}" ]]; then
     if printf '%s' "${out}" | grep -q -- "${want}"; then
-                                                         printf '  \033[32m✓\033[0m %s\n' "${name}"
-                                                                                                       ok=$((ok + 1))
+      printf '  \033[32m✓\033[0m %s\n' "${name}"
+      ok=$((ok + 1))
     else
-         printf '  \033[31m✗\033[0m %s → %s\n' "${name}" "$(printf '%s' "${out}" | head -1)"
-                                                                                                  bad=$((bad + 1))
+      printf '  \033[31m✗\033[0m %s → %s\n' "${name}" "$(printf '%s' "${out}" | head -1)"
+      bad=$((bad + 1))
     fi
   else
     printf '  \033[32m✓\033[0m %s → %s\n' "${name}" "${out}"
-                                                                  ok=$((ok + 1))
+    ok=$((ok + 1))
   fi
 }
 
@@ -63,7 +63,7 @@ noise_report() {
   [[ -n "${ips}" ]] && printf '%s\n' "${ips}" | while read -r n ip; do printf '      来源 %s（%s 次）\n' "${ip}" "${n}"; done
   printf '      出现本机宽带 IP 且客户端连不上说明参数不匹配，其他 IP 可忽略\n'
 }
-( noise_report ) || true
+(noise_report) || true
 
 printf '== 3. 系统状态 ==\n'
 chk "拥塞控制" "$(sysctl -n net.ipv4.tcp_congestion_control)" "bbr"
@@ -82,7 +82,7 @@ chk "证书链可信" "$(printf '%s' "${tls}" | grep -o 'Verify return code: 0 (
 if [[ "${ENABLE_HY2:-0}" == "1" ]]; then
   printf '== 5. Hysteria2 证书 ==\n'
   end="$(timeout 5 openssl x509 -in "${DEPLOY_DIR}/cert.pem" -noout -enddate 2>/dev/null | cut -d= -f2)"
-  days=$((($(  date -d "${end}" +%s) - $(date +%s)) / 86400))
+  days=$((($(date -d "${end}" +%s) - $(date +%s)) / 86400))
   chk "证书有效期（剩余 ${days} 天）" "$([[ "${days}" -gt 20 ]] && printf ok || printf soon)"
 fi
 

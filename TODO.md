@@ -8,7 +8,7 @@
 `shellcheck -o require-variable-braces` 长期守住；`echo` 已全部换成
 `printf`，含写配置文件时用 `printf '%s\n'` 固定格式；临时目录改为
 `mktemp_dir` 登记 + `trap cleanup_tmp_dirs EXIT`，异常退出不留残留；
-布局由 `shfmt -i 2 -ci -bn -kp` 统一，`npm run lint` 会检查是否漂移。
+布局由 `shfmt -i 2 -ci -bn` 统一，`npm run lint` 会检查是否漂移。
 本组暂无未完成项。
 
 ## 真实环境验证

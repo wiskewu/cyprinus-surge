@@ -123,13 +123,13 @@ SSHEOF
       # 补一条 Include 到文件最顶部（sshd 对同一关键字取第一个出现的值），验证不过就回滚。
       SC=/etc/ssh/sshd_config
       if ! sshd -T 2>/dev/null | grep -qx 'passwordauthentication no' \
-         && [[ -r "${SC}" ]] && ! grep -qiE '^[[:space:]]*Include[[:space:]]' "${SC}"; then
+        && [[ -r "${SC}" ]] && ! grep -qiE '^[[:space:]]*Include[[:space:]]' "${SC}"; then
         warn "    ${SC} 里没有 Include sshd_config.d，drop-in 不会被读；补一条到文件顶部（备份 ${SC}.before-include）"
         [[ -f "${SC}.before-include" ]] || cp -a "${SC}" "${SC}.before-include"
         {
           printf '%s\n' 'Include /etc/ssh/sshd_config.d/*.conf'
-                                                                 cat "${SC}.before-include"
-        }                                                                                      >"${SC}"
+          cat "${SC}.before-include"
+        } >"${SC}"
         if sshd -t 2>/dev/null; then
           systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || true
         else
@@ -190,7 +190,7 @@ system_uninstall() {
   rm -f /etc/sysctl.d/99-proxy.conf
   rm -f /etc/ssh/sshd_config.d/99-proxy.conf
   [[ -f /etc/ssh/sshd_config.d/50-cloud-init.conf.orig ]] \
-                                                          && mv /etc/ssh/sshd_config.d/50-cloud-init.conf.orig /etc/ssh/sshd_config.d/50-cloud-init.conf
+    && mv /etc/ssh/sshd_config.d/50-cloud-init.conf.orig /etc/ssh/sshd_config.d/50-cloud-init.conf
   systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || true
   sysctl --system >/dev/null 2>&1 || true
   log "已移除本项目加的 ufw 规则、sysctl 与 SSH 加固（SSH 规则、swap、ufw 开关保持不动）"

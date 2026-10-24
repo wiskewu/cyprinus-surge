@@ -8,11 +8,11 @@ OUT="${OUT:-deploy.sh}"
 STEPS=()
 for f in steps/*.sh; do
   id="$(basename "${f}" .sh)"
-  STEPS+=("${id#*-}")          # 10-system → system
+  STEPS+=("${id#*-}") # 10-system → system
 done
 [[ "${#STEPS[@]}" -gt 0 ]] || {
-                                printf 'steps/ 为空\n' >&2
-                                                              exit 1
+  printf 'steps/ 为空\n' >&2
+  exit 1
 }
 
 {
@@ -40,8 +40,8 @@ done
 } >"${OUT}.tmp"
 
 bash -n "${OUT}.tmp" || {
-                          printf '生成失败：%s 有语法错误\n' "${OUT}.tmp" >&2
-                                                                                         exit 1
+  printf '生成失败：%s 有语法错误\n' "${OUT}.tmp" >&2
+  exit 1
 }
 mv "${OUT}.tmp" "${OUT}"
 chmod +x "${OUT}"

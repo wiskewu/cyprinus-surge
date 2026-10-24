@@ -2,7 +2,7 @@
 # shellcheck disable=SC2034  # 步骤元数据与跨文件变量由间接展开读取
 # ===========================================================================
 # deploy.sh，一键脚本。自动生成，勿手改。
-#   生成时间：2026-10-24T15:21:29Z
+#   生成时间：2026-10-24T15:43:58Z
 #   来源：lib.sh + steps/*.sh + onekey/driver.sh
 #   重新生成：bash build-onekey.sh
 # ===========================================================================
@@ -24,11 +24,11 @@ SB_BIN="${SB_BIN:-/usr/local/bin/sing-box}"
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TPL_DIR="${SELF_DIR}/templates"
 
-log()  { printf '\033[32m[+]\033[0m %s\n' "$*"; }
+log() { printf '\033[32m[+]\033[0m %s\n' "$*"; }
 warn() { printf '\033[33m[!]\033[0m %s\n' "$*" >&2; }
-die()  {
-         printf '\033[31m[x]\033[0m %s\n' "$*" >&2
-                                                    exit 1
+die() {
+  printf '\033[31m[x]\033[0m %s\n' "$*" >&2
+  exit 1
 }
 
 need_root() {
@@ -93,7 +93,7 @@ inject_block() {
   awk -v ph="${ph}" -v frag="${frag}" '
     index($0, ph) { while ((getline line < frag) > 0) print line; close(frag); next }
     { print }
-  ' "${f}" >"${f}.tmp"  && mv "${f}.tmp" "${f}"
+  ' "${f}" >"${f}.tmp" && mv "${f}.tmp" "${f}"
 }
 
 # 用逗号拼接多个 JSON 片段
@@ -107,7 +107,7 @@ join_json() {
 }
 
 json_valid() {
-  command -v jq >/dev/null 2>&1 || return 0   # 没有 jq 就跳过，sing-box check 仍会报语法错
+  command -v jq >/dev/null 2>&1 || return 0 # 没有 jq 就跳过，sing-box check 仍会报语法错
   jq -e . "$1" >/dev/null 2>&1 || die "JSON 语法错误：$1（用 jq . 看一眼）"
 }
 
@@ -127,7 +127,7 @@ rand_pass() { openssl rand -base64 32 | tr -dc 'A-Za-z0-9' | cut -c1-"${1:-20}";
 # 一台设备一个凭据，同时当 VLESS 的 uuid 和 Hysteria2 的 password 用——
 # 这样「吊销一台」就是删一行，两条入口同时失效，不会漏。
 # 代价是同一个值出现在两个协议里（个人自用可接受，换来的是吊销的原子性）。
-valid_device_name() { case "${1:-}" in "" | *[!A-Za-z0-9._-]*) return 1 ;; *) return 0 ;; esac  }
+valid_device_name() { case "${1:-}" in "" | *[!A-Za-z0-9._-]*) return 1 ;; *) return 0 ;; esac }
 
 device_rows() {
   [[ -f "${DEVICES_LIST}" ]] || return 0
@@ -139,8 +139,8 @@ device_get() {
   local n c p
   while read -r n c p; do
     if [[ "${n}" == "$1" ]]; then
-                                  printf '%s %s\n' "${c}" "${p:-desktop}"
-                                                                           return 0
+      printf '%s %s\n' "${c}" "${p:-desktop}"
+      return 0
     fi
   done < <(device_rows)
   return 1
@@ -272,13 +272,13 @@ SSHEOF
       # 补一条 Include 到文件最顶部（sshd 对同一关键字取第一个出现的值），验证不过就回滚。
       SC=/etc/ssh/sshd_config
       if ! sshd -T 2>/dev/null | grep -qx 'passwordauthentication no' \
-         && [[ -r "${SC}" ]] && ! grep -qiE '^[[:space:]]*Include[[:space:]]' "${SC}"; then
+        && [[ -r "${SC}" ]] && ! grep -qiE '^[[:space:]]*Include[[:space:]]' "${SC}"; then
         warn "    ${SC} 里没有 Include sshd_config.d，drop-in 不会被读；补一条到文件顶部（备份 ${SC}.before-include）"
         [[ -f "${SC}.before-include" ]] || cp -a "${SC}" "${SC}.before-include"
         {
           printf '%s\n' 'Include /etc/ssh/sshd_config.d/*.conf'
-                                                                 cat "${SC}.before-include"
-        }                                                                                      >"${SC}"
+          cat "${SC}.before-include"
+        } >"${SC}"
         if sshd -t 2>/dev/null; then
           systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || true
         else
@@ -339,7 +339,7 @@ system_uninstall() {
   rm -f /etc/sysctl.d/99-proxy.conf
   rm -f /etc/ssh/sshd_config.d/99-proxy.conf
   [[ -f /etc/ssh/sshd_config.d/50-cloud-init.conf.orig ]] \
-                                                          && mv /etc/ssh/sshd_config.d/50-cloud-init.conf.orig /etc/ssh/sshd_config.d/50-cloud-init.conf
+    && mv /etc/ssh/sshd_config.d/50-cloud-init.conf.orig /etc/ssh/sshd_config.d/50-cloud-init.conf
   systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || true
   sysctl --system >/dev/null 2>&1 || true
   log "已移除本项目加的 ufw 规则、sysctl 与 SSH 加固（SSH 规则、swap、ufw 开关保持不动）"
@@ -444,9 +444,9 @@ secrets_run() {
     printf '\n可直接回车使用方括号里的默认值。\n'
     local _in
     read -r -p "伪装站点 REALITY_DEST [${REALITY_DEST}]（需支持 TLS1.3+H2）: " _in
-                                                                                             REALITY_DEST="${_in:-${REALITY_DEST}}"
+    REALITY_DEST="${_in:-${REALITY_DEST}}"
     read -r -p "入口域名 DOMAIN [${DOMAIN:-留空}]（留空则客户端连公网 IP；启用 Hysteria2 时必填）: " _in
-                                                                                                                                 DOMAIN="${_in:-${DOMAIN}}"
+    DOMAIN="${_in:-${DOMAIN}}"
     if [[ -n "${DOMAIN}" ]]; then
       read -r -p "启用 Hysteria2？[Y/n]: " _in
       case "${_in:-y}" in y | Y) ENABLE_HY2=1 ;; *) ENABLE_HY2=0 ;; esac
@@ -454,7 +454,7 @@ secrets_run() {
       ENABLE_HY2=0
     fi
     read -r -p "第一台设备的名字 [main]: " _in
-                                                        FIRST_DEVICE="${_in:-main}"
+    FIRST_DEVICE="${_in:-main}"
   else
     FIRST_DEVICE="${FIRST_DEVICE:-main}"
   fi
@@ -612,7 +612,7 @@ server_run() {
 
   # users 数组按设备名单渲染：一份设备名单 = 一组凭据，删一行就吊销那台
   local rows
-              rows="$(device_rows)"
+  rows="$(device_rows)"
   [[ -n "${rows}" ]] || die "设备名单为空：${DEVICES_LIST}"
 
   render_vars "${TPL_DIR}/in-reality.json.tmpl" "${T}/in1.json"
@@ -650,8 +650,8 @@ server_run() {
   systemctl restart sing-box
   sleep 1
   systemctl is-active --quiet sing-box || {
-                                            journalctl -u sing-box -n 30 --no-pager
-                                                                                     die "sing-box 没起来"
+    journalctl -u sing-box -n 30 --no-pager
+    die "sing-box 没起来"
   }
   log "服务已启动"
 }
@@ -683,9 +683,9 @@ hy2_run() {
       warn "缺少 DOMAIN/CF_TOKEN/ACME_EMAIL，跳过 Hysteria2"
       return 0
     fi
-    [[ -n "${DOMAIN}" ]]     || read -r -p "域名（例如 vps.example.com）: " DOMAIN
+    [[ -n "${DOMAIN}" ]] || read -r -p "域名（例如 vps.example.com）: " DOMAIN
     [[ -n "${ACME_EMAIL}" ]] || read -r -p "邮箱（证书到期通知）: " ACME_EMAIL
-    [[ -n "${CF_TOKEN}" ]]   || read -r -p "Cloudflare API Token: " CF_TOKEN
+    [[ -n "${CF_TOKEN}" ]] || read -r -p "Cloudflare API Token: " CF_TOKEN
   fi
   [[ -n "${DOMAIN}" ]] && [[ -n "${ACME_EMAIL}" ]] && [[ -n "${CF_TOKEN}" ]] || die "DOMAIN / ACME_EMAIL / CF_TOKEN 不能为空"
 
@@ -697,7 +697,7 @@ hy2_run() {
   export CF_Token="${CF_TOKEN}"
   log "用 DNS-01 签发 ${DOMAIN}"
   "${ACME}" --issue --dns dns_cf -d "${DOMAIN}" --server letsencrypt --keylength ec-256 \
-                                                                                        || warn "签发失败：确认 A 记录已生效（Cloudflare 需灰云）后重跑"
+    || warn "签发失败：确认 A 记录已生效（Cloudflare 需灰云）后重跑"
   "${ACME}" --install-cert -d "${DOMAIN}" --ecc \
     --fullchain-file "${DEPLOY_DIR}/cert.pem" \
     --key-file "${DEPLOY_DIR}/key.pem" \
@@ -742,8 +742,8 @@ porthop_check() {
 porthop_run() {
   load_env "${ENVFILE}" 2>/dev/null || true
   [[ "${ENABLE_HY2:-0}" == "1" ]] || {
-                                       warn "ENABLE_HY2=0，跳过端口跳跃"
-                                                                                 return 0
+    warn "ENABLE_HY2=0，跳过端口跳跃"
+    return 0
   }
   porthop_rule_args || die "识别不到默认网卡"
   if iptables -t nat -C PREROUTING -i "${PORTHOP_IFACE}" -p udp --dport "${PORTHOP_START}:${PORTHOP_END}" -j REDIRECT --to-ports "${PORTHOP_START}" 2>/dev/null; then
@@ -771,14 +771,14 @@ porthop_uninstall() {
 # 驱动：由 build-onekey.sh 拼接到 deploy.sh 末尾。不要单独执行本文件。
 # ============================================================================
 OPT_REUSE=0
-             OPT_OVERWRITE=0
-                              OPT_YES=0
-                                         OPT_DRY=0
+OPT_OVERWRITE=0
+OPT_YES=0
+OPT_DRY=0
 OPT_UNINSTALL=0
-                 OPT_REINSTALL=0
+OPT_REINSTALL=0
 ONLY=""
-         SKIP=""
-                  INTERACTIVE=1
+SKIP=""
+INTERACTIVE=1
 PURGE=0
 
 usage() {
@@ -811,34 +811,34 @@ parse_args() {
       --reuse) OPT_REUSE=1 ;;
       --overwrite) OPT_OVERWRITE=1 ;;
       --yes)
-             OPT_YES=1
-                        INTERACTIVE=0
-                                      ;;
+        OPT_YES=1
+        INTERACTIVE=0
+        ;;
       --dry-run) OPT_DRY=1 ;;
       --uninstall) OPT_UNINSTALL=1 ;;
       --purge) PURGE=1 ;;
       --reinstall)
-                   OPT_REINSTALL=1
-                                    PURGE=1
-                                            ;;
+        OPT_REINSTALL=1
+        PURGE=1
+        ;;
       --status)
-                OPT_DRY=1
-                           OPT_YES=1
-                                     ;;
+        OPT_DRY=1
+        OPT_YES=1
+        ;;
       --only)
-              shift
-                     ONLY="${1:-}"
-                                   ;;
+        shift
+        ONLY="${1:-}"
+        ;;
       --only=*) ONLY="${1#*=}" ;;
       --skip)
-              shift
-                     SKIP="${1:-}"
-                                   ;;
+        shift
+        SKIP="${1:-}"
+        ;;
       --skip=*) SKIP="${1#*=}" ;;
       -h | --help)
-                 usage
-                        exit 0
-                               ;;
+        usage
+        exit 0
+        ;;
       *) die "未知参数：$1（--help 看用法）" ;;
     esac
     shift
@@ -848,19 +848,19 @@ parse_args() {
 hy2_enabled() { [[ "${ENABLE_HY2:-0}" == "1" ]] || grep -q '^ENABLE_HY2=1' "${ENVFILE}" 2>/dev/null; }
 
 step_title() {
-               local v="${1}_TITLE"
-                                     printf '%s' "${!v:-$1}"
+  local v="${1}_TITLE"
+  printf '%s' "${!v:-$1}"
 }
 step_optional() {
-                  local v="${1}_OPTIONAL"
-                                           printf '%s' "${!v:-0}"
+  local v="${1}_OPTIONAL"
+  printf '%s' "${!v:-0}"
 }
 step_state() { if "${1}_check" >/dev/null 2>&1; then printf '已配置\n'; else printf '未配置\n'; fi; }
 
 selected() {
   local id="$1"
-  if [[ -n "${ONLY}" ]]; then case ",${ONLY}," in *",${id},"*) ;; *) return 1 ;; esac  fi
-  if [[ -n "${SKIP}" ]]; then case ",${SKIP}," in *",${id},"*) return 1 ;; esac  fi
+  if [[ -n "${ONLY}" ]]; then case ",${ONLY}," in *",${id},"*) ;; *) return 1 ;; esac fi
+  if [[ -n "${SKIP}" ]]; then case ",${SKIP}," in *",${id},"*) return 1 ;; esac fi
   return 0
 }
 
@@ -870,8 +870,8 @@ print_plan() {
   local id
   for id in "${STEPS[@]}"; do
     selected "${id}" || {
-                          printf '%-10s %-8s %-6s %s（按参数排除）\n' "${id}" "-" "-" "$(step_title "${id}")"
-                                                                                                                      continue
+      printf '%-10s %-8s %-6s %s（按参数排除）\n' "${id}" "-" "-" "$(step_title "${id}")"
+      continue
     }
     printf '%-10s %-8s %-6s %s\n' "${id}" "$(step_state "${id}")" "$([ "$(step_optional "${id}")" = 1 ] && printf yes || printf no)" "$(step_title "${id}")"
   done
@@ -889,7 +889,7 @@ decide() {
   case "${a:-r}" in
     r | R) return 1 ;;
     o | O) return 0 ;;
-    *)   return 2 ;;
+    *) return 2 ;;
   esac
 }
 
@@ -901,9 +901,9 @@ execute() {
     return 0
   fi
   # 子 shell + errexit：单步失败不会带崩整个流程
-  ( 
+  (
     set -eo pipefail
-                      "${id}_run"
+    "${id}_run"
   )
 }
 
@@ -918,16 +918,16 @@ do_install() {
     fi
     if [[ "$(step_state "${id}")" == "已配置" ]]; then
       decide "${id}"
-                      rc=$?
+      rc=$?
       case "${rc}" in
         1)
-           log "复用 ${id}（不执行）"
-                                              continue
-                                                       ;;
+          log "复用 ${id}（不执行）"
+          continue
+          ;;
         2)
-           log "跳过 ${id}"
-                               continue
-                                        ;;
+          log "跳过 ${id}"
+          continue
+          ;;
       esac
     fi
     todo+=("${id}")
@@ -941,11 +941,11 @@ do_install() {
   if [[ "${INTERACTIVE}" == 1 ]] && [[ "${OPT_DRY}" == 0 ]]; then
     printf '确认开始？[Y/n] '
     local a
-             read -r a
+    read -r a
     case "${a:-y}" in y | Y) ;; *)
-                                 log "已取消"
-                                                  exit 1
-                                                         ;;
+      log "已取消"
+      exit 1
+      ;;
     esac
   fi
   for id in "${todo[@]}"; do
@@ -955,7 +955,7 @@ do_install() {
       if [[ "${INTERACTIVE}" == 1 ]]; then
         printf '继续后面的步骤？[y/N] '
         local a
-                 read -r a
+        read -r a
         case "${a:-n}" in y | Y) ;; *) die "中止：${id} 失败" ;; esac
       else
         die "中止：${id} 失败"
@@ -978,21 +978,21 @@ do_uninstall() {
     [[ "${PURGE}" == 1 ]] && printf '  - deploy.env / client.env / 证书（--purge）\n'
     printf '确认？[y/N] '
     local a
-             read -r a
+    read -r a
     case "${a:-n}" in y | Y) ;; *)
-                                 log "已取消"
-                                                  return 0
-                                                           ;;
+      log "已取消"
+      return 0
+      ;;
     esac
   fi
   for ((i = ${#STEPS[@]} - 1; i >= 0; i--)); do
     id="${STEPS[i]}"
     if "${id}_check" >/dev/null 2>&1; then
       log "卸载 ${id}"
-      ( 
+      (
         set -eo pipefail
-                          "${id}_uninstall"
-      )                                       || warn "${id} 卸载不完整（可手工检查）"
+        "${id}_uninstall"
+      ) || warn "${id} 卸载不完整（可手工检查）"
     fi
   done
   if [[ "${PURGE}" == 1 ]]; then
@@ -1020,8 +1020,8 @@ main() {
     OPT_UNINSTALL=1
     do_uninstall
     OPT_UNINSTALL=0
-                     OPT_OVERWRITE=1
-                                      OPT_REUSE=0
+    OPT_OVERWRITE=1
+    OPT_REUSE=0
     log "重新安装：全量覆盖"
   fi
 

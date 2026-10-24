@@ -31,27 +31,27 @@ EOF
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --keys)
-            shift
-                   KEYS="${1:?--keys 需要参数}"
-                                                    ;;
+      shift
+      KEYS="${1:?--keys 需要参数}"
+      ;;
     --keys=*) KEYS="${1#*=}" ;;
     --name)
-            shift
-                   NAME="${1:?--name 需要参数}"
-                                                    ;;
+      shift
+      NAME="${1:?--name 需要参数}"
+      ;;
     --name=*) NAME="${1#*=}" ;;
     --user)
-            shift
-                   SSH_USER="${1:?--user 需要参数}"
-                                                        ;;
+      shift
+      SSH_USER="${1:?--user 需要参数}"
+      ;;
     --user=*) SSH_USER="${1#*=}" ;;
     --no-ssh) SSH_CONFIG=0 ;;
     --status) MODE=status ;;
     --uninstall) MODE=uninstall ;;
     -h | --help)
-               usage
-                      exit 0
-                             ;;
+      usage
+      exit 0
+      ;;
     *) die "未知参数：$1（--help 看用法）" ;;
   esac
   shift
@@ -60,14 +60,14 @@ done
 FWKRC="${FWKRC:-${HOME}/.fwknoprc}"
 SSHCFG="${SSHCFG:-${HOME}/.ssh/config}"
 
-strip_block() {  # 从 ~/.ssh/config 里摘掉托管块，并清掉末尾多余空行（否则重跑会越积越多）
+strip_block() { # 从 ~/.ssh/config 里摘掉托管块，并清掉末尾多余空行（否则重跑会越积越多）
   [[ -f "${SSHCFG}" ]] || return 0
   local tmp="${SSHCFG}.spa.tmp"
   awk -v b="${BEGIN}" -v e="${END}" '
     $0 == b { skip = 1; next }
     $0 == e { skip = 0; next }
     !skip { print }
-  ' "${SSHCFG}" | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' >"${tmp}"  && mv "${tmp}" "${SSHCFG}"
+  ' "${SSHCFG}" | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' >"${tmp}" && mv "${tmp}" "${SSHCFG}"
 }
 
 if [[ "${MODE}" == status ]]; then
@@ -91,8 +91,8 @@ if [[ "${MODE}" == uninstall ]]; then
 fi
 
 [[ -n "${KEYS}" ]] || {
-                        usage
-                               die "--keys 是必填的"
+  usage
+  die "--keys 是必填的"
 }
 
 # ---------------------------------------------------------------- 安装
@@ -116,8 +116,8 @@ command -v nc >/dev/null 2>&1 || warn "未找到 nc，ProxyCommand 末段会失�
 
 load_env "${KEYS}"
 [[ -n "${NAME}" ]] && {
-                        valid_name "${NAME}" || die "客户端名不合法：${NAME}"
-                                                                                       CLIENT_NAME="${NAME}"
+  valid_name "${NAME}" || die "客户端名不合法：${NAME}"
+  CLIENT_NAME="${NAME}"
 }
 : "${SPA_PORT:=62201}" "${ACCESS_TIMEOUT:=120}"
 # 必须与服务端 stanza 的 HMAC_DIGEST_TYPE 相同，否则密钥对得上也验不过 HMAC
@@ -157,11 +157,11 @@ warn_if_tunneled() {
   local h ip iface
   for h in ${HOSTS}; do
     ip="${h#*=}"
-    case "${ip}" in *[!0-9.]*) continue ;; esac   # 只判断纯 IPv4：域名要解析，结果不稳
+    case "${ip}" in *[!0-9.]*) continue ;; esac # 只判断纯 IPv4：域名要解析，结果不稳
     iface=""
-    if command -v route >/dev/null 2>&1; then        # macOS / BSD
+    if command -v route >/dev/null 2>&1; then # macOS / BSD
       iface="$(route -n get "${ip}" 2>/dev/null | awk '/interface:/{print $2; exit}')"
-    elif command -v ip >/dev/null 2>&1; then         # Linux
+    elif command -v ip >/dev/null 2>&1; then # Linux
       iface="$(ip route get "${ip}" 2>/dev/null | awk '{for(i=1;i<=NF;i++) if ($i=="dev") {print $(i+1); exit}}')"
     fi
     case "${iface:-}" in
@@ -219,9 +219,9 @@ for _p in ${SSH_PORT}; do
   case "${_p}" in
     22) [[ -n "${FIRST_PORT}" ]] || FIRST_PORT=22 ;;
     *)
-       FIRST_PORT="${_p}"
-                           break
-                                 ;;
+      FIRST_PORT="${_p}"
+      break
+      ;;
   esac
 done
 [[ -n "${FIRST_PORT}" ]] || FIRST_PORT="${SSH_PORT%% *}"
@@ -231,15 +231,15 @@ done
 if [[ "${SSH_CONFIG}" == 1 ]]; then
   log "3/3 写 ${SSHCFG} 托管块"
   mkdir -p "$(dirname "${SSHCFG}")"
-                                     chmod 700 "$(dirname "${SSHCFG}")"
+  chmod 700 "$(dirname "${SSHCFG}")"
   strip_block
   # 备份摘掉托管块之后的版本：备份里不含我们塞的东西
   [[ -s "${SSHCFG}" ]] && cp -a "${SSHCFG}" "${SSHCFG}.bak"
   {
     # 首次配置时 ~/.ssh/config 可能还不存在；分隔行追加在末尾，否则每重跑一次就多一个空行
     if [[ -f "${SSHCFG}" ]]; then
-                                  cat "${SSHCFG}"
-                                                   printf '\n'
+      cat "${SSHCFG}"
+      printf '\n'
     fi
     printf '%s\n' "${BEGIN}"
     for h in ${HOSTS}; do

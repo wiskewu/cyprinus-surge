@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # ssh-spa 共用函数。不要单独运行，被 00/10/20-*.sh source。
 
-log()  { printf '\033[32m[+]\033[0m %s\n' "$*"; }
+log() { printf '\033[32m[+]\033[0m %s\n' "$*"; }
 warn() { printf '\033[33m[!]\033[0m %s\n' "$*" >&2; }
-die()  {
-         printf '\033[31m[x]\033[0m %s\n' "$*" >&2
-                                                    exit 1
+die() {
+  printf '\033[31m[x]\033[0m %s\n' "$*" >&2
+  exit 1
 }
 
 need_root() {
-              [[ "${SKIP_ROOT:-0}" == 1 ]] && return 0
-                                                        [[ "$(id -u)" == 0 ]] || die "需要 root：sudo bash $0"
+  [[ "${SKIP_ROOT:-0}" == 1 ]] && return 0
+  [[ "$(id -u)" == 0 ]] || die "需要 root：sudo bash $0"
 }
 need_cmd() { command -v "$1" >/dev/null 2>&1 || die "缺少命令 $1"; }
 
@@ -47,7 +47,7 @@ load_env() {
 }
 
 # 名字只允许字母数字 . _ -，因为它会进 grep -E 和 fwknop 的 stanza 名
-valid_name() { case "${1:-}" in "" | *[!A-Za-z0-9._-]*) return 1 ;; *) return 0 ;; esac  }
+valid_name() { case "${1:-}" in "" | *[!A-Za-z0-9._-]*) return 1 ;; *) return 0 ;; esac }
 
 # 取密钥对 "<KEY_BASE64>:<HMAC_KEY_BASE64>"：
 # 传了名字（或文件里有 CLIENT_NAME）就找该客户端，否则回退到 SHARED
@@ -63,9 +63,9 @@ spa_keys_for() {
     for entry in $(printf '%s' "${line#*=}" | tr -d '"'); do
       case "${entry}" in
         "${name}"=*)
-                     printf '%s\n' "${entry#*=}"
-                                                  return 0
-                                                           ;;
+          printf '%s\n' "${entry#*=}"
+          return 0
+          ;;
       esac
     done
     die "密钥包里没有客户端 ${name}，重新生成时写进 --clients"
@@ -77,14 +77,14 @@ spa_keys_for() {
 
 # 数一个 "a=1 b=2" 形式的值里有几项
 host_count() {
-               local v="${1:-}"
-                                 [[ -n "${v}" ]] || {
-                                                      printf '0
+  local v="${1:-}"
+  [[ -n "${v}" ]] || {
+    printf '0
 '
     return
   }
-              read -r -a _w <<<"${v}"
-                                       printf '%s
+  read -r -a _w <<<"${v}"
+  printf '%s
 ' "${#_w[@]}"
 }
 
@@ -136,13 +136,13 @@ ssh_resolve_ports() {
   if [[ -n "${detected}" ]]; then
     {
       tr ' ' '\n' <<<"${detected}"
-                                    tr ' ' '\n' <<<"${explicit}"
-    }                                                               | grep -E '^[0-9]+$' | sort -un | paste -sd' ' -
+      tr ' ' '\n' <<<"${explicit}"
+    } | grep -E '^[0-9]+$' | sort -un | paste -sd' ' -
     return 0
   fi
   if [[ -n "${explicit}" ]]; then
-                                  printf '%s\n' "${explicit}"
-                                                               return 0
+    printf '%s\n' "${explicit}"
+    return 0
   fi
   die "探测不到本机 SSH 端口，用 SSH_PORT=<端口> 指定，取值见 ss -tlnp"
 }

@@ -63,10 +63,10 @@ apply_changes() {
   local dev="${1:-}"
   log "重渲染服务端配置"
   local log_
-              log_="$(mktemp)"
+  log_="$(mktemp)"
   if ! bash "${SELF_DIR}/30-render-server.sh" >"${log_}" 2>&1; then
     cat "${log_}" >&2
-                       rm -f "${log_}"
+    rm -f "${log_}"
     die "名单已改但服务端重渲染失败，配置未生效"
   fi
   grep -E '^\[' "${log_}" || true
@@ -82,7 +82,7 @@ render_client() {
   log_="$(mktemp)"
   if ! OUTDIR="${CLIENT_OUT}" bash "${SELF_DIR}/50-render-client.sh" "${CLIENT_ENV}" --device "${dev}" >"${log_}" 2>&1; then
     cat "${log_}" >&2
-                       rm -f "${log_}"
+    rm -f "${log_}"
     die "客户端配置渲染失败"
   fi
   rm -f "${log_}"
@@ -91,11 +91,11 @@ render_client() {
 }
 
 [[ $# -ge 1 ]] || {
-                    usage
-                           exit 1
+  usage
+  exit 1
 }
 CMD="$1"
-          shift
+shift
 
 case "${CMD}" in
   list | -l)
@@ -104,11 +104,11 @@ case "${CMD}" in
 
   add)
     [[ $# -ge 1 ]] || {
-                        usage
-                               die "add 需要设备名"
+      usage
+      die "add 需要设备名"
     }
     NAME="$1"
-               PLATFORM="${2:-desktop}"
+    PLATFORM="${2:-desktop}"
     valid_device_name "${NAME}" || die "设备名不合法：${NAME}（只允许字母数字 . _ -）"
     case " ${VALID_PLATFORMS} " in *" ${PLATFORM} "*) ;; *) die "平台只能是：${VALID_PLATFORMS}" ;; esac
     device_exists "${NAME}" && die "设备 ${NAME} 已存在（rotate 换凭据 / revoke 删除）"
@@ -122,8 +122,8 @@ case "${CMD}" in
 
   rotate)
     [[ $# -ge 1 ]] || {
-                        usage
-                               die "rotate 需要设备名"
+      usage
+      die "rotate 需要设备名"
     }
     NAME="$1"
     device_exists "${NAME}" || die "设备名单里没有 ${NAME}"
@@ -143,8 +143,8 @@ case "${CMD}" in
 
   revoke)
     [[ $# -ge 1 ]] || {
-                        usage
-                               die "revoke 需要设备名"
+      usage
+      die "revoke 需要设备名"
     }
     NAME="$1"
     device_exists "${NAME}" || die "设备名单里没有 ${NAME}"
@@ -164,8 +164,8 @@ case "${CMD}" in
 
   render)
     [[ $# -ge 1 ]] || {
-                        usage
-                               die "render 需要设备名"
+      usage
+      die "render 需要设备名"
     }
     NAME="$1"
     device_exists "${NAME}" || die "设备名单里没有 ${NAME}"
@@ -175,7 +175,7 @@ case "${CMD}" in
   -h | --help | help) usage ;;
 
   *)
-     usage
-            die "未知命令：${CMD}"
-                                        ;;
+    usage
+    die "未知命令：${CMD}"
+    ;;
 esac

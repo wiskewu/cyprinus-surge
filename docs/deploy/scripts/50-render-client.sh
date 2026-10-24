@@ -19,8 +19,8 @@ set -euo pipefail
 # 第一个参数如果不是 - 开头，就当成环境文件
 ENVFILE="./client.env"
 if [[ $# -gt 0 ]] && [[ "${1#-}" == "$1" ]]; then
-                                                  ENVFILE="$1"
-                                                                shift
+  ENVFILE="$1"
+  shift
 fi
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=SCRIPTDIR/lib.sh
@@ -51,21 +51,21 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --all) ALL=1 ;;
     --device)
-              shift
-                     [[ $# -gt 0 ]] || die "--device 后面要跟设备名"
-                                                                             DEVICE="$1"
-                                                                                         ;;
+      shift
+      [[ $# -gt 0 ]] || die "--device 后面要跟设备名"
+      DEVICE="$1"
+      ;;
     --device=*) DEVICE="${1#*=}" ;;
     -h | --help)
-               usage
-                      exit 0
-                             ;;
+      usage
+      exit 0
+      ;;
     desktop | android | ios) TARGETS+=("$1") ;;
     *) die "未知参数：$1（可选：--all / --device NAME / desktop / android / ios）" ;;
   esac
   shift
 done
-[[ -n "${DEVICE}" ]] || DEVICE=""     # 避免后面 ${DEVICE:-} 之外的引用踩到 unset
+[[ -n "${DEVICE}" ]] || DEVICE="" # 避免后面 ${DEVICE:-} 之外的引用踩到 unset
 if [[ "${ALL}" == 1 ]]; then TARGETS=(desktop android ios); fi
 
 [[ -f "${ENVFILE}" ]] || die "找不到 ${ENVFILE}，从服务器 /etc/sing-box/client.env 复制一份"
@@ -73,8 +73,8 @@ if [[ "${ALL}" == 1 ]]; then TARGETS=(desktop android ios); fi
 # ---------- 读环境：命令行显式传入的优先 ----------
 # AI_SOCKS_* 必须在列表里：client.env 里它们是空值，不加会被 load_env 覆盖成空
 _ov_names=("CLIENT_MIXED" "AI_MODE" "AUTO_DETECT_INTERFACE" "DNS_CN" "DNS_REMOTE" "ENABLE_HY2"
-           "AI_SOCKS_SERVER" "AI_SOCKS_PORT" "AI_SOCKS_USER" "AI_SOCKS_PASS" "SERVER_HOST" "SERVER_IP"
-           "DEFAULT_INTERFACE")
+  "AI_SOCKS_SERVER" "AI_SOCKS_PORT" "AI_SOCKS_USER" "AI_SOCKS_PASS" "SERVER_HOST" "SERVER_IP"
+  "DEFAULT_INTERFACE")
 _ov_vals=()
 for _i in "${!_ov_names[@]}"; do _ov_vals[_i]="${!_ov_names[_i]:-}"; done
 
@@ -111,7 +111,7 @@ validate_common() {
   case "${AUTO_DETECT_INTERFACE}" in 0 | false | no | off) AUTO_DETECT_INTERFACE=false ;; *) AUTO_DETECT_INTERFACE=true ;; esac
   if [[ "${AI_MODE}" == "dedicated" ]]; then
     [[ -n "${AI_SOCKS_SERVER:-}" ]] || die "AI_MODE=dedicated 但 AI_SOCKS_SERVER 为空"
-    [[ -n "${AI_SOCKS_USER:-}" ]]   || die "AI_MODE=dedicated 但 AI_SOCKS_USER 为空"
+    [[ -n "${AI_SOCKS_USER:-}" ]] || die "AI_MODE=dedicated 但 AI_SOCKS_USER 为空"
   fi
   # 两个出口标签：模板里只认标签，不写死
   if [[ "${ENABLE_HY2:-0}" == "1" ]]; then PROXY_TAG=auto; else PROXY_TAG=proxy; fi
@@ -152,15 +152,15 @@ apply_target() {
   case "$1" in
     desktop) TARGET_OUT="${OUTDIR}/sing-box-client${pre}-$1.json" ;;
     android)
-             TARGET_OUT="${OUTDIR}/sing-box-client${pre}-$1.json"
-                                                                   CLIENT_MIXED=0
-                                                                                   AUTO_DETECT_INTERFACE=true
-                                                                                                              ;;
+      TARGET_OUT="${OUTDIR}/sing-box-client${pre}-$1.json"
+      CLIENT_MIXED=0
+      AUTO_DETECT_INTERFACE=true
+      ;;
     ios)
-             TARGET_OUT="${OUTDIR}/sing-box-client${pre}-$1.json"
-                                                                       CLIENT_MIXED=0
-                                                                                       AUTO_DETECT_INTERFACE=true
-                                                                                                                  ;;
+      TARGET_OUT="${OUTDIR}/sing-box-client${pre}-$1.json"
+      CLIENT_MIXED=0
+      AUTO_DETECT_INTERFACE=true
+      ;;
   esac
 }
 
@@ -198,7 +198,7 @@ resolve_default_interface() {
   fi
   DEFAULT_IFACE_FRAGMENT=""
   local iface
-               iface="$(detect_physical_iface)"
+  iface="$(detect_physical_iface)"
   warn "AUTO_DETECT_INTERFACE=false 但没有指定网卡：TUN 开着时 direct 出站会绕回 tun（连上立刻被断）"
   if [[ -n "${iface}" ]]; then
     warn "  本机物理网卡是 ${iface}，加一个变量即可：DEFAULT_INTERFACE=${iface}"
@@ -236,15 +236,15 @@ render_one() {
   OBJS=("${T}/o1.json")
   if [[ "${ENABLE_HY2:-0}" == "1" ]]; then
     render_vars "${TPL_DIR}/out-hy2.json.tmpl" "${T}/o2.json"
-                                                               OBJS+=("${T}/o2.json")
+    OBJS+=("${T}/o2.json")
   fi
   if [[ "${AI_MODE:-main}" == "dedicated" ]]; then
     render_vars "${TPL_DIR}/out-ai.json.tmpl" "${T}/o3.json"
-                                                              OBJS+=("${T}/o3.json")
+    OBJS+=("${T}/o3.json")
   fi
   if [[ "${ENABLE_HY2:-0}" == "1" ]]; then
     render_vars "${TPL_DIR}/out-urltest.json.tmpl" "${T}/o4.json"
-                                                                   OBJS+=("${T}/o4.json")
+    OBJS+=("${T}/o4.json")
   fi
   printf '    { "type": "direct", "tag": "direct", "domain_resolver": { "server": "dns-cn" } }' >"${T}/o9.json"
   OBJS+=("${T}/o9.json")

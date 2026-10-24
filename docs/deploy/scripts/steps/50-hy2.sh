@@ -20,9 +20,9 @@ hy2_run() {
       warn "缺少 DOMAIN/CF_TOKEN/ACME_EMAIL，跳过 Hysteria2"
       return 0
     fi
-    [[ -n "${DOMAIN}" ]]     || read -r -p "域名（例如 vps.example.com）: " DOMAIN
+    [[ -n "${DOMAIN}" ]] || read -r -p "域名（例如 vps.example.com）: " DOMAIN
     [[ -n "${ACME_EMAIL}" ]] || read -r -p "邮箱（证书到期通知）: " ACME_EMAIL
-    [[ -n "${CF_TOKEN}" ]]   || read -r -p "Cloudflare API Token: " CF_TOKEN
+    [[ -n "${CF_TOKEN}" ]] || read -r -p "Cloudflare API Token: " CF_TOKEN
   fi
   [[ -n "${DOMAIN}" ]] && [[ -n "${ACME_EMAIL}" ]] && [[ -n "${CF_TOKEN}" ]] || die "DOMAIN / ACME_EMAIL / CF_TOKEN 不能为空"
 
@@ -34,7 +34,7 @@ hy2_run() {
   export CF_Token="${CF_TOKEN}"
   log "用 DNS-01 签发 ${DOMAIN}"
   "${ACME}" --issue --dns dns_cf -d "${DOMAIN}" --server letsencrypt --keylength ec-256 \
-                                                                                        || warn "签发失败：确认 A 记录已生效（Cloudflare 需灰云）后重跑"
+    || warn "签发失败：确认 A 记录已生效（Cloudflare 需灰云）后重跑"
   "${ACME}" --install-cert -d "${DOMAIN}" --ecc \
     --fullchain-file "${DEPLOY_DIR}/cert.pem" \
     --key-file "${DEPLOY_DIR}/key.pem" \

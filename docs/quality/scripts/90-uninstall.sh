@@ -11,8 +11,8 @@ CHECK=0
 PURGE=0
 ASSUME_YES=0
 KEYS="./spa-keys.env"
-PW_ACTION=""      # yes | no           空 = 必须问，或由参数给
-ROOT_LOGIN=""     # yes | no | prohibit-password
+PW_ACTION=""  # yes | no           空 = 必须问，或由参数给
+ROOT_LOGIN="" # yes | no | prohibit-password
 
 SSHD_MAIN="${SSHD_MAIN:-/etc/ssh/sshd_config}"
 SSHD_DROPIN_DIR="${SSHD_DROPIN_DIR:-/etc/ssh/sshd_config.d}"
@@ -48,28 +48,28 @@ while [[ $# -gt 0 ]]; do
     --purge) PURGE=1 ;;
     -y | --yes) ASSUME_YES=1 ;;
     --keys)
-            shift
-                   KEYS="${1:?--keys 需要参数}"
-                                                    ;;
+      shift
+      KEYS="${1:?--keys 需要参数}"
+      ;;
     --keys=*) KEYS="${1#*=}" ;;
     --password)
-                shift
-                       PW_ACTION="${1:?--password 需要参数（yes|no）}"
-                                                                             ;;
+      shift
+      PW_ACTION="${1:?--password 需要参数（yes|no）}"
+      ;;
     --password=*) PW_ACTION="${1#*=}" ;;
     --root-login)
-                  shift
-                         ROOT_LOGIN="${1:?--root-login 需要参数}"
-                                                                      ;;
+      shift
+      ROOT_LOGIN="${1:?--root-login 需要参数}"
+      ;;
     --root-login=*) ROOT_LOGIN="${1#*=}" ;;
     -h | --help)
-                 usage
-                        exit 0
-                               ;;
+      usage
+      exit 0
+      ;;
     *)
-       usage
-              die "未知参数：$1"
-                                      ;;
+      usage
+      die "未知参数：$1"
+      ;;
   esac
   shift
 done
@@ -116,8 +116,8 @@ run_client() {
 }
 
 [[ "${MODE}" == client ]] && {
-                               run_client
-                                           exit 0
+  run_client
+  exit 0
 }
 
 # ---------------------------------------------------------------- 服务端
@@ -203,8 +203,8 @@ if [[ "${ASSUME_YES}" == 0 ]]; then
   [[ -t 0 ]] || die "非交互运行要加 -y 确认拆除"
   ask "确认拆除 SPA？公网 SSH 会重新对全网开放 [y/N]" n
   [[ "${ASK_REPLY}" == y ]] || {
-                                 log "已取消，未做改动"
-                                                                 exit 0
+    log "已取消，未做改动"
+    exit 0
   }
 fi
 
@@ -258,14 +258,14 @@ first_file_with_key() {
     for f in "${SSHD_DROPIN_DIR}"/*.conf; do
       [[ -f "${f}" ]] || continue
       grep -qiE "^[[:space:]]*${key}[[:space:]]" "${f}" && {
-                                                             printf '%s\n' "${f}"
-                                                                                   return 0
+        printf '%s\n' "${f}"
+        return 0
       }
     done
   fi
   grep -qiE "^[[:space:]]*${key}[[:space:]]" "${SSHD_MAIN}" && {
-                                                                 printf '%s\n' "${SSHD_MAIN}"
-                                                                                               return 0
+    printf '%s\n' "${SSHD_MAIN}"
+    return 0
   }
   return 1
 }
@@ -298,7 +298,7 @@ if command -v sshd >/dev/null 2>&1 && [[ -r "${SSHD_MAIN}" ]]; then
   [[ -n "${ROOT_LOGIN}" ]] && set_sshd_key PermitRootLogin "${ROOT_LOGIN}"
   if sshd -t 2>/dev/null; then
     systemctl reload ssh 2>/dev/null || systemctl restart ssh 2>/dev/null \
-                                                                          || systemctl restart sshd 2>/dev/null || warn "    reload/restart ssh 失败，新策略可能没生效"
+      || systemctl restart sshd 2>/dev/null || warn "    reload/restart ssh 失败，新策略可能没生效"
     got_pw="$(sshd_get passwordauthentication || true)"
     [[ "${got_pw}" == "${PW_ACTION}" ]] || {
       warn "    passwordauthentication 仍为 ${got_pw:-?}，以下位置设置了该关键字："
@@ -306,7 +306,7 @@ if command -v sshd >/dev/null 2>&1 && [[ -r "${SSHD_MAIN}" ]]; then
         "${SSHD_MAIN}" "${SSHD_DROPIN_DIR}" 2>/dev/null | while IFS= read -r l; do warn "      ${l}"; done
     }
     [[ -z "${ROOT_LOGIN}" ]] || [[ "$(sshd_get permitrootlogin || true)" == "${ROOT_LOGIN}" ]] \
-                                                                                               || warn "    permitrootlogin 仍是 $(sshd_get permitrootlogin || true)"
+      || warn "    permitrootlogin 仍是 $(sshd_get permitrootlogin || true)"
   else
     warn "    sshd -t 未通过，先修 ${SSHD_MAIN} 与 ${SSHD_DROPIN_DIR}，不要 restart"
   fi

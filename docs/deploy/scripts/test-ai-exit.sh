@@ -19,10 +19,10 @@ need_root
 need_cmd curl
 
 TARGET_URL="${1:-https://chatgpt.com/cdn-cgi/trace}"
-MIXED_PORT="${MIXED_PORT:-2081}"      # 临时客户端入站
-SOCKS_PORT="${SOCKS_PORT:-1081}"      # 临时「落地机」
+MIXED_PORT="${MIXED_PORT:-2081}" # 临时客户端入站
+SOCKS_PORT="${SOCKS_PORT:-1081}" # 临时「落地机」
 SOCKS_USER="selftest"
-                        SOCKS_PASS="selftest"
+SOCKS_PASS="selftest"
 mktemp_dir TMP
 PIDS=""
 
@@ -69,8 +69,8 @@ OUT="${TMP}/client.json" \
   AI_SOCKS_PASS="${SOCKS_PASS}" \
   bash "${SELF_DIR}/50-render-client.sh" "${CLIENT_ENV}" >"${TMP}/render.log" 2>&1 \
   || {
-       cat "${TMP}/render.log" >&2
-                                    die "渲染失败"
+    cat "${TMP}/render.log" >&2
+    die "渲染失败"
   }
 grep -q 'ok' "${TMP}/render.log" || log "（渲染过程未打印 sing-box 校验结果，继续）"
 
@@ -79,8 +79,8 @@ log "3/5 起临时客户端实例"
 PIDS="${PIDS} $!"
 sleep 1
 grep -qi 'fatal\|error' "${TMP}/client.log" && {
-                                                 sed -n '1,20p' "${TMP}/client.log" >&2
-                                                                                         die "客户端实例起不来"
+  sed -n '1,20p' "${TMP}/client.log" >&2
+  die "客户端实例起不来"
 }
 
 log "4/5 通过 mixed 端口请求 ${TARGET_URL}"
@@ -99,7 +99,7 @@ log "    客户端用到的出站：$(tr '\n' ' ' <"${TMP}/used" 2>/dev/null || 
 
 FAILED=0
 grep -q 'ai-out' "${TMP}/used" 2>/dev/null || FAILED=1
-grep -q 'ai-out' "${TMP}/client.json" || FAILED=1   # 兜底：配置里至少要有这条出站
+grep -q 'ai-out' "${TMP}/client.json" || FAILED=1 # 兜底：配置里至少要有这条出站
 
 printf '\n'
 if [[ "${FAILED}" == 0 ]]; then
