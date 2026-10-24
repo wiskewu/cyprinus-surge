@@ -4,6 +4,35 @@
 新增条目按「影响面 / 必要性 / 效益 / 成本」四列写，便于排期。
 `80-monitor.sh` 已在生产机落地：clash_api 绑 127.0.0.1:9090，探针每 5 分钟一次。
 
+## 当前阻塞（需人工恢复）
+
+服务器 `69.8.129.176` 在 2026-10-24 收口 SSH 时锁死：`ufw --force delete` 触发 ufw 重建
+`INPUT` 链，`FWKNOP_INPUT` 的跳转随之消失，`4061/tcp` 的 ufw 规则同时被删。跳转不在，
+`FWKNOP_INPUT` 里的 ACCEPT 规则不会被求值，敲门再多也进不去。SSH 与 SPA 都不可用，
+只能走云控制台的 VNC 或串口。
+
+恢复步骤：
+
+```bash
+ufw allow 4061/tcp comment 'ssh-temp'
+systemctl restart fwknop-server
+sleep 1
+iptables -S INPUT | head -3          # 第一行必须是 -A INPUT -j FWKNOP_INPUT
+iptables -I INPUT 1 -j FWKNOP_INPUT 2>/dev/null || true
+iptables -S INPUT | head -3          # 再确认一次
+```
+
+恢复后待办：同步修好的 `10-server.sh` 到 `/root/ssh-spa/`，确认跳转与 `fwknopd` 状态，
+从客户端敲一次门确认 `FWKNOP_INPUT` 有规则，再执行 `--close-ssh` 并验证「不敲门不可达、
+敲门可登录」。
+
+### 已修但尚未在服务器上生效
+
+| # | 事项 | 状态 |
+| --- | --- | --- |
+| 29 | `10-server.sh` 收口前校验跳转与放行规则，删除后复核，失败自动回滚 | 已改并过 lint，等恢复后同步到 `/root/ssh-spa/` |
+| 30 | `90-port-hop.sh` 改用 systemd 单元持久化 NAT，不再安装 `iptables-persistent` | 已在服务器生效（`sing-box-porthop.service` enabled/active），ufw 已装回 |
+
 ## shell 脚本
 
 变量大括号已在 30 个脚本里统一为 `${var}`，`npm run lint` 用
