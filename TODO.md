@@ -9,10 +9,7 @@
 `printf`，含写配置文件时用 `printf '%s\n'` 固定格式；临时目录改为
 `mktemp_dir` 登记 + `trap cleanup_tmp_dirs EXIT`，异常退出不留残留；
 布局由 `shfmt -i 2 -ci -bn -kp` 统一，`npm run lint` 会检查是否漂移。
-
-| # | 事项 | 现状 | 代价 |
-| --- | --- | --- | --- |
-| 2 | 列表改用数组 | 19 处 `for x in $LIST` 依赖空格分隔字符串 | 涉及端口列表与 `HOSTS`，改动会动到 `ufw`、`iptables`、`fwknop` 的调用签名，须连同验证一起做 |
+本组暂无未完成项。
 
 ## 真实环境验证
 
