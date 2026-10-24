@@ -97,9 +97,10 @@ systemctl restart sing-box</code></pre>
 
 <h2 id="harden">加固：降权与 systemd 沙箱 <span class="tag">可选</span></h2>
 <p>默认的单元文件让 sing-box 以 root 全权限运行。它是唯一监听公网、解析密文的进程，值得收一次权限。脚本幂等，随时可以 <code>--check</code> 复查或 <code>--revert</code> 退回。</p>
-<pre><code>sudo bash 09-harden.sh          # 建 system 用户、收权限、重写 unit、重启并自检
-sudo bash 09-harden.sh --check  # 只看现状
-sudo bash 09-harden.sh --revert # 用备份的 .orig 覆盖回去并重启</code></pre>
+<pre><code>sudo bash 09-harden.sh           # 建 system 用户、收权限、重写 unit、重启并自检
+sudo bash 09-harden.sh --minimal # 只降权，不加沙箱指令
+sudo bash 09-harden.sh --check   # 只看现状
+sudo bash 09-harden.sh --revert  # 用备份的 .orig 覆盖回去并重启</code></pre>
 <div class="tw">
 <table>
 <thead><tr><th>做了什么</th><th>为什么</th></tr></thead>
@@ -112,6 +113,31 @@ sudo bash 09-harden.sh --revert # 用备份的 .orig 覆盖回去并重启</code
 </tbody>
 </table>
 </div>
+<h3 id="harden-verify">怎么算加固成功</h3>
+<p>脚本的判定不是「服务 active」就算过。sing-box 起来后还要几十到几百毫秒才绑定端口，只看 unit 状态会把「还在绑定」误判成失败，因此它会等端口：服务 active 且 <code>VLESS_PORT</code> 在监听，启用 Hy2 时再要求 <code>HY2_PORT/udp</code> 在监听，最多等 20 秒。任一条件不满足就回滚。</p>
+<pre><code>sudo bash 09-harden.sh --check</code></pre>
+<p>关键三行：<code>生效 User</code> 应为 <code>sing-box</code>、<code>StateDirectory</code> 应为 <code>sing-box</code>、<code>沙箱</code> 应为 <code>完整</code>。另有两行用来排除干扰：<code>FragmentPath</code> 与 <code>DropInPaths</code>，后者不为空说明有 drop-in 覆盖了单元。</p>
+<div class="note"><b>排障时先对齐时间。</b><code>journalctl -u sing-box -n 30</code> 会把历史失败一起打出来，容易把几小时前的 <code>FATAL chdir</code> 当成这次的错误。用 <code>journalctl -u sing-box --since "10 min ago" --no-pager</code>，或者按脚本打印的调试信息为准。</div>
+
+<h3 id="harden-fail">沙箱下起不来时怎么定位</h3>
+<p>脚本会在重启后自检，失败自动回滚到 <code>.orig</code>，原服务照旧运行。原因看 <code>journal</code> 里的 <code>status=</code>：</p>
+<pre><code>journalctl -u sing-box -n 50 --no-pager</code></pre>
+<div class="tw">
+<table>
+<thead><tr><th><code>status=</code></th><th>含义</th><th>先删哪一组</th></tr></thead>
+<tbody>
+<tr><td><code>226/NAMESPACE</code></td><td>某项命名空间或文件系统隔离加不上</td><td>先去掉 <code>ProtectSystem=strict</code>、<code>ProtectHome</code>、<code>PrivateTmp</code>，逐条加回</td></tr>
+<tr><td><code>203/EXEC</code></td><td>执行阶段就被拒：二进制路径、权限或能力不够</td><td>先跑 <code>--minimal</code>，确认没有 <code>User=</code> 与能力集的问题</td></tr>
+<tr><td>降权后 <code>chdir … permission denied</code></td><td><code>/var/lib/sing-box</code> 还是 <code>root:root 700</code>，<code>sing-box</code> 用户进不去</td><td><code>ls -ld /var/lib/sing-box</code> 应显示 <code>sing-box sing-box</code>；脚本已显式 <code>chown</code>，并用 <code>StateDirectory</code> 让 systemd 兜底</td></tr>
+<tr><td>回滚后仍 <code>chdir … permission denied</code></td><td>原单元以 root 运行，但能力集里没有 <code>CAP_DAC_OVERRIDE</code>，root 不绕过文件权限；目录属主是 <code>sing-box</code>，root 成了「其他人」，<code>750</code> 的 <code>o</code> 位没有 <code>x</code></td><td><code>chown -R root:root /var/lib/sing-box &amp;&amp; chmod 700 /var/lib/sing-box</code>；<code>09-harden.sh --revert</code> 与自动回滚都已包含这一步</td></tr>
+<tr><td><code>1</code> 且日志有 <code>permission denied</code></td><td>配置、证书或运行目录读不到</td><td><code>ls -l /etc/sing-box</code> 看是否 <code>root:sing-box</code>、目录 750、文件 640</td></tr>
+<tr><td><code>1</code> 且日志有 <code>operation not permitted</code></td><td>系统调用被 <code>SystemCallFilter</code> 拦下</td><td>去掉 <code>SystemCallFilter</code> 与 <code>SystemCallErrorNumber</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>二分顺序：先 <code>--minimal</code> 确认降权本身没问题，再加回文件系统组，最后加进程组。也可以用 <code>sudo bash 99-selfcheck.sh</code>：它对每组属性做一次带真实二进制的试验，直接指出是哪一组挡住启动；<code>--fix-dac</code> 按生效用户修正目录属主，<code>--recover</code> 退回原单元。加回时一次只放一组，每轮都看 <code>systemctl is-active</code> 与 <code>ss -tlnp</code>。</p>
+<div class="note"><b>只看日志用 <code>--no-pager</code>。</b>在极简终端里直接跑 <code>journalctl</code> 会进分页器并提示 <code>WARNING: terminal is not fully functional</code>，那不是服务报错。</div>
+
 <div class="bad"><b>改完会重启 sing-box。</b>脚本重启后验证「服务 active + <code>VLESS_PORT</code> 在监听 + 启用 Hy2 时 <code>HY2_PORT/udp</code> 在监听」，任一不满足就自动回滚到原单元。若在沙箱下起不来，多半是某个 <code>Protect*</code> 或 <code>SystemCallFilter</code> 挡了 TUN 与 netlink：删掉对应一行再跑。</div>
 <div class="note">原单元备份在 <code>/etc/systemd/system/sing-box.service.orig</code>，只在首次加固时写一次，重复执行不会覆盖它。用 <code>10-install-singbox.sh</code> 重装 sing-box 会把 unit 覆盖回未加固版本，重装后需要再跑一次本脚本。</div>
 
