@@ -12,14 +12,21 @@ for v in SERVER_IP VLESS_PORT REALITY_DEST; do
   [[ -n "${!v:-}" ]] || die "deploy.env 缺少 ${v}，重跑 20-secrets.sh 或补一行 ${v}="
 done
 
-ok=0; bad=0
+ok=0
+      bad=0
 chk() { # chk "名称" "命令" "期望片段"
   local name="$1" out="$2" want="${3:-}"
   if [[ -n "${want}" ]]; then
-    if printf '%s' "${out}" | grep -q -- "${want}"; then printf '  \033[32m✓\033[0m %s\n' "${name}"; ok=$((ok+1))
-    else printf '  \033[31m✗\033[0m %s → %s\n' "${name}" "$(printf '%s' "${out}" | head -1)"; bad=$((bad+1)); fi
+    if printf '%s' "${out}" | grep -q -- "${want}"; then
+                                                         printf '  \033[32m✓\033[0m %s\n' "${name}"
+                                                                                                       ok=$((ok + 1))
+    else
+         printf '  \033[31m✗\033[0m %s → %s\n' "${name}" "$(printf '%s' "${out}" | head -1)"
+                                                                                                  bad=$((bad + 1))
+    fi
   else
-    printf '  \033[32m✓\033[0m %s → %s\n' "${name}" "${out}"; ok=$((ok+1))
+    printf '  \033[32m✓\033[0m %s → %s\n' "${name}" "${out}"
+                                                                  ok=$((ok + 1))
   fi
 }
 
@@ -47,7 +54,7 @@ fi
 noise_report() {
   local total ips
   total="$(log_tail 2000 | grep -c 'REALITY: processed invalid connection' || true)"
-  case "${total}" in ''|*[!0-9]*) total=0 ;; esac
+  case "${total}" in '' | *[!0-9]*) total=0 ;; esac
   [[ "${total}" -gt 0 ]] || return 0
   printf '  \033[36m·\033[0m 最近 2000 行日志里 REALITY 认证失败 %s 次（扫描器噪声，已转发到伪装站点）\n' "${total}"
   ips="$(log_tail 2000 | grep 'REALITY: processed invalid connection' \
@@ -75,7 +82,7 @@ chk "证书链可信" "$(printf '%s' "${tls}" | grep -o 'Verify return code: 0 (
 if [[ "${ENABLE_HY2:-0}" == "1" ]]; then
   printf '== 5. Hysteria2 证书 ==\n'
   end="$(timeout 5 openssl x509 -in "${DEPLOY_DIR}/cert.pem" -noout -enddate 2>/dev/null | cut -d= -f2)"
-  days=$(( ( $(date -d "${end}" +%s) - $(date +%s) ) / 86400 ))
+  days=$((($(  date -d "${end}" +%s) - $(date +%s)) / 86400))
   chk "证书有效期（剩余 ${days} 天）" "$([[ "${days}" -gt 20 ]] && printf ok || printf soon)"
 fi
 

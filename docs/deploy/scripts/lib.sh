@@ -16,7 +16,10 @@ TPL_DIR="${SELF_DIR}/templates"
 
 log()  { printf '\033[32m[+]\033[0m %s\n' "$*"; }
 warn() { printf '\033[33m[!]\033[0m %s\n' "$*" >&2; }
-die()  { printf '\033[31m[x]\033[0m %s\n' "$*" >&2; exit 1; }
+die()  {
+         printf '\033[31m[x]\033[0m %s\n' "$*" >&2
+                                                    exit 1
+}
 
 need_root() {
   [[ "${SKIP_ROOT:-0}" == "1" ]] && return 0
@@ -80,7 +83,7 @@ inject_block() {
   awk -v ph="${ph}" -v frag="${frag}" '
     index($0, ph) { while ((getline line < frag) > 0) print line; close(frag); next }
     { print }
-  ' "${f}" > "${f}.tmp" && mv "${f}.tmp" "${f}"
+  ' "${f}" >"${f}.tmp"  && mv "${f}.tmp" "${f}"
 }
 
 # 用逗号拼接多个 JSON 片段
@@ -114,7 +117,7 @@ rand_pass() { openssl rand -base64 32 | tr -dc 'A-Za-z0-9' | cut -c1-"${1:-20}";
 # 一台设备一个凭据，同时当 VLESS 的 uuid 和 Hysteria2 的 password 用——
 # 这样「吊销一台」就是删一行，两条入口同时失效，不会漏。
 # 代价是同一个值出现在两个协议里（个人自用可接受，换来的是吊销的原子性）。
-valid_device_name() { case "${1:-}" in "" | *[!A-Za-z0-9._-]*) return 1 ;; *) return 0 ;; esac; }
+valid_device_name() { case "${1:-}" in "" | *[!A-Za-z0-9._-]*) return 1 ;; *) return 0 ;; esac  }
 
 device_rows() {
   [[ -f "${DEVICES_LIST}" ]] || return 0
@@ -125,7 +128,10 @@ device_rows() {
 device_get() {
   local n c p
   while read -r n c p; do
-    if [[ "${n}" == "$1" ]]; then printf '%s %s\n' "${c}" "${p:-desktop}"; return 0; fi
+    if [[ "${n}" == "$1" ]]; then
+                                  printf '%s %s\n' "${c}" "${p:-desktop}"
+                                                                           return 0
+    fi
   done < <(device_rows)
   return 1
 }

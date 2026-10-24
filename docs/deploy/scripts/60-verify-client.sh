@@ -46,14 +46,25 @@ fi
 SERVER_IP="${SERVER_IP:-}"
 VLESS_PORT="${VLESS_PORT:-443}"
 
-PASS=0; FAIL=0; SKIP=0
+PASS=0
+        FAIL=0
+                SKIP=0
 
 say()  { printf '\n\033[1m%s\033[0m\n' "$*"; }
-ok()   { printf '  \033[32m✓\033[0m %s\n' "$*"; PASS=$((PASS+1)); }
-no()   { printf '  \033[31m✗\033[0m %s\n' "$*"; FAIL=$((FAIL+1)); }
-note() { printf '  \033[36m·\033[0m %s\n' "$*"; SKIP=$((SKIP+1)); }
+ok()   {
+         printf '  \033[32m✓\033[0m %s\n' "$*"
+                                                  PASS=$((PASS + 1))
+}
+no()   {
+         printf '  \033[31m✗\033[0m %s\n' "$*"
+                                                  FAIL=$((FAIL + 1))
+}
+note() {
+         printf '  \033[36m·\033[0m %s\n' "$*"
+                                                 SKIP=$((SKIP + 1))
+}
 # 只接受数字与小数点，防止把 HTML 之类的东西喂给 printf/awk
-num()  { case "${1:-}" in ''|*[!0-9.]*) printf 0 ;; *) printf '%s' "$1" ;; esac; }
+num()  { case "${1:-}" in '' | *[!0-9.]*) printf 0 ;; *) printf '%s' "$1" ;; esac }
 
 # 同一个 URL 请求两次：第 1 次冷启动，第 2 次复用连接。
 # 注意 -o 是按位置的：两个 URL 就要两个 -o，否则第二个响应正文会打到 stdout。
@@ -116,12 +127,12 @@ derive_hy2_config() {
 emit_hy2_only() {
   need_cmd jq
   [[ -f "${CONFIG}" ]] || die "CONFIG 指向的客户端配置不存在：${CONFIG}"
-  jq -e --arg t "${HY2_TAG}" 'any(.outbounds[]; .tag == $t)' "${CONFIG}" >/dev/null 2>&1 ||
-    die "${CONFIG} 里没有出站 ${HY2_TAG}，这份配置没启用 Hysteria2"
+  jq -e --arg t "${HY2_TAG}" 'any(.outbounds[]; .tag == $t)' "${CONFIG}" >/dev/null 2>&1 \
+                                                                                         || die "${CONFIG} 里没有出站 ${HY2_TAG}，这份配置没启用 Hysteria2"
   local out="${HY2_OUT:-hy2-only.json}"
   derive_hy2_config "${CONFIG}" "${out}" keep
-  jq -e '.route.final and ([.outbounds[].tag] | unique | length) == 2' "${out}" >/dev/null ||
-    die "派生结果校验失败：${out}"
+  jq -e '.route.final and ([.outbounds[].tag] | unique | length) == 2' "${out}" >/dev/null \
+                                                                                           || die "派生结果校验失败：${out}"
   printf '  \033[32m✓\033[0m 已生成只走 %s 的配置：%s\n' "${HY2_TAG}" "${out}"
   printf '  \033[36m·\033[0m 出站：%s；入站原样保留，导入图形客户端即用它自己的 TUN\n' \
     "$(jq -c '[.outbounds[].tag]' "${out}")"
@@ -138,7 +149,10 @@ EOF
 }
 
 cleanup_hy2() {
-  [[ -n "${SB_PID:-}" ]] && { kill "${SB_PID}" 2>/dev/null || true; wait "${SB_PID}" 2>/dev/null || true; }
+  [[ -n "${SB_PID:-}" ]] && {
+                              kill "${SB_PID}" 2>/dev/null || true
+                                                                    wait "${SB_PID}" 2>/dev/null || true
+  }
   cleanup_tmp_dirs
   return 0
 }
@@ -153,8 +167,8 @@ start_hy2_only() {
           PROXY=socks5h://127.0.0.1:<端口> SERVER_IP=<服务器IP> bash $0"
   fi
   [[ -f "${CONFIG}" ]] || die "CONFIG 指向的客户端配置不存在：${CONFIG}"
-  jq -e --arg t "${HY2_TAG}" 'any(.outbounds[]; .tag == $t)' "${CONFIG}" >/dev/null 2>&1 ||
-    die "${CONFIG} 里没有出站 ${HY2_TAG}，这份配置没启用 Hysteria2"
+  jq -e --arg t "${HY2_TAG}" 'any(.outbounds[]; .tag == $t)' "${CONFIG}" >/dev/null 2>&1 \
+                                                                                         || die "${CONFIG} 里没有出站 ${HY2_TAG}，这份配置没启用 Hysteria2"
   if port_open "${HY2_PROBE_PORT}"; then
     die "127.0.0.1:${HY2_PROBE_PORT} 已被占用，换端口：HY2_PROBE_PORT=2082 bash $0 ..."
   fi
@@ -175,7 +189,10 @@ start_hy2_only() {
   # 只探测一次就记结果：反复 connect 会打扰刚起来的监听端
   local _wait=0 _up=0
   while [[ "${_wait}" -lt 40 ]]; do
-    if port_open "${HY2_PROBE_PORT}"; then _up=1; break; fi
+    if port_open "${HY2_PROBE_PORT}"; then
+                                           _up=1
+                                                  break
+    fi
     kill -0 "${SB_PID}" 2>/dev/null || break
     sleep 0.25
     _wait=$((_wait + 1))
@@ -228,8 +245,10 @@ for host in https://www.baidu.com https://www.qq.com; do
   p="$(curl --proxy "${PROXY}" -sS -o /dev/null --max-time 12 -w '%{http_code} %{time_starttransfer}' "${host}" 2>/dev/null || true)"
   read -r dcode dtfb <<<"${d}"
   read -r pcode ptfb <<<"${p}"
-  dcode="${dcode:-000}"; pcode="${pcode:-000}"
-  dtfb="$(num "${dtfb}")"; ptfb="$(num "${ptfb}")"
+  dcode="${dcode:-000}"
+                         pcode="${pcode:-000}"
+  dtfb="$(num "${dtfb}")"
+                           ptfb="$(num "${ptfb}")"
   if [[ "${pcode}" == "000" ]]; then
     no "${host} 经代理不可达（代理自身能通的话，多半是「直连出口」解析失败，见下方 DNS 提示）"
   elif [[ "${dcode}" != "000" ]] && awk -v t="${dtfb}" 'BEGIN{exit !(t>0)}'; then
@@ -260,8 +279,12 @@ for host in https://www.google.com https://www.youtube.com; do
   read -r c_code c_dns c_local c_tls c_ttfb c_total <<<"${cold}"
   w_ttfb="$(printf '%s\n' "${warm}" | awk '{print $5}')"
   c_code="${c_code:-000}"
-  c_dns="$(num "${c_dns}")"; c_local="$(num "${c_local}")"; c_tls="$(num "${c_tls}")"
-  c_ttfb="$(num "${c_ttfb}")"; c_total="$(num "${c_total}")"; w_ttfb="$(num "${w_ttfb}")"
+  c_dns="$(num "${c_dns}")"
+                             c_local="$(num "${c_local}")"
+                                                            c_tls="$(num "${c_tls}")"
+  c_ttfb="$(num "${c_ttfb}")"
+                               c_total="$(num "${c_total}")"
+                                                              w_ttfb="$(num "${w_ttfb}")"
   if [[ "${c_code}" == "000" ]] || [[ "${c_ttfb}" == "0" ]]; then
     no "${host} 请求失败（连不上或 TLS 未完成）"
     continue
@@ -303,18 +326,22 @@ if [[ "${code}" == "200" ]]; then ok "youtube.com 200"; else no "youtube.com 返
 
 say "5. 到服务器的握手质量（客户端 → VPS）"
 # Windows 上的 mtr/ping 可能 "exit 0 但只打一行报错"，所以只能看输出里有没有真实数据
-lat_ok=0; try_out=""
+lat_ok=0
+          try_out=""
 if command -v mtr >/dev/null 2>&1; then
   try_out="$(mtr -rwzc 20 -P "${VLESS_PORT:-443}" "${SERVER_IP}" 2>&1 || true)"
   if printf '%s' "${try_out}" | grep -q 'Loss%'; then
-    printf '%s\n' "${try_out}" | tail -3 | sed 's/^/  /'; lat_ok=1
+    printf '%s\n' "${try_out}" | tail -3 | sed 's/^/  /'
+                                                          lat_ok=1
   fi
 fi
 if [[ "${lat_ok}" == 0 ]]; then
   for flag in -c -n; do   # -c 用于 GNU/macOS，-n 用于 Windows ping
     try_out="$(ping "${flag}" 10 "${SERVER_IP}" 2>&1 || true)"
     if printf '%s' "${try_out}" | grep -qiE 'ttl=|rtt'; then
-      printf '%s\n' "${try_out}" | tail -2 | sed 's/^/  /'; lat_ok=1; break
+      printf '%s\n' "${try_out}" | tail -2 | sed 's/^/  /'
+                                                            lat_ok=1
+                                                                      break
     fi
   done
 fi

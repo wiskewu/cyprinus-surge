@@ -37,7 +37,8 @@ server_run() {
   mktemp_dir T
 
   # users 数组按设备名单渲染：一份设备名单 = 一组凭据，删一行就吊销那台
-  local rows; rows="$(device_rows)"
+  local rows
+              rows="$(device_rows)"
   [[ -n "${rows}" ]] || die "设备名单为空：${DEVICES_LIST}"
 
   render_vars "${TPL_DIR}/in-reality.json.tmpl" "${T}/in1.json"
@@ -74,7 +75,10 @@ server_run() {
   systemctl enable sing-box >/dev/null 2>&1 || true
   systemctl restart sing-box
   sleep 1
-  systemctl is-active --quiet sing-box || { journalctl -u sing-box -n 30 --no-pager; die "sing-box 没起来"; }
+  systemctl is-active --quiet sing-box || {
+                                            journalctl -u sing-box -n 30 --no-pager
+                                                                                     die "sing-box 没起来"
+  }
   log "服务已启动"
 }
 

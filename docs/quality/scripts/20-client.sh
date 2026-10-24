@@ -30,16 +30,28 @@ EOF
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --keys) shift; KEYS="${1:?--keys 需要参数}" ;;
+    --keys)
+            shift
+                   KEYS="${1:?--keys 需要参数}"
+                                                    ;;
     --keys=*) KEYS="${1#*=}" ;;
-    --name) shift; NAME="${1:?--name 需要参数}" ;;
+    --name)
+            shift
+                   NAME="${1:?--name 需要参数}"
+                                                    ;;
     --name=*) NAME="${1#*=}" ;;
-    --user) shift; SSH_USER="${1:?--user 需要参数}" ;;
+    --user)
+            shift
+                   SSH_USER="${1:?--user 需要参数}"
+                                                        ;;
     --user=*) SSH_USER="${1#*=}" ;;
     --no-ssh) SSH_CONFIG=0 ;;
     --status) MODE=status ;;
     --uninstall) MODE=uninstall ;;
-    -h|--help) usage; exit 0 ;;
+    -h | --help)
+               usage
+                      exit 0
+                             ;;
     *) die "未知参数：$1（--help 看用法）" ;;
   esac
   shift
@@ -55,7 +67,7 @@ strip_block() {  # 从 ~/.ssh/config 里摘掉托管块，并清掉末尾多余�
     $0 == b { skip = 1; next }
     $0 == e { skip = 0; next }
     !skip { print }
-  ' "${SSHCFG}" | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' > "${tmp}" && mv "${tmp}" "${SSHCFG}"
+  ' "${SSHCFG}" | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' >"${tmp}"  && mv "${tmp}" "${SSHCFG}"
 }
 
 if [[ "${MODE}" == status ]]; then
@@ -78,7 +90,10 @@ if [[ "${MODE}" == uninstall ]]; then
   exit 0
 fi
 
-[[ -n "${KEYS}" ]] || { usage; die "--keys 是必填的"; }
+[[ -n "${KEYS}" ]] || {
+                        usage
+                               die "--keys 是必填的"
+}
 
 # ---------------------------------------------------------------- 安装
 
@@ -100,7 +115,10 @@ command -v nc >/dev/null 2>&1 || warn "未找到 nc，ProxyCommand 末段会失�
 # ---------------------------------------------------------------- 渲染 ~/.fwknoprc
 
 load_env "${KEYS}"
-[[ -n "${NAME}" ]] && { valid_name "${NAME}" || die "客户端名不合法：${NAME}"; CLIENT_NAME="${NAME}"; }
+[[ -n "${NAME}" ]] && {
+                        valid_name "${NAME}" || die "客户端名不合法：${NAME}"
+                                                                                       CLIENT_NAME="${NAME}"
+}
 : "${SPA_PORT:=62201}" "${ACCESS_TIMEOUT:=120}"
 # 必须与服务端 stanza 的 HMAC_DIGEST_TYPE 相同，否则密钥对得上也验不过 HMAC
 HMAC_DIGEST="${HMAC_DIGEST_TYPE:-SHA512}"
@@ -180,7 +198,7 @@ umask 077
     printf 'SPA_SERVER        %s\n' "${h#*=}"
     printf 'SPA_SERVER_PORT   %s\n' "${SPA_PORT}"
   done
-} > "${FWKRC}"
+} >"${FWKRC}"
 chmod 600 "${FWKRC}"
 
 # 自检：写完的文件要含每个主机 stanza，且密钥对只有一个冒号
@@ -200,7 +218,10 @@ FIRST_PORT=""
 for _p in ${SSH_PORT}; do
   case "${_p}" in
     22) [[ -n "${FIRST_PORT}" ]] || FIRST_PORT=22 ;;
-    *) FIRST_PORT="${_p}"; break ;;
+    *)
+       FIRST_PORT="${_p}"
+                           break
+                                 ;;
   esac
 done
 [[ -n "${FIRST_PORT}" ]] || FIRST_PORT="${SSH_PORT%% *}"
@@ -209,13 +230,17 @@ done
 
 if [[ "${SSH_CONFIG}" == 1 ]]; then
   log "3/3 写 ${SSHCFG} 托管块"
-  mkdir -p "$(dirname "${SSHCFG}")"; chmod 700 "$(dirname "${SSHCFG}")"
+  mkdir -p "$(dirname "${SSHCFG}")"
+                                     chmod 700 "$(dirname "${SSHCFG}")"
   strip_block
   # 备份摘掉托管块之后的版本：备份里不含我们塞的东西
   [[ -s "${SSHCFG}" ]] && cp -a "${SSHCFG}" "${SSHCFG}.bak"
   {
     # 首次配置时 ~/.ssh/config 可能还不存在；分隔行追加在末尾，否则每重跑一次就多一个空行
-    if [[ -f "${SSHCFG}" ]]; then cat "${SSHCFG}"; printf '\n'; fi
+    if [[ -f "${SSHCFG}" ]]; then
+                                  cat "${SSHCFG}"
+                                                   printf '\n'
+    fi
     printf '%s\n' "${BEGIN}"
     for h in ${HOSTS}; do
       printf 'Host %s\n' "${h%%=*}"
@@ -230,7 +255,7 @@ if [[ "${SSH_CONFIG}" == 1 ]]; then
       printf '  ProxyCommand /bin/sh -c '"'"'fwknop -n %s >/dev/null 2>&1; sleep 2; exec nc %%h %%p'"'"'\n' "${h%%=*}"
     done
     printf '%s\n' "${END}"
-  } > "${SSHCFG}.tmp"
+  } >"${SSHCFG}.tmp"
   mv "${SSHCFG}.tmp" "${SSHCFG}"
   chmod 600 "${SSHCFG}"
 fi

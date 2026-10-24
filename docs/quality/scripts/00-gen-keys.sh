@@ -43,26 +43,51 @@ EOF
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --out) shift; OUT="${1:?--out 需要参数}" ;;
+    --out)
+           shift
+                  OUT="${1:?--out 需要参数}"
+                                                 ;;
     --out=*) OUT="${1#*=}" ;;
-    --hosts) shift; HOSTS="${1:?--hosts 需要参数}" ;;
+    --hosts)
+             shift
+                    HOSTS="${1:?--hosts 需要参数}"
+                                                       ;;
     --hosts=*) HOSTS="${1#*=}" ;;
-    --clients) shift; CLIENTS="${1:?--clients 需要参数}" ;;
+    --clients)
+               shift
+                      CLIENTS="${1:?--clients 需要参数}"
+                                                             ;;
     --clients=*) CLIENTS="${1#*=}" ;;
     --shared) SHARED=1 ;;
-    --split) shift; MODE="split"; SPLIT="${1:?--split 需要参数}" ;;
-    --split=*) MODE="split"; SPLIT="${1#*=}" ;;
-    --clients-dir) shift; CLIENTS_DIR="${1:?--clients-dir 需要参数}" ;;
+    --split)
+             shift
+                    MODE="split"
+                                  SPLIT="${1:?--split 需要参数}"
+                                                                     ;;
+    --split=*)
+               MODE="split"
+                             SPLIT="${1#*=}"
+                                             ;;
+    --clients-dir)
+                   shift
+                          CLIENTS_DIR="${1:?--clients-dir 需要参数}"
+                                                                         ;;
     --clients-dir=*) CLIENTS_DIR="${1#*=}" ;;
     --force) FORCE=1 ;;
-    -h|--help) usage; exit 0 ;;
+    -h | --help)
+               usage
+                      exit 0
+                             ;;
     *) die "未知参数：$1（--help 看用法）" ;;
   esac
   shift
 done
 
 if [[ "${MODE}" == generate ]]; then
-  [[ "${SHARED}" == 1 ]] || [[ -n "${CLIENTS}" ]] || { usage; die "--clients 和 --shared 至少给一个"; }
+  [[ "${SHARED}" == 1 ]] || [[ -n "${CLIENTS}" ]] || {
+                                                       usage
+                                                              die "--clients 和 --shared 至少给一个"
+  }
   [[ "${SHARED}" == 1 ]] && [[ -n "${CLIENTS}" ]] && die "--clients 与 --shared 二选一"
 fi
 CLIENTS_ARG="${CLIENTS}"   # 固定下来：load_env 之后 CLIENTS 会被密钥包里的同名变量覆盖
@@ -102,7 +127,7 @@ write_bundle() {
   # 服务端跑 10-server.sh 时会探测并回写 client.env；这里只保留用户显式指定的值。
   local sshline=""
   [[ -n "${SSH_PORT:-}" ]] && sshline="SSH_PORT=\"${SSH_PORT}\""
-  cat > "$1" <<EOF
+  cat >"$1"  <<EOF
 ${HEADER}
 SPA_PORT=62201
 ${sshline:-# SSH_PORT 由服务端 10-server.sh 探测后写入 client.env}

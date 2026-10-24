@@ -10,9 +10,12 @@ for f in steps/*.sh; do
   id="$(basename "${f}" .sh)"
   STEPS+=("${id#*-}")          # 10-system → system
 done
-[[ "${#STEPS[@]}" -gt 0 ]] || { printf 'steps/ 为空\n' >&2; exit 1; }
+[[ "${#STEPS[@]}" -gt 0 ]] || {
+                                printf 'steps/ 为空\n' >&2
+                                                              exit 1
+}
 
-{  
+{
   printf '%s\n' '#!/usr/bin/env bash'
   printf '%s\n' '# shellcheck disable=SC2034  # 步骤元数据与跨文件变量由间接展开读取'
   printf '%s\n' '# ==========================================================================='
@@ -36,7 +39,10 @@ done
   sed -e '/^# shellcheck shell=bash$/d' -e '/^# shellcheck disable=SC2034/d' onekey/driver.sh
 } >"${OUT}.tmp"
 
-bash -n "${OUT}.tmp" || { printf '生成失败：%s 有语法错误\n' "${OUT}.tmp" >&2; exit 1; }
+bash -n "${OUT}.tmp" || {
+                          printf '生成失败：%s 有语法错误\n' "${OUT}.tmp" >&2
+                                                                                         exit 1
+}
 mv "${OUT}.tmp" "${OUT}"
 chmod +x "${OUT}"
 printf '已生成 %s，%d 行，%d 个步骤：%s\n' "${OUT}" "$(wc -l <"${OUT}")" "${#STEPS[@]}" "${STEPS[*]}"

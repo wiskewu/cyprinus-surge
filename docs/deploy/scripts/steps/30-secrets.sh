@@ -27,15 +27,18 @@ secrets_run() {
   if [[ -z "${NONINTERACTIVE:-}" ]]; then
     printf '\n可直接回车使用方括号里的默认值。\n'
     local _in
-    read -r -p "伪装站点 REALITY_DEST [${REALITY_DEST}]（需支持 TLS1.3+H2）: " _in; REALITY_DEST="${_in:-${REALITY_DEST}}"
-    read -r -p "入口域名 DOMAIN [${DOMAIN:-留空}]（留空则客户端连公网 IP；启用 Hysteria2 时必填）: " _in; DOMAIN="${_in:-${DOMAIN}}"
+    read -r -p "伪装站点 REALITY_DEST [${REALITY_DEST}]（需支持 TLS1.3+H2）: " _in
+                                                                                             REALITY_DEST="${_in:-${REALITY_DEST}}"
+    read -r -p "入口域名 DOMAIN [${DOMAIN:-留空}]（留空则客户端连公网 IP；启用 Hysteria2 时必填）: " _in
+                                                                                                                                 DOMAIN="${_in:-${DOMAIN}}"
     if [[ -n "${DOMAIN}" ]]; then
       read -r -p "启用 Hysteria2？[Y/n]: " _in
-      case "${_in:-y}" in y|Y) ENABLE_HY2=1 ;; *) ENABLE_HY2=0 ;; esac
+      case "${_in:-y}" in y | Y) ENABLE_HY2=1 ;; *) ENABLE_HY2=0 ;; esac
     else
       ENABLE_HY2=0
     fi
-    read -r -p "第一台设备的名字 [main]: " _in; FIRST_DEVICE="${_in:-main}"
+    read -r -p "第一台设备的名字 [main]: " _in
+                                                        FIRST_DEVICE="${_in:-main}"
   else
     FIRST_DEVICE="${FIRST_DEVICE:-main}"
   fi

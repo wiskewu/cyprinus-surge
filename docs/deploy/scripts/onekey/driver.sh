@@ -3,9 +3,15 @@
 # ============================================================================
 # 驱动：由 build-onekey.sh 拼接到 deploy.sh 末尾。不要单独执行本文件。
 # ============================================================================
-OPT_REUSE=0; OPT_OVERWRITE=0; OPT_YES=0; OPT_DRY=0
-OPT_UNINSTALL=0; OPT_REINSTALL=0
-ONLY=""; SKIP=""; INTERACTIVE=1
+OPT_REUSE=0
+             OPT_OVERWRITE=0
+                              OPT_YES=0
+                                         OPT_DRY=0
+OPT_UNINSTALL=0
+                 OPT_REINSTALL=0
+ONLY=""
+         SKIP=""
+                  INTERACTIVE=1
 PURGE=0
 
 usage() {
@@ -37,17 +43,35 @@ parse_args() {
     case "$1" in
       --reuse) OPT_REUSE=1 ;;
       --overwrite) OPT_OVERWRITE=1 ;;
-      --yes) OPT_YES=1; INTERACTIVE=0 ;;
+      --yes)
+             OPT_YES=1
+                        INTERACTIVE=0
+                                      ;;
       --dry-run) OPT_DRY=1 ;;
       --uninstall) OPT_UNINSTALL=1 ;;
       --purge) PURGE=1 ;;
-      --reinstall) OPT_REINSTALL=1; PURGE=1 ;;
-      --status) OPT_DRY=1; OPT_YES=1 ;;
-      --only) shift; ONLY="${1:-}" ;;
+      --reinstall)
+                   OPT_REINSTALL=1
+                                    PURGE=1
+                                            ;;
+      --status)
+                OPT_DRY=1
+                           OPT_YES=1
+                                     ;;
+      --only)
+              shift
+                     ONLY="${1:-}"
+                                   ;;
       --only=*) ONLY="${1#*=}" ;;
-      --skip) shift; SKIP="${1:-}" ;;
+      --skip)
+              shift
+                     SKIP="${1:-}"
+                                   ;;
       --skip=*) SKIP="${1#*=}" ;;
-      -h|--help) usage; exit 0 ;;
+      -h | --help)
+                 usage
+                        exit 0
+                               ;;
       *) die "未知参数：$1（--help 看用法）" ;;
     esac
     shift
@@ -56,14 +80,20 @@ parse_args() {
 
 hy2_enabled() { [[ "${ENABLE_HY2:-0}" == "1" ]] || grep -q '^ENABLE_HY2=1' "${ENVFILE}" 2>/dev/null; }
 
-step_title() { local v="${1}_TITLE"; printf '%s' "${!v:-$1}"; }
-step_optional() { local v="${1}_OPTIONAL"; printf '%s' "${!v:-0}"; }
+step_title() {
+               local v="${1}_TITLE"
+                                     printf '%s' "${!v:-$1}"
+}
+step_optional() {
+                  local v="${1}_OPTIONAL"
+                                           printf '%s' "${!v:-0}"
+}
 step_state() { if "${1}_check" >/dev/null 2>&1; then printf '已配置\n'; else printf '未配置\n'; fi; }
 
 selected() {
   local id="$1"
-  if [[ -n "${ONLY}" ]]; then case ",${ONLY}," in *",${id},"*) ;; *) return 1 ;; esac; fi
-  if [[ -n "${SKIP}" ]]; then case ",${SKIP}," in *",${id},"*) return 1 ;; esac; fi
+  if [[ -n "${ONLY}" ]]; then case ",${ONLY}," in *",${id},"*) ;; *) return 1 ;; esac  fi
+  if [[ -n "${SKIP}" ]]; then case ",${SKIP}," in *",${id},"*) return 1 ;; esac  fi
   return 0
 }
 
@@ -72,7 +102,10 @@ print_plan() {
   printf '%s\n' "--------------------------------------------------------------"
   local id
   for id in "${STEPS[@]}"; do
-    selected "${id}" || { printf '%-10s %-8s %-6s %s（按参数排除）\n' "${id}" "-" "-" "$(step_title "${id}")"; continue; }
+    selected "${id}" || {
+                          printf '%-10s %-8s %-6s %s（按参数排除）\n' "${id}" "-" "-" "$(step_title "${id}")"
+                                                                                                                      continue
+    }
     printf '%-10s %-8s %-6s %s\n' "${id}" "$(step_state "${id}")" "$([ "$(step_optional "${id}")" = 1 ] && printf yes || printf no)" "$(step_title "${id}")"
   done
   printf '%s\n\n' "--------------------------------------------------------------"
@@ -87,8 +120,8 @@ decide() {
   printf '  [%s] 已配置（%s）\n      (r) 复用已存在配置  (o) 覆盖重跑  (s) 跳过   [r] ' "${id}" "$(step_title "${id}")"
   read -r a
   case "${a:-r}" in
-    r|R) return 1 ;;
-    o|O) return 0 ;;
+    r | R) return 1 ;;
+    o | O) return 0 ;;
     *)   return 2 ;;
   esac
 }
@@ -101,7 +134,10 @@ execute() {
     return 0
   fi
   # 子 shell + errexit：单步失败不会带崩整个流程
-  ( set -eo pipefail; "${id}_run" )
+  ( 
+    set -eo pipefail
+                      "${id}_run"
+  )
 }
 
 do_install() {
@@ -114,10 +150,17 @@ do_install() {
       continue
     fi
     if [[ "$(step_state "${id}")" == "已配置" ]]; then
-      decide "${id}"; rc=$?
+      decide "${id}"
+                      rc=$?
       case "${rc}" in
-        1) log "复用 ${id}（不执行）"; continue ;;
-        2) log "跳过 ${id}"; continue ;;
+        1)
+           log "复用 ${id}（不执行）"
+                                              continue
+                                                       ;;
+        2)
+           log "跳过 ${id}"
+                               continue
+                                        ;;
       esac
     fi
     todo+=("${id}")
@@ -130,17 +173,23 @@ do_install() {
   log "将执行：${todo[*]}"
   if [[ "${INTERACTIVE}" == 1 ]] && [[ "${OPT_DRY}" == 0 ]]; then
     printf '确认开始？[Y/n] '
-    local a; read -r a
-    case "${a:-y}" in y|Y) ;; *) log "已取消"; exit 1 ;; esac
+    local a
+             read -r a
+    case "${a:-y}" in y | Y) ;; *)
+                                 log "已取消"
+                                                  exit 1
+                                                         ;;
+    esac
   fi
   for id in "${todo[@]}"; do
-    if execute "${id}"; then run_ok=$((run_ok+1)); else
-      run_fail=$((run_fail+1))
+    if execute "${id}"; then run_ok=$((run_ok + 1)); else
+      run_fail=$((run_fail + 1))
       warn "步骤 ${id} 失败"
       if [[ "${INTERACTIVE}" == 1 ]]; then
         printf '继续后面的步骤？[y/N] '
-        local a; read -r a
-        case "${a:-n}" in y|Y) ;; *) die "中止：${id} 失败" ;; esac
+        local a
+                 read -r a
+        case "${a:-n}" in y | Y) ;; *) die "中止：${id} 失败" ;; esac
       else
         die "中止：${id} 失败"
       fi
@@ -161,14 +210,22 @@ do_uninstall() {
     printf '\n将卸载以下内容：\n  - sing-box 服务与二进制、systemd 单元\n  - ufw 里本项目加的 443/8443-8447 规则、sysctl 优化\n'
     [[ "${PURGE}" == 1 ]] && printf '  - deploy.env / client.env / 证书（--purge）\n'
     printf '确认？[y/N] '
-    local a; read -r a
-    case "${a:-n}" in y|Y) ;; *) log "已取消"; return 0 ;; esac
+    local a
+             read -r a
+    case "${a:-n}" in y | Y) ;; *)
+                                 log "已取消"
+                                                  return 0
+                                                           ;;
+    esac
   fi
-  for ((i=${#STEPS[@]}-1; i>=0; i--)); do
+  for ((i = ${#STEPS[@]} - 1; i >= 0; i--)); do
     id="${STEPS[i]}"
     if "${id}_check" >/dev/null 2>&1; then
       log "卸载 ${id}"
-      ( set -eo pipefail; "${id}_uninstall" ) || warn "${id} 卸载不完整（可手工检查）"
+      ( 
+        set -eo pipefail
+                          "${id}_uninstall"
+      )                                       || warn "${id} 卸载不完整（可手工检查）"
     fi
   done
   if [[ "${PURGE}" == 1 ]]; then
@@ -195,7 +252,9 @@ main() {
   if [[ "${OPT_REINSTALL}" == 1 ]]; then
     OPT_UNINSTALL=1
     do_uninstall
-    OPT_UNINSTALL=0; OPT_OVERWRITE=1; OPT_REUSE=0
+    OPT_UNINSTALL=0
+                     OPT_OVERWRITE=1
+                                      OPT_REUSE=0
     log "重新安装：全量覆盖"
   fi
 

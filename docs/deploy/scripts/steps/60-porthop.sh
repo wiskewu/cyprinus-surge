@@ -20,7 +20,10 @@ porthop_check() {
 
 porthop_run() {
   load_env "${ENVFILE}" 2>/dev/null || true
-  [[ "${ENABLE_HY2:-0}" == "1" ]] || { warn "ENABLE_HY2=0，跳过端口跳跃"; return 0; }
+  [[ "${ENABLE_HY2:-0}" == "1" ]] || {
+                                       warn "ENABLE_HY2=0，跳过端口跳跃"
+                                                                                 return 0
+  }
   porthop_rule_args || die "识别不到默认网卡"
   if iptables -t nat -C PREROUTING -i "${PORTHOP_IFACE}" -p udp --dport "${PORTHOP_START}:${PORTHOP_END}" -j REDIRECT --to-ports "${PORTHOP_START}" 2>/dev/null; then
     log "规则已存在"

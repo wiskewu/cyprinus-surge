@@ -33,8 +33,8 @@ hy2_run() {
   ACME="${HOME}/.acme.sh/acme.sh"
   export CF_Token="${CF_TOKEN}"
   log "用 DNS-01 签发 ${DOMAIN}"
-  "${ACME}" --issue --dns dns_cf -d "${DOMAIN}" --server letsencrypt --keylength ec-256 || \
-    warn "签发失败：确认 A 记录已生效（Cloudflare 需灰云）后重跑"
+  "${ACME}" --issue --dns dns_cf -d "${DOMAIN}" --server letsencrypt --keylength ec-256 \
+                                                                                        || warn "签发失败：确认 A 记录已生效（Cloudflare 需灰云）后重跑"
   "${ACME}" --install-cert -d "${DOMAIN}" --ecc \
     --fullchain-file "${DEPLOY_DIR}/cert.pem" \
     --key-file "${DEPLOY_DIR}/key.pem" \

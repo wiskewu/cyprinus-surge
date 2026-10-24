@@ -19,6 +19,19 @@ else
 fi
 printf 'shellcheck 通过：%d 个文件\n' "${#files[@]}"
 
+# 布局统一：两空格缩进、case 分支缩进、二元运算符前置、保留 case 对齐。
+# 与仓库既有风格一致；改完跑 shfmt -i 2 -ci -bn -kp -w <文件>。
+if command -v shfmt >/dev/null 2>&1; then
+  unformatted="$(shfmt -i 2 -ci -bn -kp -l "${files[@]}")"
+  if [[ -n "${unformatted}" ]]; then
+    printf '以下脚本格式与 shfmt 不一致：\n%s\n跑 shfmt -i 2 -ci -bn -kp -w 修\n' "${unformatted}" >&2
+    exit 1
+  fi
+  printf 'shfmt 格式检查通过：%d 个文件\n' "${#files[@]}"
+else
+  printf '未找到 shfmt，跳过格式检查（brew install shfmt）\n'
+fi
+
 # bash 3.2 按字节扫变量名："$code，" 会被当成变量 code\357。
 if command -v python3 >/dev/null 2>&1; then
   python3 .build/check-var-braces.py "${files[@]}"

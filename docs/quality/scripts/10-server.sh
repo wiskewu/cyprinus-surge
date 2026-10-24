@@ -31,13 +31,22 @@ EOF
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --keys) shift; KEYS="${1:?--keys 需要参数}" ;;
+    --keys)
+            shift
+                   KEYS="${1:?--keys 需要参数}"
+                                                    ;;
     --keys=*) KEYS="${1#*=}" ;;
     --close-ssh) CLOSE_SSH=1 ;;
     --status) MODE=status ;;
     --uninstall) MODE=uninstall ;;
-    --purge) MODE=uninstall; PURGE=1 ;;
-    -h|--help) usage; exit 0 ;;
+    --purge)
+             MODE=uninstall
+                             PURGE=1
+                                     ;;
+    -h | --help)
+               usage
+                      exit 0
+                             ;;
     *) die "未知参数：$1（--help 看用法）" ;;
   esac
   shift
@@ -63,14 +72,23 @@ show_status() {
   fi
 }
 
-if [[ "${MODE}" == status ]]; then show_status; exit 0; fi
+if [[ "${MODE}" == status ]]; then
+                                   show_status
+                                                exit 0
+fi
 
 # ---------------------------------------------------------------- 卸载
 
 if [[ "${MODE}" == uninstall ]]; then
   systemctl disable --now fwknop-server >/dev/null 2>&1 || true
-  [[ -f "${FWD_ORIG}" ]] && { mv "${FWD_ORIG}" "${FWD_CONF}"; log "已还原 fwknopd.conf"; }
-  [[ "${PURGE}" == 1 ]] && { rm -f "${ACCESS_CONF}" "${KEYS}"; log "已删除 access.conf 与密钥包"; }
+  [[ -f "${FWD_ORIG}" ]] && {
+                              mv "${FWD_ORIG}" "${FWD_CONF}"
+                                                              log "已还原 fwknopd.conf"
+  }
+  [[ "${PURGE}" == 1 ]] && {
+                             rm -f "${ACCESS_CONF}" "${KEYS}"
+                                                               log "已删除 access.conf 与密钥包"
+  }
   if command -v ufw >/dev/null 2>&1; then
     ufw --force delete allow 62201/udp >/dev/null 2>&1 || true
     # 恢复时同样按探测到的端口，不用 22（脚本顶层，不能用 local）
@@ -113,7 +131,7 @@ IFACE="$(ip -4 route show default 2>/dev/null | awk '{print $5; exit}')"
 log "2/5 渲染 ${FWD_CONF}（网卡 ${IFACE}，SPA 端口 ${SPA_PORT}）"
 mkdir -p "${FWK_DIR}"
 [[ -f "${FWD_ORIG}" ]] || { [[ -f "${FWD_CONF}" ]] && cp -a "${FWD_CONF}" "${FWD_ORIG}"; }
-cat > "${FWD_CONF}" <<EOF
+cat >"${FWD_CONF}"  <<EOF
 # 由 10-server.sh 生成，勿手改。包自带版本备份在 ${FWD_ORIG}
 PCAP_INTF                ${IFACE};
 PCAP_FILTER              udp port ${SPA_PORT};
@@ -159,22 +177,22 @@ render_stanza() {
   printf '# 每个 stanza 一台客户端：删掉一行就是吊销那台设备。\n\n'
   n=0
   if [[ -n "${SHARED:-}" ]]; then
-    n=$((n+1))
+    n=$((n + 1))
     printf '# --- shared（共用密钥组）---\n'
     render_stanza "${SHARED}"
   fi
   for entry in ${CLIENTS:-}; do
-    n=$((n+1))
+    n=$((n + 1))
     printf '# --- %s ---\n' "${entry%%=*}"
     render_stanza "${entry#*=}"
   done
   [[ "${n}" -gt 0 ]] || die "密钥包里没有 SHARED 也没有 CLIENTS"
-} > "${ACCESS_CONF}"
+} >"${ACCESS_CONF}"
 chmod 600 "${ACCESS_CONF}"
 
 # 自检：渲染出来的 stanza 数必须等于密钥包里的密钥组数
 want=$(host_count "${CLIENTS:-}")
-[[ -n "${SHARED:-}" ]] && want=$((want+1))
+[[ -n "${SHARED:-}" ]] && want=$((want + 1))
 got="$(grep -c '^KEY_BASE64 ' "${ACCESS_CONF}" || true)"
 [[ "${got}" == "${want}" ]] || die "自检失败：access.conf 渲染出 ${got} 个 stanza，期望 ${want} 个"
 

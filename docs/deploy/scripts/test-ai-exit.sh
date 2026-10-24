@@ -21,7 +21,8 @@ need_cmd curl
 TARGET_URL="${1:-https://chatgpt.com/cdn-cgi/trace}"
 MIXED_PORT="${MIXED_PORT:-2081}"      # 临时客户端入站
 SOCKS_PORT="${SOCKS_PORT:-1081}"      # 临时「落地机」
-SOCKS_USER="selftest" ; SOCKS_PASS="selftest"
+SOCKS_USER="selftest"
+                        SOCKS_PASS="selftest"
 mktemp_dir TMP
 PIDS=""
 
@@ -60,21 +61,27 @@ PIDS="${PIDS} $!"
 
 log "2/5 渲染 AI_MODE=dedicated 的客户端配置（只出 mixed，不起 TUN）"
 OUT="${TMP}/client.json" \
-NO_TUN=1 CLIENT_MIXED=1 \
-AI_MODE=dedicated \
-AI_SOCKS_SERVER=127.0.0.1 \
-AI_SOCKS_PORT="${SOCKS_PORT}" \
-AI_SOCKS_USER="${SOCKS_USER}" \
-AI_SOCKS_PASS="${SOCKS_PASS}" \
+  NO_TUN=1 CLIENT_MIXED=1 \
+  AI_MODE=dedicated \
+  AI_SOCKS_SERVER=127.0.0.1 \
+  AI_SOCKS_PORT="${SOCKS_PORT}" \
+  AI_SOCKS_USER="${SOCKS_USER}" \
+  AI_SOCKS_PASS="${SOCKS_PASS}" \
   bash "${SELF_DIR}/50-render-client.sh" "${CLIENT_ENV}" >"${TMP}/render.log" 2>&1 \
-  || { cat "${TMP}/render.log" >&2; die "渲染失败"; }
+  || {
+       cat "${TMP}/render.log" >&2
+                                    die "渲染失败"
+  }
 grep -q 'ok' "${TMP}/render.log" || log "（渲染过程未打印 sing-box 校验结果，继续）"
 
 log "3/5 起临时客户端实例"
 "${SB_BIN}" run -c "${TMP}/client.json" >"${TMP}/client.log" 2>&1 &
 PIDS="${PIDS} $!"
 sleep 1
-grep -qi 'fatal\|error' "${TMP}/client.log" && { sed -n '1,20p' "${TMP}/client.log" >&2; die "客户端实例起不来"; }
+grep -qi 'fatal\|error' "${TMP}/client.log" && {
+                                                 sed -n '1,20p' "${TMP}/client.log" >&2
+                                                                                         die "客户端实例起不来"
+}
 
 log "4/5 通过 mixed 端口请求 ${TARGET_URL}"
 set +e

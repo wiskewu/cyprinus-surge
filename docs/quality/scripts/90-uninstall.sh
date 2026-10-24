@@ -47,14 +47,29 @@ while [[ $# -gt 0 ]]; do
     --check | --status) CHECK=1 ;;
     --purge) PURGE=1 ;;
     -y | --yes) ASSUME_YES=1 ;;
-    --keys) shift; KEYS="${1:?--keys 需要参数}" ;;
+    --keys)
+            shift
+                   KEYS="${1:?--keys 需要参数}"
+                                                    ;;
     --keys=*) KEYS="${1#*=}" ;;
-    --password) shift; PW_ACTION="${1:?--password 需要参数（yes|no）}" ;;
+    --password)
+                shift
+                       PW_ACTION="${1:?--password 需要参数（yes|no）}"
+                                                                             ;;
     --password=*) PW_ACTION="${1#*=}" ;;
-    --root-login) shift; ROOT_LOGIN="${1:?--root-login 需要参数}" ;;
+    --root-login)
+                  shift
+                         ROOT_LOGIN="${1:?--root-login 需要参数}"
+                                                                      ;;
     --root-login=*) ROOT_LOGIN="${1#*=}" ;;
-    -h | --help) usage; exit 0 ;;
-    *) usage; die "未知参数：$1" ;;
+    -h | --help)
+                 usage
+                        exit 0
+                               ;;
+    *)
+       usage
+              die "未知参数：$1"
+                                      ;;
   esac
   shift
 done
@@ -100,7 +115,10 @@ run_client() {
   warn "服务端的 access.conf 与密钥包不在这台机器上，要删得去服务器跑 --purge"
 }
 
-[[ "${MODE}" == client ]] && { run_client; exit 0; }
+[[ "${MODE}" == client ]] && {
+                               run_client
+                                           exit 0
+}
 
 # ---------------------------------------------------------------- 服务端
 
@@ -184,7 +202,10 @@ fi
 if [[ "${ASSUME_YES}" == 0 ]]; then
   [[ -t 0 ]] || die "非交互运行要加 -y 确认拆除"
   ask "确认拆除 SPA？公网 SSH 会重新对全网开放 [y/N]" n
-  [[ "${ASK_REPLY}" == y ]] || { log "已取消，未做改动"; exit 0; }
+  [[ "${ASK_REPLY}" == y ]] || {
+                                 log "已取消，未做改动"
+                                                                 exit 0
+  }
 fi
 
 # 1) 先开公网 SSH —— 不成功就绝不继续拆
@@ -236,10 +257,16 @@ first_file_with_key() {
   if sshd_uses_dropin; then
     for f in "${SSHD_DROPIN_DIR}"/*.conf; do
       [[ -f "${f}" ]] || continue
-      grep -qiE "^[[:space:]]*${key}[[:space:]]" "${f}" && { printf '%s\n' "${f}"; return 0; }
+      grep -qiE "^[[:space:]]*${key}[[:space:]]" "${f}" && {
+                                                             printf '%s\n' "${f}"
+                                                                                   return 0
+      }
     done
   fi
-  grep -qiE "^[[:space:]]*${key}[[:space:]]" "${SSHD_MAIN}" && { printf '%s\n' "${SSHD_MAIN}"; return 0; }
+  grep -qiE "^[[:space:]]*${key}[[:space:]]" "${SSHD_MAIN}" && {
+                                                                 printf '%s\n' "${SSHD_MAIN}"
+                                                                                               return 0
+  }
   return 1
 }
 
@@ -270,16 +297,16 @@ if command -v sshd >/dev/null 2>&1 && [[ -r "${SSHD_MAIN}" ]]; then
   [[ "${PW_ACTION}" == no ]] && set_sshd_key KbdInteractiveAuthentication no
   [[ -n "${ROOT_LOGIN}" ]] && set_sshd_key PermitRootLogin "${ROOT_LOGIN}"
   if sshd -t 2>/dev/null; then
-    systemctl reload ssh 2>/dev/null || systemctl restart ssh 2>/dev/null ||
-      systemctl restart sshd 2>/dev/null || warn "    reload/restart ssh 失败，新策略可能没生效"
+    systemctl reload ssh 2>/dev/null || systemctl restart ssh 2>/dev/null \
+                                                                          || systemctl restart sshd 2>/dev/null || warn "    reload/restart ssh 失败，新策略可能没生效"
     got_pw="$(sshd_get passwordauthentication || true)"
     [[ "${got_pw}" == "${PW_ACTION}" ]] || {
       warn "    passwordauthentication 仍为 ${got_pw:-?}，以下位置设置了该关键字："
       grep -rniE --exclude='*.orig' '^[[:space:]]*(PasswordAuthentication|KbdInteractiveAuthentication)' \
         "${SSHD_MAIN}" "${SSHD_DROPIN_DIR}" 2>/dev/null | while IFS= read -r l; do warn "      ${l}"; done
     }
-    [[ -z "${ROOT_LOGIN}" ]] || [[ "$(sshd_get permitrootlogin || true)" == "${ROOT_LOGIN}" ]] ||
-      warn "    permitrootlogin 仍是 $(sshd_get permitrootlogin || true)"
+    [[ -z "${ROOT_LOGIN}" ]] || [[ "$(sshd_get permitrootlogin || true)" == "${ROOT_LOGIN}" ]] \
+                                                                                               || warn "    permitrootlogin 仍是 $(sshd_get permitrootlogin || true)"
   else
     warn "    sshd -t 未通过，先修 ${SSHD_MAIN} 与 ${SSHD_DROPIN_DIR}，不要 restart"
   fi

@@ -14,8 +14,8 @@ install_run() {
   local VER="${SING_BOX_VERSION:-1.14.3}" ARCH TMP BIN URL
   command -v curl >/dev/null 2>&1 || die "缺少 curl，先跑系统初始化"
   case "$(uname -m)" in
-    x86_64|amd64) ARCH=amd64 ;;
-    aarch64|arm64) ARCH=arm64 ;;
+    x86_64 | amd64) ARCH=amd64 ;;
+    aarch64 | arm64) ARCH=arm64 ;;
     *) die "不支持的架构：$(uname -m)" ;;
   esac
   mktemp_dir TMP
