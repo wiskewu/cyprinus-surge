@@ -7,7 +7,7 @@ cd "$(dirname "$0")"
 OUT="${OUT:-deploy.sh}"
 STEPS=()
 for f in steps/*.sh; do
-  id="$(basename "$f" .sh)"
+  id="$(basename "${f}" .sh)"
   STEPS+=("${id#*-}")          # 10-system → system
 done
 [[ "${#STEPS[@]}" -gt 0 ]] || { printf 'steps/ 为空\n' >&2; exit 1; }
@@ -29,14 +29,14 @@ done
   sed -e '1{/^#!/d;}' -e '/^# shellcheck shell=bash$/d' -e '/^# shellcheck disable=SC2034/d' lib.sh
   for f in steps/*.sh; do
     printf '\n'
-    printf '# ---------------------------- %s ----------------------------\n' "$(basename "$f")"
-    sed -e '/^# shellcheck shell=bash$/d' -e '/^# shellcheck disable=SC2034/d' "$f"
+    printf '# ---------------------------- %s ----------------------------\n' "$(basename "${f}")"
+    sed -e '/^# shellcheck shell=bash$/d' -e '/^# shellcheck disable=SC2034/d' "${f}"
   done
   printf '\n'
   sed -e '/^# shellcheck shell=bash$/d' -e '/^# shellcheck disable=SC2034/d' onekey/driver.sh
-} >"$OUT.tmp"
+} >"${OUT}.tmp"
 
-bash -n "$OUT.tmp" || { printf '生成失败：%s 有语法错误\n' "$OUT.tmp" >&2; exit 1; }
-mv "$OUT.tmp" "$OUT"
-chmod +x "$OUT"
-printf '已生成 %s，%d 行，%d 个步骤：%s\n' "$OUT" "$(wc -l <"$OUT")" "${#STEPS[@]}" "${STEPS[*]}"
+bash -n "${OUT}.tmp" || { printf '生成失败：%s 有语法错误\n' "${OUT}.tmp" >&2; exit 1; }
+mv "${OUT}.tmp" "${OUT}"
+chmod +x "${OUT}"
+printf '已生成 %s，%d 行，%d 个步骤：%s\n' "${OUT}" "$(wc -l <"${OUT}")" "${#STEPS[@]}" "${STEPS[*]}"

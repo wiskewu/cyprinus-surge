@@ -4,13 +4,13 @@
 set -euo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=SCRIPTDIR/lib.sh
-. "$SELF_DIR/lib.sh"
+. "${SELF_DIR}/lib.sh"
 need_root
 
 FWK_DIR="${FWK_DIR:-/etc/fwknop}"
-FWD_CONF="$FWK_DIR/fwknopd.conf"
-ACCESS_CONF="$FWK_DIR/access.conf"
-FWD_ORIG="$FWK_DIR/fwknopd.conf.orig"
+FWD_CONF="${FWK_DIR}/fwknopd.conf"
+ACCESS_CONF="${FWK_DIR}/access.conf"
+FWD_ORIG="${FWK_DIR}/fwknopd.conf.orig"
 KEYS="spa-keys.env"
 CLOSE_SSH=0
 PURGE=0
@@ -48,8 +48,8 @@ done
 show_status() {
   local ports p
   ports="$(ssh_resolve_ports)" || exit 1
-  printf '包      : %s\n' "$KEYS"
-  printf 'SSH 端口: %s（探测所得）\n' "$ports"
+  printf '包      : %s\n' "${KEYS}"
+  printf 'SSH 端口: %s（探测所得）\n' "${ports}"
   if command -v fwknopd >/dev/null 2>&1; then
     printf 'fwknopd : %s\n' "$(systemctl is-active fwknop-server 2>/dev/null || echo 未安装)"
     printf '跳转规则: %s\n' "$(iptables -S INPUT 2>/dev/null | grep -q FWKNOP_INPUT && echo '在 INPUT 第 1 位' || echo '缺失，重启 fwknop-server 后复查')"
@@ -59,23 +59,23 @@ show_status() {
   fi
   if command -v ufw >/dev/null 2>&1; then
     printf 'ufw     : %s\n' "$(ufw status | head -1)"
-    ufw status | grep -E "($(printf '%s' "$ports" | tr ' ' '|'))/tcp|${SPA_PORT:-62201}/udp" | sed 's/^/          /' || true
+    ufw status | grep -E "($(printf '%s' "${ports}" | tr ' ' '|'))/tcp|${SPA_PORT:-62201}/udp" | sed 's/^/          /' || true
   fi
 }
 
-if [[ "$MODE" == status ]]; then show_status; exit 0; fi
+if [[ "${MODE}" == status ]]; then show_status; exit 0; fi
 
 # ---------------------------------------------------------------- 卸载
 
-if [[ "$MODE" == uninstall ]]; then
+if [[ "${MODE}" == uninstall ]]; then
   systemctl disable --now fwknop-server >/dev/null 2>&1 || true
-  [[ -f "$FWD_ORIG" ]] && { mv "$FWD_ORIG" "$FWD_CONF"; log "已还原 fwknopd.conf"; }
-  [[ "$PURGE" == 1 ]] && { rm -f "$ACCESS_CONF" "$KEYS"; log "已删除 access.conf 与密钥包"; }
+  [[ -f "${FWD_ORIG}" ]] && { mv "${FWD_ORIG}" "${FWD_CONF}"; log "已还原 fwknopd.conf"; }
+  [[ "${PURGE}" == 1 ]] && { rm -f "${ACCESS_CONF}" "${KEYS}"; log "已删除 access.conf 与密钥包"; }
   if command -v ufw >/dev/null 2>&1; then
     ufw --force delete allow 62201/udp >/dev/null 2>&1 || true
     # 恢复时同样按探测到的端口，不用 22（脚本顶层，不能用 local）
     _ports="$(ssh_resolve_ports)" || _ports="22"
-    for _p in $_ports; do ufw limit "$_p/tcp" >/dev/null 2>&1 || true; done
+    for _p in ${_ports}; do ufw limit "${_p}/tcp" >/dev/null 2>&1 || true; done
     log "已恢复公网 SSH 规则（ufw limit ${_ports}）"
   fi
   exit 0
@@ -93,13 +93,13 @@ if ! command -v fwknopd >/dev/null 2>&1; then
 fi
 command -v fwknopd >/dev/null 2>&1 || die "fwknopd 装完仍找不到，检查 apt 输出"
 
-load_env "$KEYS"
+load_env "${KEYS}"
 : "${SPA_PORT:=62201}" "${ACCESS_TIMEOUT:=120}" "${MAX_FW_TIMEOUT:=300}"
 # 与客户端保持一致：fwknopd 的 stanza 不写这一项时固定按 SHA256 校验 HMAC
 : "${HMAC_DIGEST_TYPE:=SHA512}"
-case "$HMAC_DIGEST_TYPE" in
+case "${HMAC_DIGEST_TYPE}" in
   MD5 | SHA1 | SHA256 | SHA384 | SHA512 | SHA3_256 | SHA3_512) ;;
-  *) die "HMAC_DIGEST_TYPE 取值不合法：$HMAC_DIGEST_TYPE" ;;
+  *) die "HMAC_DIGEST_TYPE 取值不合法：${HMAC_DIGEST_TYPE}" ;;
 esac
 
 # SSH 端口一律探测，不默认 22：云厂商给的新机器常是随机端口
@@ -107,16 +107,16 @@ SSH_PORTS="$(ssh_resolve_ports)"
 log "SSH 端口 ${SSH_PORTS}"
 
 IFACE="$(ip -4 route show default 2>/dev/null | awk '{print $5; exit}')"
-[[ -n "$IFACE" ]] || die "识别不到默认网卡，无法确定 PCAP_INTF"
+[[ -n "${IFACE}" ]] || die "识别不到默认网卡，无法确定 PCAP_INTF"
 
 # ---- 渲染 fwknopd.conf：只写我们要管的几项，其余用包自带默认值 ----
 log "2/5 渲染 ${FWD_CONF}（网卡 ${IFACE}，SPA 端口 ${SPA_PORT}）"
-mkdir -p "$FWK_DIR"
-[[ -f "$FWD_ORIG" ]] || { [[ -f "$FWD_CONF" ]] && cp -a "$FWD_CONF" "$FWD_ORIG"; }
-cat > "$FWD_CONF" <<EOF
-# 由 10-server.sh 生成，勿手改。包自带版本备份在 $FWD_ORIG
-PCAP_INTF                $IFACE;
-PCAP_FILTER              udp port $SPA_PORT;
+mkdir -p "${FWK_DIR}"
+[[ -f "${FWD_ORIG}" ]] || { [[ -f "${FWD_CONF}" ]] && cp -a "${FWD_CONF}" "${FWD_ORIG}"; }
+cat > "${FWD_CONF}" <<EOF
+# 由 10-server.sh 生成，勿手改。包自带版本备份在 ${FWD_ORIG}
+PCAP_INTF                ${IFACE};
+PCAP_FILTER              udp port ${SPA_PORT};
 
 FLUSH_IPT_AT_INIT        Y;
 FLUSH_IPT_AT_EXIT        Y;
@@ -135,64 +135,64 @@ ENABLE_IPT_OUTPUT        N;
 ENABLE_IPT_LOCAL_NAT     N;
 EOF
 # fwknopd 要求 0600：权限过宽会在启动时打警告
-chmod 600 "$FWD_CONF"
+chmod 600 "${FWD_CONF}"
 
 # ---- 渲染 access.conf：一个客户端一个 stanza ----
 # fwknopd 依次尝试每个 stanza，用各自密钥解密，对上的那个才开规则，所以统一写 SOURCE ANY。
-log "3/5 渲染 $ACCESS_CONF"
+log "3/5 渲染 ${ACCESS_CONF}"
 umask 077
 render_stanza() {
   local ports="" p
-  for p in $SSH_PORTS; do ports="${ports:+$ports,}tcp/$p"; done
+  for p in ${SSH_PORTS}; do ports="${ports:+${ports},}tcp/${p}"; done
   printf 'SOURCE ANY;\n'
-  printf 'OPEN_PORTS %s;\n' "$ports"
-  printf 'FW_ACCESS_TIMEOUT %s;\n' "$ACCESS_TIMEOUT"
-  printf 'MAX_FW_TIMEOUT %s;\n' "$MAX_FW_TIMEOUT"
-  printf 'HMAC_DIGEST_TYPE %s;\n' "$HMAC_DIGEST_TYPE"
+  printf 'OPEN_PORTS %s;\n' "${ports}"
+  printf 'FW_ACCESS_TIMEOUT %s;\n' "${ACCESS_TIMEOUT}"
+  printf 'MAX_FW_TIMEOUT %s;\n' "${MAX_FW_TIMEOUT}"
+  printf 'HMAC_DIGEST_TYPE %s;\n' "${HMAC_DIGEST_TYPE}"
   printf 'KEY_BASE64 %s;\n' "${1%%:*}"
   printf 'HMAC_KEY_BASE64 %s;\n' "${1##*:}"
   printf '\n'
 }
 
 {
-  printf '# 由 10-server.sh 从 %s 渲染，勿手改。\n' "$KEYS"
+  printf '# 由 10-server.sh 从 %s 渲染，勿手改。\n' "${KEYS}"
   printf '# 每个 stanza 一台客户端：删掉一行就是吊销那台设备。\n\n'
   n=0
   if [[ -n "${SHARED:-}" ]]; then
     n=$((n+1))
     printf '# --- shared（共用密钥组）---\n'
-    render_stanza "$SHARED"
+    render_stanza "${SHARED}"
   fi
   for entry in ${CLIENTS:-}; do
     n=$((n+1))
     printf '# --- %s ---\n' "${entry%%=*}"
     render_stanza "${entry#*=}"
   done
-  [[ "$n" -gt 0 ]] || die "密钥包里没有 SHARED 也没有 CLIENTS"
-} > "$ACCESS_CONF"
-chmod 600 "$ACCESS_CONF"
+  [[ "${n}" -gt 0 ]] || die "密钥包里没有 SHARED 也没有 CLIENTS"
+} > "${ACCESS_CONF}"
+chmod 600 "${ACCESS_CONF}"
 
 # 自检：渲染出来的 stanza 数必须等于密钥包里的密钥组数
 want=$(host_count "${CLIENTS:-}")
 [[ -n "${SHARED:-}" ]] && want=$((want+1))
-got="$(grep -c '^KEY_BASE64 ' "$ACCESS_CONF" || true)"
-[[ "$got" == "$want" ]] || die "自检失败：access.conf 渲染出 $got 个 stanza，期望 $want 个"
+got="$(grep -c '^KEY_BASE64 ' "${ACCESS_CONF}" || true)"
+[[ "${got}" == "${want}" ]] || die "自检失败：access.conf 渲染出 ${got} 个 stanza，期望 ${want} 个"
 
 # 把探测到的 SSH 端口回写到密钥包：客户端 ACCESS 里的 tcp/<port> 必须与 sshd 一致，
 # 而密钥包通常在另一台机器上生成。值必须带引号，多端口时 load_env 会把它当命令执行。
 write_ssh_ports() {
   local f="$1"
-  [[ -f "$f" ]] || return 0
-  if grep -q '^SSH_PORT=' "$f"; then
-    sed -i "s|^SSH_PORT=.*|SSH_PORT=\"$SSH_PORTS\"|" "$f"
-  elif grep -q '^# SSH_PORT ' "$f"; then
-    sed -i "s|^# SSH_PORT .*|SSH_PORT=\"$SSH_PORTS\"|" "$f"
+  [[ -f "${f}" ]] || return 0
+  if grep -q '^SSH_PORT=' "${f}"; then
+    sed -i "s|^SSH_PORT=.*|SSH_PORT=\"${SSH_PORTS}\"|" "${f}"
+  elif grep -q '^# SSH_PORT ' "${f}"; then
+    sed -i "s|^# SSH_PORT .*|SSH_PORT=\"${SSH_PORTS}\"|" "${f}"
   else
-    printf 'SSH_PORT="%s"\n' "$SSH_PORTS" >>"$f"
+    printf 'SSH_PORT="%s"\n' "${SSH_PORTS}" >>"${f}"
   fi
-  chmod 600 "$f"
+  chmod 600 "${f}"
 }
-write_ssh_ports "$KEYS" && log "已把 SSH 端口 ${SSH_PORTS} 写回 $KEYS"
+write_ssh_ports "${KEYS}" && log "已把 SSH 端口 ${SSH_PORTS} 写回 ${KEYS}"
 
 # ---- 起服务 ----
 log "4/5 启动 fwknopd"
@@ -203,33 +203,33 @@ systemctl is-active --quiet fwknop-server || {
   journalctl -u fwknop-server -n 20 --no-pager >&2
   die "fwknopd 未启动，SSH 规则未改动，见上方日志"
 }
-iptables -S INPUT | grep -q FWKNOP_INPUT || die "fwknopd 在跑但没有创建 FWKNOP_INPUT 跳转，检查 $FWD_CONF 的 PCAP_INTF"
+iptables -S INPUT | grep -q FWKNOP_INPUT || die "fwknopd 在跑但没有创建 FWKNOP_INPUT 跳转，检查 ${FWD_CONF} 的 PCAP_INTF"
 
 # ---- 防火墙 ----
 log "5/5 防火墙"
 if command -v ufw >/dev/null 2>&1; then
-  ufw allow "$SPA_PORT/udp" >/dev/null
-  log "已放行 $SPA_PORT/udp"
-  if [[ "$CLOSE_SSH" = 1 ]]; then
+  ufw allow "${SPA_PORT}/udp" >/dev/null
+  log "已放行 ${SPA_PORT}/udp"
+  if [[ "${CLOSE_SSH}" = 1 ]]; then
     # 收口前检查还有没有别的接入路径
     _alt=0
     ip -o link show 2>/dev/null | grep -qE 'tailscale0|wg0|tun[0-9]' && _alt=1
-    if [[ "$_alt" = 0 ]]; then
+    if [[ "${_alt}" = 0 ]]; then
       warn "未发现 tailscale0 / wg0 / tun*：收口后 SPA 失效时只剩云控制台 VNC 或串口"
     else
       log "存在并行接入通道"
     fi
     # sshd 监听多端口时全部关闭，只关其一仍有直连路径
-    for p in $SSH_PORTS; do
-      ufw --force delete limit "$p/tcp" >/dev/null 2>&1 || true
-      ufw --force delete allow "$p/tcp" >/dev/null 2>&1 || true
+    for p in ${SSH_PORTS}; do
+      ufw --force delete limit "${p}/tcp" >/dev/null 2>&1 || true
+      ufw --force delete allow "${p}/tcp" >/dev/null 2>&1 || true
     done
     # ufw 删除不存在的规则也返回 0，必须回读
     _left=""
-    for p in $SSH_PORTS; do
-      ufw status | grep -qE "^$p/tcp[[:space:]]+(ALLOW|LIMIT)" && _left="$_left $p"
+    for p in ${SSH_PORTS}; do
+      ufw status | grep -qE "^${p}/tcp[[:space:]]+(ALLOW|LIMIT)" && _left="${_left} ${p}"
     done
-    [[ -z "$_left" ]] || die "ufw 里仍有 SSH 规则：$_left"
+    [[ -z "${_left}" ]] || die "ufw 里仍有 SSH 规则：${_left}"
     log "公网 SSH 端口已全部关闭：${SSH_PORTS}"
   else
     log "公网 ${SSH_PORTS} 保持开放，确认客户端可用后跑 --close-ssh"
@@ -239,13 +239,13 @@ if command -v ufw >/dev/null 2>&1; then
   sleep 1
   warn "重启后跳转规则仍缺失，确认 iptables 是否 nft 后端"
 else
-  warn "未安装 ufw，跳过防火墙改动。需自行确认 $SPA_PORT/udp 可达、${SSH_PORTS} 未对公网开放"
+  warn "未安装 ufw，跳过防火墙改动。需自行确认 ${SPA_PORT}/udp 可达、${SSH_PORTS} 未对公网开放"
 fi
 
 cat <<EOF
 
 服务端就绪。
-  1) 客户端：SSH_PORT=$SSH_PORTS bash 20-client.sh --keys clients/<名字>.env
-  2) 当前会话另开连接验证 ssh <别名>，确认后再跑 bash 10-server.sh --keys $KEYS --close-ssh
+  1) 客户端：SSH_PORT=${SSH_PORTS} bash 20-client.sh --keys clients/<名字>.env
+  2) 当前会话另开连接验证 ssh <别名>，确认后再跑 bash 10-server.sh --keys ${KEYS} --close-ssh
   3) 外网验证：nmap -Pn -p${SSH_PORTS// /,} <服务器IP>，结果应为 filtered
 EOF

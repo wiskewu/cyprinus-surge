@@ -18,10 +18,10 @@
 set -euo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=SCRIPTDIR/lib.sh
-. "$SELF_DIR/lib.sh"
+. "${SELF_DIR}/lib.sh"
 need_root
 
-CLIENT_OUT="${CLIENT_OUT:-$DEPLOY_DIR/clients}"
+CLIENT_OUT="${CLIENT_OUT:-${DEPLOY_DIR}/clients}"
 VALID_PLATFORMS="desktop android ios"
 
 # 子脚本（50-render-client.sh / 30-render-server.sh）靠环境变量找这些文件，必须导出
@@ -39,7 +39,7 @@ usage() {
 
 环境变量：
   DEVICES_LIST  设备名单路径（默认 /etc/sing-box/devices.list）
-  CLIENT_OUT    客户端配置输出目录（默认 $DEPLOY_DIR/clients）
+  CLIENT_OUT    客户端配置输出目录（默认 ${DEPLOY_DIR}/clients）
   CLIENT_ENV    客户端环境文件（默认 /etc/sing-box/client.env）
 
 注意：add / rotate / revoke 都会重启 sing-box。当前有活跃会话时，
@@ -48,14 +48,14 @@ EOF
 }
 
 cmd_list() {
-  [[ -s "$DEVICES_LIST" ]] || die "设备名单不存在：${DEVICES_LIST}（先跑 20-secrets.sh）"
+  [[ -s "${DEVICES_LIST}" ]] || die "设备名单不存在：${DEVICES_LIST}（先跑 20-secrets.sh）"
   printf '\n%-20s %-38s %s\n' "设备" "凭据" "平台"
   printf '%s\n' "--------------------------------------------------------------------------------"
   local n c p
   while read -r n c p; do
-    printf '%-20s %-38s %s\n' "$n" "$c" "${p:-desktop}"
+    printf '%-20s %-38s %s\n' "${n}" "${c}" "${p:-desktop}"
   done < <(device_rows)
-  printf '\n共 %s 台。名单文件：%s\n\n' "$(device_rows | wc -l)" "$DEVICES_LIST"
+  printf '\n共 %s 台。名单文件：%s\n\n' "$(device_rows | wc -l)" "${DEVICES_LIST}"
 }
 
 # 改完名单后：重渲染服务端 + 重渲染某设备的客户端配置
@@ -63,34 +63,34 @@ apply_changes() {
   local dev="${1:-}"
   log "重渲染服务端配置"
   local log_; log_="$(mktemp)"
-  if ! bash "$SELF_DIR/30-render-server.sh" >"$log_" 2>&1; then
-    cat "$log_" >&2; rm -f "$log_"
+  if ! bash "${SELF_DIR}/30-render-server.sh" >"${log_}" 2>&1; then
+    cat "${log_}" >&2; rm -f "${log_}"
     die "名单已改但服务端重渲染失败，配置未生效"
   fi
-  grep -E '^\[' "$log_" || true
-  rm -f "$log_"
-  if [[ -n "$dev" ]]; then render_client "$dev"; fi
+  grep -E '^\[' "${log_}" || true
+  rm -f "${log_}"
+  if [[ -n "${dev}" ]]; then render_client "${dev}"; fi
 }
 
 render_client() {
   local dev="$1" plat log_
-  plat="$(device_get "$dev" | awk '{print $2}')"
-  [[ -n "$plat" ]] || plat=desktop
-  mkdir -p "$CLIENT_OUT"
+  plat="$(device_get "${dev}" | awk '{print $2}')"
+  [[ -n "${plat}" ]] || plat=desktop
+  mkdir -p "${CLIENT_OUT}"
   log_="$(mktemp)"
-  if ! OUTDIR="$CLIENT_OUT" bash "$SELF_DIR/50-render-client.sh" "$CLIENT_ENV" --device "$dev" >"$log_" 2>&1; then
-    cat "$log_" >&2; rm -f "$log_"
+  if ! OUTDIR="${CLIENT_OUT}" bash "${SELF_DIR}/50-render-client.sh" "${CLIENT_ENV}" --device "${dev}" >"${log_}" 2>&1; then
+    cat "${log_}" >&2; rm -f "${log_}"
     die "客户端配置渲染失败"
   fi
-  rm -f "$log_"
-  log "客户端配置：$CLIENT_OUT/sing-box-client-$dev-$plat.json"
-  log "分发：scp $CLIENT_OUT/sing-box-client-$dev-$plat.json <设备>:/root/  （只发这一台的那份）"
+  rm -f "${log_}"
+  log "客户端配置：${CLIENT_OUT}/sing-box-client-${dev}-${plat}.json"
+  log "分发：scp ${CLIENT_OUT}/sing-box-client-${dev}-${plat}.json <设备>:/root/  （只发这一台的那份）"
 }
 
 [[ $# -ge 1 ]] || { usage; exit 1; }
 CMD="$1"; shift
 
-case "$CMD" in
+case "${CMD}" in
   list|-l)
     cmd_list
     ;;
@@ -98,49 +98,49 @@ case "$CMD" in
   add)
     [[ $# -ge 1 ]] || { usage; die "add 需要设备名"; }
     NAME="$1"; PLATFORM="${2:-desktop}"
-    valid_device_name "$NAME" || die "设备名不合法：${NAME}（只允许字母数字 . _ -）"
-    case " $VALID_PLATFORMS " in *" $PLATFORM "*) ;; *) die "平台只能是：$VALID_PLATFORMS" ;; esac
-    device_exists "$NAME" && die "设备 $NAME 已存在（rotate 换凭据 / revoke 删除）"
-    [[ -s "$DEVICES_LIST" ]] || die "设备名单不存在：${DEVICES_LIST}（先跑 20-secrets.sh）"
-    CRED="$("$SB_BIN" generate uuid)"
-    printf '%s %s %s\n' "$NAME" "$CRED" "$PLATFORM" >>"$DEVICES_LIST"
-    chmod 600 "$DEVICES_LIST"
+    valid_device_name "${NAME}" || die "设备名不合法：${NAME}（只允许字母数字 . _ -）"
+    case " ${VALID_PLATFORMS} " in *" ${PLATFORM} "*) ;; *) die "平台只能是：${VALID_PLATFORMS}" ;; esac
+    device_exists "${NAME}" && die "设备 ${NAME} 已存在（rotate 换凭据 / revoke 删除）"
+    [[ -s "${DEVICES_LIST}" ]] || die "设备名单不存在：${DEVICES_LIST}（先跑 20-secrets.sh）"
+    CRED="$("${SB_BIN}" generate uuid)"
+    printf '%s %s %s\n' "${NAME}" "${CRED}" "${PLATFORM}" >>"${DEVICES_LIST}"
+    chmod 600 "${DEVICES_LIST}"
     log "已新增设备 ${NAME}（${PLATFORM}）"
-    apply_changes "$NAME"
+    apply_changes "${NAME}"
     ;;
 
   rotate)
     [[ $# -ge 1 ]] || { usage; die "rotate 需要设备名"; }
     NAME="$1"
-    device_exists "$NAME" || die "设备名单里没有 $NAME"
-    CRED="$("$SB_BIN" generate uuid)"
+    device_exists "${NAME}" || die "设备名单里没有 ${NAME}"
+    CRED="$("${SB_BIN}" generate uuid)"
     # 原地替换那一行；保留平台列
-    PLATFORM="$(device_get "$NAME" | awk '{print $2}')"
-    awk -v n="$NAME" -v c="$CRED" -v p="${PLATFORM:-desktop}" '
+    PLATFORM="$(device_get "${NAME}" | awk '{print $2}')"
+    awk -v n="${NAME}" -v c="${CRED}" -v p="${PLATFORM:-desktop}" '
       /^[[:space:]]*#/ || /^[[:space:]]*$/ { print; next }
       $1 == n { print n, c, p; next }
       { print }
-    ' "$DEVICES_LIST" >"$DEVICES_LIST.tmp"
-    mv "$DEVICES_LIST.tmp" "$DEVICES_LIST"
-    chmod 600 "$DEVICES_LIST"
-    log "已轮换设备 $NAME 的凭据（旧配置已失效）"
-    apply_changes "$NAME"
+    ' "${DEVICES_LIST}" >"${DEVICES_LIST}.tmp"
+    mv "${DEVICES_LIST}.tmp" "${DEVICES_LIST}"
+    chmod 600 "${DEVICES_LIST}"
+    log "已轮换设备 ${NAME} 的凭据（旧配置已失效）"
+    apply_changes "${NAME}"
     ;;
 
   revoke)
     [[ $# -ge 1 ]] || { usage; die "revoke 需要设备名"; }
     NAME="$1"
-    device_exists "$NAME" || die "设备名单里没有 $NAME"
+    device_exists "${NAME}" || die "设备名单里没有 ${NAME}"
     device_rows | grep -qv "^${NAME}[[:space:]]" || die "名单里只剩这一台，先 add 再删"
-    awk -v n="$NAME" '
+    awk -v n="${NAME}" '
       /^[[:space:]]*#/ || /^[[:space:]]*$/ { print; next }
       $1 == n { next }
       { print }
-    ' "$DEVICES_LIST" >"$DEVICES_LIST.tmp"
-    mv "$DEVICES_LIST.tmp" "$DEVICES_LIST"
-    chmod 600 "$DEVICES_LIST"
-    log "已吊销设备 $NAME"
-    rm -f "$CLIENT_OUT/sing-box-client-$NAME-"*.json 2>/dev/null || true
+    ' "${DEVICES_LIST}" >"${DEVICES_LIST}.tmp"
+    mv "${DEVICES_LIST}.tmp" "${DEVICES_LIST}"
+    chmod 600 "${DEVICES_LIST}"
+    log "已吊销设备 ${NAME}"
+    rm -f "${CLIENT_OUT}/sing-box-client-${NAME}-"*.json 2>/dev/null || true
     apply_changes ""
     log "记得把那台机器上的配置删掉，以及从任何保存了凭据的地方清除"
     ;;
@@ -148,11 +148,11 @@ case "$CMD" in
   render)
     [[ $# -ge 1 ]] || { usage; die "render 需要设备名"; }
     NAME="$1"
-    device_exists "$NAME" || die "设备名单里没有 $NAME"
-    render_client "$NAME"
+    device_exists "${NAME}" || die "设备名单里没有 ${NAME}"
+    render_client "${NAME}"
     ;;
 
   -h|--help|help) usage ;;
 
-  *) usage; die "未知命令：$CMD" ;;
+  *) usage; die "未知命令：${CMD}" ;;
 esac

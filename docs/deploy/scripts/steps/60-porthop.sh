@@ -8,24 +8,24 @@ porthop_rule_args() {
   PORTHOP_IFACE="$(ip -4 route show default 2>/dev/null | awk '{print $5; exit}')"
   PORTHOP_START="${HY2_PORT:-8443}"
   PORTHOP_END="${HY2_HOP_RANGE##*:}"
-  [[ -n "$PORTHOP_IFACE" ]] || return 1
+  [[ -n "${PORTHOP_IFACE}" ]] || return 1
   return 0
 }
 
 porthop_check() {
   command -v iptables >/dev/null 2>&1 || return 1
   porthop_rule_args || return 1
-  iptables -t nat -C PREROUTING -i "$PORTHOP_IFACE" -p udp --dport "${PORTHOP_START}:${PORTHOP_END}" -j REDIRECT --to-ports "$PORTHOP_START" 2>/dev/null
+  iptables -t nat -C PREROUTING -i "${PORTHOP_IFACE}" -p udp --dport "${PORTHOP_START}:${PORTHOP_END}" -j REDIRECT --to-ports "${PORTHOP_START}" 2>/dev/null
 }
 
 porthop_run() {
-  load_env "$ENVFILE" 2>/dev/null || true
+  load_env "${ENVFILE}" 2>/dev/null || true
   [[ "${ENABLE_HY2:-0}" == "1" ]] || { warn "ENABLE_HY2=0，跳过端口跳跃"; return 0; }
   porthop_rule_args || die "识别不到默认网卡"
-  if iptables -t nat -C PREROUTING -i "$PORTHOP_IFACE" -p udp --dport "${PORTHOP_START}:${PORTHOP_END}" -j REDIRECT --to-ports "$PORTHOP_START" 2>/dev/null; then
+  if iptables -t nat -C PREROUTING -i "${PORTHOP_IFACE}" -p udp --dport "${PORTHOP_START}:${PORTHOP_END}" -j REDIRECT --to-ports "${PORTHOP_START}" 2>/dev/null; then
     log "规则已存在"
   else
-    iptables -t nat -A PREROUTING -i "$PORTHOP_IFACE" -p udp --dport "${PORTHOP_START}:${PORTHOP_END}" -j REDIRECT --to-ports "$PORTHOP_START"
+    iptables -t nat -A PREROUTING -i "${PORTHOP_IFACE}" -p udp --dport "${PORTHOP_START}:${PORTHOP_END}" -j REDIRECT --to-ports "${PORTHOP_START}"
     log "已添加：udp ${PORTHOP_START}:${PORTHOP_END} → ${PORTHOP_START}（${PORTHOP_IFACE}）"
   fi
   export DEBIAN_FRONTEND=noninteractive
@@ -38,7 +38,7 @@ porthop_run() {
 
 porthop_uninstall() {
   porthop_rule_args || return 0
-  iptables -t nat -D PREROUTING -i "$PORTHOP_IFACE" -p udp --dport "${PORTHOP_START}:${PORTHOP_END}" -j REDIRECT --to-ports "$PORTHOP_START" 2>/dev/null || true
+  iptables -t nat -D PREROUTING -i "${PORTHOP_IFACE}" -p udp --dport "${PORTHOP_START}:${PORTHOP_END}" -j REDIRECT --to-ports "${PORTHOP_START}" 2>/dev/null || true
   command -v netfilter-persistent >/dev/null 2>&1 && netfilter-persistent save >/dev/null 2>&1 || true
   log "已移除端口跳跃规则"
 }

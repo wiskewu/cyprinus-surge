@@ -6,21 +6,21 @@
 set -euo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=SCRIPTDIR/lib.sh
-. "$SELF_DIR/lib.sh"
+. "${SELF_DIR}/lib.sh"
 need_root
 BK_DIR=/root/backups
-install -d -m 700 "$BK_DIR"
+install -d -m 700 "${BK_DIR}"
 
 case "${1:-backup}" in
   backup)
-    f="$BK_DIR/sing-box-$(date +%F-%H%M%S).tgz"
-    tar -czf "$f" -C / etc/sing-box etc/systemd/system/sing-box.service 2>/dev/null
-    chmod 600 "$f"
-    log "已备份：${f}（$(du -h "$f" | cut -f1)）"
+    f="${BK_DIR}/sing-box-$(date +%F-%H%M%S).tgz"
+    tar -czf "${f}" -C / etc/sing-box etc/systemd/system/sing-box.service 2>/dev/null
+    chmod 600 "${f}"
+    log "已备份：${f}（$(du -h "${f}" | cut -f1)）"
     warn "这个包里有 REALITY 私钥，等同机器凭据，别放网盘/仓库。"
     ;;
   list)
-    ls -lh "$BK_DIR"/sing-box-*.tgz 2>/dev/null || printf '无备份\n'
+    ls -lh "${BK_DIR}"/sing-box-*.tgz 2>/dev/null || printf '无备份\n'
     ;;
   restore)
     [[ -n "${2:-}" ]] && [[ -f "${2}" ]] || die "用法：bash 70-backup.sh restore <文件>"

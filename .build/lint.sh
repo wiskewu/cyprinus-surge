@@ -9,10 +9,13 @@ files=()
 while IFS= read -r f; do files+=("$f"); done < <(find docs -name '*.sh' | sort)
 [[ "${#files[@]}" -gt 0 ]] || { printf '未找到脚本\n' >&2; exit 1; }
 
+# require-variable-braces 把所有 $var 收紧成 ${var}：一是排版统一，
+# 二是避免 bash 3.2 把紧跟的多字节字符并入变量名。
+opts=(-x -o require-variable-braces)
 if command -v shellcheck >/dev/null 2>&1; then
-  shellcheck -x "${files[@]}"
+  shellcheck "${opts[@]}" "${files[@]}"
 else
-  npx --yes shellcheck -x "${files[@]}"
+  npx --yes shellcheck "${opts[@]}" "${files[@]}"
 fi
 printf 'shellcheck 通过：%d 个文件\n' "${#files[@]}"
 

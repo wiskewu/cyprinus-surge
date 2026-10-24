@@ -5,7 +5,7 @@ install_TITLE="安装 sing-box（固定版本 + systemd）"
 install_OPTIONAL=0
 
 install_check() {
-  [[ -x "$SB_BIN" ]] || return 1
+  [[ -x "${SB_BIN}" ]] || return 1
   [[ -f /etc/systemd/system/sing-box.service ]] || return 1
   return 0
 }
@@ -21,18 +21,18 @@ install_run() {
   TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' RETURN
 
   if [[ -n "${SING_BOX_PKG:-}" ]]; then
-    cp "$SING_BOX_PKG" "$TMP/sb.tar.gz"
+    cp "${SING_BOX_PKG}" "${TMP}/sb.tar.gz"
   else
     URL="https://github.com/SagerNet/sing-box/releases/download/v${VER}/sing-box-${VER}-linux-${ARCH}.tar.gz"
     log "下载 sing-box ${VER} (${ARCH})"
-    curl -fL --retry 3 --connect-timeout 15 -o "$TMP/sb.tar.gz" "$URL" \
+    curl -fL --retry 3 --connect-timeout 15 -o "${TMP}/sb.tar.gz" "${URL}" \
       || die "下载失败；可手动下载后用 SING_BOX_PKG= 指定本地包"
   fi
-  tar -xzf "$TMP/sb.tar.gz" -C "$TMP"
-  BIN="$(find "$TMP" -type f -name sing-box -perm -u+x | head -1)"
-  [[ -n "$BIN" ]] || die "压缩包里找不到 sing-box"
-  install -m 0755 "$BIN" "$SB_BIN"
-  install -d -m 700 "$DEPLOY_DIR" /var/lib/sing-box
+  tar -xzf "${TMP}/sb.tar.gz" -C "${TMP}"
+  BIN="$(find "${TMP}" -type f -name sing-box -perm -u+x | head -1)"
+  [[ -n "${BIN}" ]] || die "压缩包里找不到 sing-box"
+  install -m 0755 "${BIN}" "${SB_BIN}"
+  install -d -m 700 "${DEPLOY_DIR}" /var/lib/sing-box
 
   cat >/etc/systemd/system/sing-box.service <<'UNIT'
 [Unit]
@@ -57,14 +57,14 @@ WantedBy=multi-user.target
 UNIT
   systemctl daemon-reload
   systemctl enable sing-box >/dev/null
-  log "已安装：$("$SB_BIN" version | head -1)"
+  log "已安装：$("${SB_BIN}" version | head -1)"
 }
 
 install_uninstall() {
   systemctl disable --now sing-box >/dev/null 2>&1 || true
   rm -f /etc/systemd/system/sing-box.service
   systemctl daemon-reload
-  rm -f "$SB_BIN"
+  rm -f "${SB_BIN}"
   rm -rf /var/lib/sing-box
   log "已移除 sing-box 二进制与 systemd 单元"
 }

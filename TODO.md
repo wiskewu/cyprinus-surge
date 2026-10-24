@@ -4,9 +4,11 @@
 
 ## shell 脚本
 
+变量大括号已在 27 个脚本里统一为 `${var}`，`npm run lint` 用
+`shellcheck -o require-variable-braces` 长期守住。
+
 | # | 事项 | 现状 | 代价 |
 | --- | --- | --- | --- |
-| 1 | 变量引用统一加 `${}` 大括号 | 约 1400 处仍写 `$var` | 纯排版，需逐文件过一遍；可用 `shellcheck -o require-variable-braces` 逐步收紧 |
 | 2 | 列表改用数组 | 19 处 `for x in $LIST` 依赖空格分隔字符串 | 涉及端口列表与 `HOSTS`，改动会动到 `ufw`、`iptables`、`fwknop` 的调用签名，须连同验证一起做 |
 | 3 | `echo` 全部替换为 `printf` | 剩余 25 处，多为写配置文件内容与内联取值 | 逐条判断是否属于数据写入 |
 | 4 | 引入 `shfmt` 统一布局 | 未执行，本机无该工具 | 需先确定缩进与换行风格，再一次性格式化；会与 `build-onekey.sh` 的拼接结果一起变动 |

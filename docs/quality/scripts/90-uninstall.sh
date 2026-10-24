@@ -4,7 +4,7 @@
 set -euo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=SCRIPTDIR/lib.sh
-. "$SELF_DIR/lib.sh"
+. "${SELF_DIR}/lib.sh"
 
 MODE=server
 CHECK=0
@@ -17,9 +17,9 @@ ROOT_LOGIN=""     # yes | no | prohibit-password
 SSHD_MAIN="${SSHD_MAIN:-/etc/ssh/sshd_config}"
 SSHD_DROPIN_DIR="${SSHD_DROPIN_DIR:-/etc/ssh/sshd_config.d}"
 FWK_DIR="${FWK_DIR:-/etc/fwknop}"
-FWD_CONF="$FWK_DIR/fwknopd.conf"
-FWD_ORIG="$FWK_DIR/fwknopd.conf.orig"
-ACCESS_CONF="$FWK_DIR/access.conf"
+FWD_CONF="${FWK_DIR}/fwknopd.conf"
+FWD_ORIG="${FWK_DIR}/fwknopd.conf.orig"
+ACCESS_CONF="${FWK_DIR}/access.conf"
 
 usage() {
   cat <<'EOF'
@@ -59,18 +59,18 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-case "$PW_ACTION" in "" | yes | no) ;; *) die "--password 只能是 yes / no" ;; esac
-case "$ROOT_LOGIN" in "" | yes | no | prohibit-password) ;; *) die "--root-login 只能是 yes / no / prohibit-password" ;; esac
+case "${PW_ACTION}" in "" | yes | no) ;; *) die "--password 只能是 yes / no" ;; esac
+case "${ROOT_LOGIN}" in "" | yes | no | prohibit-password) ;; *) die "--root-login 只能是 yes / no / prohibit-password" ;; esac
 
 # 交互提问。答案放 ASK_REPLY，不用命令替换，免得 die 被吞进子 shell。
 ASK_REPLY=""
 ask() {
   local prompt="$1" def="${2:-n}" ans=""
   [[ -t 0 ]] || die "非交互运行：这一步必须用参数给定（见 --help）"
-  printf '%s ' "$prompt" >&2
+  printf '%s ' "${prompt}" >&2
   read -r ans || die "读不到输入"
-  ans="$(printf '%s' "${ans:-$def}" | tr '[:upper:]' '[:lower:]')"
-  case "$ans" in
+  ans="$(printf '%s' "${ans:-${def}}" | tr '[:upper:]' '[:lower:]')"
+  case "${ans}" in
     y | yes) ASK_REPLY=y ;;
     n | no) ASK_REPLY=n ;;
     *) die "只接受 y 或 n" ;;
@@ -82,31 +82,31 @@ sshd_get() { sshd -T 2>/dev/null | awk -v k="$1" 'tolower($1)==k{print $2; exit}
 # ---------------------------------------------------------------- 客户端
 
 run_client() {
-  [[ -f "$SELF_DIR/20-client.sh" ]] || die "找不到同目录下的 20-client.sh"
-  if [[ "$CHECK" == 1 ]]; then
-    bash "$SELF_DIR/20-client.sh" --status || true
+  [[ -f "${SELF_DIR}/20-client.sh" ]] || die "找不到同目录下的 20-client.sh"
+  if [[ "${CHECK}" == 1 ]]; then
+    bash "${SELF_DIR}/20-client.sh" --status || true
     return 0
   fi
-  bash "$SELF_DIR/20-client.sh" --uninstall
+  bash "${SELF_DIR}/20-client.sh" --uninstall
   log "客户端已还原：~/.ssh/config 托管块与 ~/.fwknoprc 已清，ssh 直连"
-  if [[ "$PURGE" == 0 ]] && [[ -e "$KEYS" ]]; then
+  if [[ "${PURGE}" == 0 ]] && [[ -e "${KEYS}" ]]; then
     ask "删除本地密钥包 ${KEYS}？[y/N]" n
-    [[ "$ASK_REPLY" == y ]] && PURGE=1 || true
+    [[ "${ASK_REPLY}" == y ]] && PURGE=1 || true
   fi
-  if [[ "$PURGE" == 1 ]] && [[ -e "$KEYS" ]]; then
-    rm -f "$KEYS"
+  if [[ "${PURGE}" == 1 ]] && [[ -e "${KEYS}" ]]; then
+    rm -f "${KEYS}"
     log "已删 ${KEYS}"
   fi
   warn "服务端的 access.conf 与密钥包不在这台机器上，要删得去服务器跑 --purge"
 }
 
-[[ "$MODE" == client ]] && { run_client; exit 0; }
+[[ "${MODE}" == client ]] && { run_client; exit 0; }
 
 # ---------------------------------------------------------------- 服务端
 
 # 密钥包里的 SPA_PORT，读不到就用默认 62201
-SPA_PORT="$(grep -E '^SPA_PORT=' "$KEYS" 2>/dev/null | head -n1 | cut -d= -f2- | tr -d "\"' " || true)"
-case "$SPA_PORT" in '' | *[!0-9]*) SPA_PORT=62201 ;; esac
+SPA_PORT="$(grep -E '^SPA_PORT=' "${KEYS}" 2>/dev/null | head -n1 | cut -d= -f2- | tr -d "\"' " || true)"
+case "${SPA_PORT}" in '' | *[!0-9]*) SPA_PORT=62201 ;; esac
 PORTS=""
 
 show_status() {
@@ -123,7 +123,7 @@ show_status() {
   fi
 }
 
-if [[ "$CHECK" == 1 ]]; then
+if [[ "${CHECK}" == 1 ]]; then
   [[ "$(id -u)" == 0 ]] || warn "非 root：iptables / ufw 的信息可能读不到（加 sudo 更完整）"
   show_status
   exit 0
@@ -138,22 +138,22 @@ PW_NOW="$(sshd_get passwordauthentication || true)"
 KI_NOW="$(sshd_get kbdinteractiveauthentication || true)"
 RL_NOW="$(sshd_get permitrootlogin || true)"
 
-if [[ -z "$PW_ACTION" ]]; then
+if [[ -z "${PW_ACTION}" ]]; then
   printf '\n当前：PasswordAuthentication=%s  KbdInteractiveAuthentication=%s  PermitRootLogin=%s\n' \
     "${PW_NOW:-?}" "${KI_NOW:-?}" "${RL_NOW:-?}"
   [[ -t 0 ]] || die "非交互运行必须显式给 --password yes|no"
   ask "允许密码登录？[y/N]" n
-  [[ "$ASK_REPLY" == y ]] && PW_ACTION=yes || PW_ACTION=no
+  [[ "${ASK_REPLY}" == y ]] && PW_ACTION=yes || PW_ACTION=no
 fi
 
-if [[ "$PW_ACTION" == yes ]]; then
-  case "$RL_NOW" in
+if [[ "${PW_ACTION}" == yes ]]; then
+  case "${RL_NOW}" in
     prohibit-password | without-password)
-      if [[ -z "$ROOT_LOGIN" ]]; then
+      if [[ -z "${ROOT_LOGIN}" ]]; then
         if [[ -t 0 ]]; then
           warn "PermitRootLogin=${RL_NOW}，仅开 PasswordAuthentication 时 root 仍无法用密码登录"
           ask "root 也允许密码登录？[y/N]" n
-          [[ "$ASK_REPLY" == y ]] && ROOT_LOGIN=yes
+          [[ "${ASK_REPLY}" == y ]] && ROOT_LOGIN=yes
         else
           die "--password yes 时需一并给 --root-login：当前 PermitRootLogin=${RL_NOW}
        root 用密码登录：--root-login yes；仅普通用户：--root-login prohibit-password"
@@ -164,38 +164,38 @@ if [[ "$PW_ACTION" == yes ]]; then
 fi
 
 # 拆之前先确认还有别的进门方式：没有公钥、又要关密码登录 = 拆完只剩云控制台
-if [[ "$PW_ACTION" == no ]]; then
+if [[ "${PW_ACTION}" == no ]]; then
   keyed=0
   for u in root "${SUDO_USER:-}"; do
-    [[ -n "$u" ]] || continue
-    h="$(getent passwd "$u" 2>/dev/null | cut -d: -f6 || true)"
-    if [[ -n "$h" ]] && ls "$h"/.ssh/authorized_keys* >/dev/null 2>&1; then keyed=$((keyed + 1)); fi
+    [[ -n "${u}" ]] || continue
+    h="$(getent passwd "${u}" 2>/dev/null | cut -d: -f6 || true)"
+    if [[ -n "${h}" ]] && ls "${h}"/.ssh/authorized_keys* >/dev/null 2>&1; then keyed=$((keyed + 1)); fi
   done
-  [[ "$keyed" -gt 0 ]] || warn "未在 root 与当前用户的 HOME 下找到 authorized_keys：拆除后仅公钥可登录"
+  [[ "${keyed}" -gt 0 ]] || warn "未在 root 与当前用户的 HOME 下找到 authorized_keys：拆除后仅公钥可登录"
 fi
 
-if [[ "$PURGE" == 0 ]] && { [[ -e "$ACCESS_CONF" ]] || [[ -e "$KEYS" ]]; }; then
+if [[ "${PURGE}" == 0 ]] && { [[ -e "${ACCESS_CONF}" ]] || [[ -e "${KEYS}" ]]; }; then
   if [[ -t 0 ]]; then
     ask "同时删除 access.conf 与密钥包？[y/N]" n
-    [[ "$ASK_REPLY" == y ]] && PURGE=1 || true
+    [[ "${ASK_REPLY}" == y ]] && PURGE=1 || true
   fi
 fi
 
-if [[ "$ASSUME_YES" == 0 ]]; then
+if [[ "${ASSUME_YES}" == 0 ]]; then
   [[ -t 0 ]] || die "非交互运行要加 -y 确认拆除"
   ask "确认拆除 SPA？公网 SSH 会重新对全网开放 [y/N]" n
-  [[ "$ASK_REPLY" == y ]] || { log "已取消，未做改动"; exit 0; }
+  [[ "${ASK_REPLY}" == y ]] || { log "已取消，未做改动"; exit 0; }
 fi
 
 # 1) 先开公网 SSH —— 不成功就绝不继续拆
 log "1/6 放行公网 SSH：${PORTS}/tcp"
 if command -v ufw >/dev/null 2>&1; then
-  for p in $PORTS; do ufw allow "$p/tcp" comment 'ssh' >/dev/null; done
+  for p in ${PORTS}; do ufw allow "${p}/tcp" comment 'ssh' >/dev/null; done
   missing=""
-  for p in $PORTS; do
-    ufw status | grep -qE "^${p}/tcp[[:space:]]+(ALLOW|LIMIT)" || missing="$missing $p"
+  for p in ${PORTS}; do
+    ufw status | grep -qE "^${p}/tcp[[:space:]]+(ALLOW|LIMIT)" || missing="${missing} ${p}"
   done
-  [[ -z "$missing" ]] || die "ufw 没放行成：${missing}。SPA 还完整，先去排查"
+  [[ -z "${missing}" ]] || die "ufw 没放行成：${missing}。SPA 还完整，先去排查"
   log "    回读确认：${PORTS}/tcp 已放行"
 else
   warn "    未安装 ufw，跳过放行"
@@ -221,64 +221,64 @@ fi
 
 # 5) 还原 fwknopd.conf
 log "5/6 还原 fwknopd.conf"
-if [[ -f "$FWD_ORIG" ]]; then
-  mv "$FWD_ORIG" "$FWD_CONF"
+if [[ -f "${FWD_ORIG}" ]]; then
+  mv "${FWD_ORIG}" "${FWD_CONF}"
 else
   warn "    未找到 ${FWD_ORIG}，fwknopd.conf 保持现状"
 fi
 
 # 6) 登录策略。sshd 对同一关键字只取第一个出现的值，Include 按文件名排序就地展开，
 #    所以改的必须是「排序最靠前、且写了该关键字」的那一份。
-sshd_uses_dropin() { grep -qiE '^[[:space:]]*Include[[:space:]]+.*sshd_config\.d' "$SSHD_MAIN" 2>/dev/null; }
+sshd_uses_dropin() { grep -qiE '^[[:space:]]*Include[[:space:]]+.*sshd_config\.d' "${SSHD_MAIN}" 2>/dev/null; }
 
 first_file_with_key() {
   local key="$1" f
   if sshd_uses_dropin; then
-    for f in "$SSHD_DROPIN_DIR"/*.conf; do
-      [[ -f "$f" ]] || continue
-      grep -qiE "^[[:space:]]*${key}[[:space:]]" "$f" && { printf '%s\n' "$f"; return 0; }
+    for f in "${SSHD_DROPIN_DIR}"/*.conf; do
+      [[ -f "${f}" ]] || continue
+      grep -qiE "^[[:space:]]*${key}[[:space:]]" "${f}" && { printf '%s\n' "${f}"; return 0; }
     done
   fi
-  grep -qiE "^[[:space:]]*${key}[[:space:]]" "$SSHD_MAIN" && { printf '%s\n' "$SSHD_MAIN"; return 0; }
+  grep -qiE "^[[:space:]]*${key}[[:space:]]" "${SSHD_MAIN}" && { printf '%s\n' "${SSHD_MAIN}"; return 0; }
   return 1
 }
 
 set_sshd_key() {
   local key="$1" val="$2" f=""
-  f="$(first_file_with_key "$key" || true)"
-  if [[ -z "$f" ]]; then
+  f="$(first_file_with_key "${key}" || true)"
+  if [[ -z "${f}" ]]; then
     if sshd_uses_dropin; then
-      mkdir -p "$SSHD_DROPIN_DIR"
-      f="$SSHD_DROPIN_DIR/99-ssh-spa.conf"
-      [[ -f "$f" ]] || : >"$f"
+      mkdir -p "${SSHD_DROPIN_DIR}"
+      f="${SSHD_DROPIN_DIR}/99-ssh-spa.conf"
+      [[ -f "${f}" ]] || : >"${f}"
     else
-      f="$SSHD_MAIN"
+      f="${SSHD_MAIN}"
     fi
   fi
-  awk -v k="$key" -v v="$val" '
+  awk -v k="${key}" -v v="${val}" '
     BEGIN { done = 0 }
     { if (!done && tolower($1) == tolower(k)) { print k " " v; done = 1; next } print }
     END { if (!done) print k " " v }
-  ' "$f" >"$f.spa.tmp" && mv "$f.spa.tmp" "$f"
-  chmod 644 "$f" 2>/dev/null || true
+  ' "${f}" >"${f}.spa.tmp" && mv "${f}.spa.tmp" "${f}"
+  chmod 644 "${f}" 2>/dev/null || true
   log "    ${f} → ${key} ${val}"
 }
 
 log "6/6 登录策略：password=${PW_ACTION}${ROOT_LOGIN:+ root-login=${ROOT_LOGIN}}"
-if command -v sshd >/dev/null 2>&1 && [[ -r "$SSHD_MAIN" ]]; then
-  set_sshd_key PasswordAuthentication "$PW_ACTION"
-  [[ "$PW_ACTION" == no ]] && set_sshd_key KbdInteractiveAuthentication no
-  [[ -n "$ROOT_LOGIN" ]] && set_sshd_key PermitRootLogin "$ROOT_LOGIN"
+if command -v sshd >/dev/null 2>&1 && [[ -r "${SSHD_MAIN}" ]]; then
+  set_sshd_key PasswordAuthentication "${PW_ACTION}"
+  [[ "${PW_ACTION}" == no ]] && set_sshd_key KbdInteractiveAuthentication no
+  [[ -n "${ROOT_LOGIN}" ]] && set_sshd_key PermitRootLogin "${ROOT_LOGIN}"
   if sshd -t 2>/dev/null; then
     systemctl reload ssh 2>/dev/null || systemctl restart ssh 2>/dev/null ||
       systemctl restart sshd 2>/dev/null || warn "    reload/restart ssh 失败，新策略可能没生效"
     got_pw="$(sshd_get passwordauthentication || true)"
-    [[ "$got_pw" == "$PW_ACTION" ]] || {
+    [[ "${got_pw}" == "${PW_ACTION}" ]] || {
       warn "    passwordauthentication 仍为 ${got_pw:-?}，以下位置设置了该关键字："
       grep -rniE --exclude='*.orig' '^[[:space:]]*(PasswordAuthentication|KbdInteractiveAuthentication)' \
-        "$SSHD_MAIN" "$SSHD_DROPIN_DIR" 2>/dev/null | while IFS= read -r l; do warn "      $l"; done
+        "${SSHD_MAIN}" "${SSHD_DROPIN_DIR}" 2>/dev/null | while IFS= read -r l; do warn "      ${l}"; done
     }
-    [[ -z "$ROOT_LOGIN" ]] || [[ "$(sshd_get permitrootlogin || true)" == "$ROOT_LOGIN" ]] ||
+    [[ -z "${ROOT_LOGIN}" ]] || [[ "$(sshd_get permitrootlogin || true)" == "${ROOT_LOGIN}" ]] ||
       warn "    permitrootlogin 仍是 $(sshd_get permitrootlogin || true)"
   else
     warn "    sshd -t 未通过，先修 ${SSHD_MAIN} 与 ${SSHD_DROPIN_DIR}，不要 restart"
@@ -290,12 +290,12 @@ fi
 show_status
 printf '\n'
 log "SPA 已拆除，公网 SSH 直连 ${PORTS}/tcp"
-[[ "$PW_ACTION" = yes ]] && warn "密码登录已开启，确认 fail2ban 在运行：fail2ban-client status sshd"
+[[ "${PW_ACTION}" = yes ]] && warn "密码登录已开启，确认 fail2ban 在运行：fail2ban-client status sshd"
 
-if [[ "$PURGE" == 1 ]]; then
-  rm -f "$ACCESS_CONF" "$KEYS"
+if [[ "${PURGE}" == 1 ]]; then
+  rm -f "${ACCESS_CONF}" "${KEYS}"
   log "已删除 ${ACCESS_CONF} 与 ${KEYS}"
 else
-  printf '保留 %s、%s，加 --purge 可删除\n' "$ACCESS_CONF" "$KEYS"
+  printf '保留 %s、%s，加 --purge 可删除\n' "${ACCESS_CONF}" "${KEYS}"
 fi
 printf '客户端各自还原：bash 90-uninstall.sh --client\n'
