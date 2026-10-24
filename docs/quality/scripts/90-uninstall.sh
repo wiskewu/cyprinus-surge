@@ -110,10 +110,10 @@ case "${SPA_PORT}" in '' | *[!0-9]*) SPA_PORT=62201 ;; esac
 PORTS=""
 
 show_status() {
-  printf 'fwknopd    : %s\n' "$(command -v fwknopd >/dev/null 2>&1 && (systemctl is-active fwknop-server 2>/dev/null || echo 未知) || echo 未安装)"
-  printf 'INPUT 跳转 : %s\n' "$(iptables -S INPUT 2>/dev/null | grep -q FWKNOP_INPUT && echo '在，SPA 仍在接管' || echo '不在，SPA 未接管')"
+  printf 'fwknopd    : %s\n' "$(command -v fwknopd >/dev/null 2>&1 && (systemctl is-active fwknop-server 2>/dev/null || printf '未知') || printf '未安装')"
+  printf 'INPUT 跳转 : %s\n' "$(iptables -S INPUT 2>/dev/null | grep -q FWKNOP_INPUT && printf '在，SPA 仍在接管' || printf '不在，SPA 未接管')"
   printf '临时放行   : %s 条\n' "$(iptables -S FWKNOP_INPUT 2>/dev/null | grep -c '^-A' || true)"
-  printf 'SSH 端口   : %s\n' "$(ssh_resolve_ports 2>/dev/null || echo '探测不到，用 SSH_PORT= 指定')"
+  printf 'SSH 端口   : %s\n' "$(ssh_resolve_ports 2>/dev/null || printf '探测不到，用 SSH_PORT= 指定')"
   if command -v sshd >/dev/null 2>&1 && sshd -T >/dev/null 2>&1; then
     printf '登录策略   : %s\n' "$(sshd -T 2>/dev/null | grep -iE '^(passwordauthentication|kbdinteractiveauthentication|permitrootlogin) ' | paste -sd' ' -)"
   fi

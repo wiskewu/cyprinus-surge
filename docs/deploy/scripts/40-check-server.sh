@@ -79,6 +79,6 @@ if [[ "${ENABLE_HY2:-0}" == "1" ]]; then
   chk "证书有效期（剩余 ${days} 天）" "$([[ "${days}" -gt 20 ]] && printf ok || printf soon)"
 fi
 
-echo
+printf '\n'
 printf '通过 %s 项，失败 %s 项\n' "${ok}" "${bad}"
 [[ "${bad}" -eq 0 ]] || warn "有失败项，排查见 06-ops.html"

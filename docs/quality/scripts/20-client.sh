@@ -59,9 +59,9 @@ strip_block() {  # 从 ~/.ssh/config 里摘掉托管块，并清掉末尾多余�
 }
 
 if [[ "${MODE}" == status ]]; then
-  printf '%s : %s\n' "${FWKRC}" "$([ -f "${FWKRC}" ] && echo 存在 || echo 不存在)"
+  printf '%s : %s\n' "${FWKRC}" "$([ -f "${FWKRC}" ] && printf '存在' || printf '不存在')"
   [[ -f "${FWKRC}" ]] && grep -E '^\[' "${FWKRC}" | tr -d '[]' | sed 's/^/  stanza: /'
-  grep -qF "${BEGIN}" "${SSHCFG}" 2>/dev/null && echo "${SSHCFG} : 托管块存在" || echo "${SSHCFG} : 无托管块"
+  grep -qF "${BEGIN}" "${SSHCFG}" 2>/dev/null && printf '%s : 托管块存在\n' "${SSHCFG}" || printf '%s : 无托管块\n' "${SSHCFG}"
   exit 0
 fi
 

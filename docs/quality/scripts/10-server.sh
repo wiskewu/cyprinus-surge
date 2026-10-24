@@ -51,8 +51,8 @@ show_status() {
   printf '包      : %s\n' "${KEYS}"
   printf 'SSH 端口: %s（探测所得）\n' "${ports}"
   if command -v fwknopd >/dev/null 2>&1; then
-    printf 'fwknopd : %s\n' "$(systemctl is-active fwknop-server 2>/dev/null || echo 未安装)"
-    printf '跳转规则: %s\n' "$(iptables -S INPUT 2>/dev/null | grep -q FWKNOP_INPUT && echo '在 INPUT 第 1 位' || echo '缺失，重启 fwknop-server 后复查')"
+    printf 'fwknopd : %s\n' "$(systemctl is-active fwknop-server 2>/dev/null || printf '未安装')"
+    printf '跳转规则: %s\n' "$(iptables -S INPUT 2>/dev/null | grep -q FWKNOP_INPUT && printf '在 INPUT 第 1 位' || printf '缺失，重启 fwknop-server 后复查')"
     printf '当前放行: %s\n' "$(iptables -S FWKNOP_INPUT 2>/dev/null | grep -c '^-A' || true) 条临时规则"
   else
     printf 'fwknopd : 未安装\n'

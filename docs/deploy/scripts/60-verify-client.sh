@@ -53,7 +53,7 @@ ok()   { printf '  \033[32m✓\033[0m %s\n' "$*"; PASS=$((PASS+1)); }
 no()   { printf '  \033[31m✗\033[0m %s\n' "$*"; FAIL=$((FAIL+1)); }
 note() { printf '  \033[36m·\033[0m %s\n' "$*"; SKIP=$((SKIP+1)); }
 # 只接受数字与小数点，防止把 HTML 之类的东西喂给 printf/awk
-num()  { case "${1:-}" in ''|*[!0-9.]*) echo 0 ;; *) echo "$1" ;; esac; }
+num()  { case "${1:-}" in ''|*[!0-9.]*) printf 0 ;; *) printf '%s' "$1" ;; esac; }
 
 # 同一个 URL 请求两次：第 1 次冷启动，第 2 次复用连接。
 # 注意 -o 是按位置的：两个 URL 就要两个 -o，否则第二个响应正文会打到 stdout。

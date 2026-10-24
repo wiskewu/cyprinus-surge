@@ -58,7 +58,7 @@ hy2_enabled() { [[ "${ENABLE_HY2:-0}" == "1" ]] || grep -q '^ENABLE_HY2=1' "${EN
 
 step_title() { local v="${1}_TITLE"; printf '%s' "${!v:-$1}"; }
 step_optional() { local v="${1}_OPTIONAL"; printf '%s' "${!v:-0}"; }
-step_state() { if "${1}_check" >/dev/null 2>&1; then echo "已配置"; else echo "未配置"; fi; }
+step_state() { if "${1}_check" >/dev/null 2>&1; then printf '已配置\n'; else printf '未配置\n'; fi; }
 
 selected() {
   local id="$1"
@@ -73,7 +73,7 @@ print_plan() {
   local id
   for id in "${STEPS[@]}"; do
     selected "${id}" || { printf '%-10s %-8s %-6s %s（按参数排除）\n' "${id}" "-" "-" "$(step_title "${id}")"; continue; }
-    printf '%-10s %-8s %-6s %s\n' "${id}" "$(step_state "${id}")" "$([ "$(step_optional "${id}")" = 1 ] && echo yes || echo no)" "$(step_title "${id}")"
+    printf '%-10s %-8s %-6s %s\n' "${id}" "$(step_state "${id}")" "$([ "$(step_optional "${id}")" = 1 ] && printf yes || printf no)" "$(step_title "${id}")"
   done
   printf '%s\n\n' "--------------------------------------------------------------"
 }

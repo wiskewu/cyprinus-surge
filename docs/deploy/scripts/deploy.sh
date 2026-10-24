@@ -192,12 +192,12 @@ net.core.somaxconn = 4096
 net.ipv4.tcp_fastopen = 3
 SYSCTL
   modprobe tcp_bbr 2>/dev/null || true
-  echo tcp_bbr >/etc/modules-load.d/bbr.conf
+  printf '%s\n' tcp_bbr >/etc/modules-load.d/bbr.conf
   sysctl --system >/dev/null
 
   log "3/8 出站优先 IPv4"
   touch /etc/gai.conf
-  grep -q '^precedence ::ffff:0:0/96' /etc/gai.conf || echo 'precedence ::ffff:0:0/96  100' >>/etc/gai.conf
+  grep -q '^precedence ::ffff:0:0/96' /etc/gai.conf || printf '%s\n' 'precedence ::ffff:0:0/96  100' >>/etc/gai.conf
 
   log "4/8 swap"
   if ! swapon --show | grep -q .; then
@@ -206,7 +206,7 @@ SYSCTL
       chmod 600 /swapfile && mkswap /swapfile >/dev/null
     fi
     swapon /swapfile
-    grep -q '^/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >>/etc/fstab
+    grep -q '^/swapfile' /etc/fstab || printf '%s\n' '/swapfile none swap sw 0 0' >>/etc/fstab
     sysctl -w vm.swappiness=10 >/dev/null
   fi
 
@@ -247,7 +247,7 @@ SSHEOF
          && [[ -r "${SC}" ]] && ! grep -qiE '^[[:space:]]*Include[[:space:]]' "${SC}"; then
         warn "    ${SC} 里没有 Include sshd_config.d，drop-in 不会被读；补一条到文件顶部（备份 ${SC}.before-include）"
         [[ -f "${SC}.before-include" ]] || cp -a "${SC}" "${SC}.before-include"
-        { echo 'Include /etc/ssh/sshd_config.d/*.conf'; cat "${SC}.before-include"; } >"${SC}"
+        { printf '%s\n' 'Include /etc/ssh/sshd_config.d/*.conf'; cat "${SC}.before-include"; } >"${SC}"
         if sshd -t 2>/dev/null; then
           systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || true
         else
@@ -259,7 +259,7 @@ SSHEOF
         log "    已生效：passwordauthentication no"
       else
         # 说不清楚就给人看证据：现在到底是多少、谁把它设回去的（第一个出现的值赢）
-        warn "    未生效，当前生效值：$(sshd -T 2>/dev/null | grep -i '^passwordauthentication' || echo '读不到')，文件 ${SC}"
+        warn "    未生效，当前生效值：$(sshd -T 2>/dev/null | grep -i '^passwordauthentication' || printf '读不到')，文件 ${SC}"
         warn "    设置该关键字的位置，drop-in 按文件名排序，靠前的生效："
         grep -rniE --exclude='*.orig' '^[[:space:]]*(PasswordAuthentication|KbdInteractiveAuthentication)' \
           "${SC}" /etc/ssh/sshd_config.d 2>/dev/null | while IFS= read -r l; do warn "      ${l}"; done
@@ -526,7 +526,7 @@ ENV
 
   log "已生成：${ENVFILE} / ${CLIENT_ENV} / ${DEVICES_LIST}"
   printf '\n  服务器 IP    %s\n  节点地址     %s%s\n  端口         %s/tcp\n  伪装站点     %s\n  设备数       %s\n  REALITY 公钥 %s\n  short_id     %s\n' \
-    "${SERVER_IP}" "${SERVER_HOST}" "$([ "${SERVER_HOST}" = "${SERVER_IP}" ] && echo '（未配域名）' || echo '（域名）')" \
+    "${SERVER_IP}" "${SERVER_HOST}" "$([ "${SERVER_HOST}" = "${SERVER_IP}" ] && printf '（未配域名）' || printf '（域名）')" \
     "${VLESS_PORT:-443}" "${REALITY_DEST}" "$(device_rows | wc -l)" "${REALITY_PUBLIC_KEY}" "${SHORT_ID}"
 }
 
@@ -712,8 +712,8 @@ porthop_run() {
     log "已添加：udp ${PORTHOP_START}:${PORTHOP_END} → ${PORTHOP_START}（${PORTHOP_IFACE}）"
   fi
   export DEBIAN_FRONTEND=noninteractive
-  echo "iptables-persistent iptables-persistent/autosave_v4 boolean true" | debconf-set-selections
-  echo "iptables-persistent iptables-persistent/autosave_v6 boolean true" | debconf-set-selections
+  printf '%s\n' "iptables-persistent iptables-persistent/autosave_v4 boolean true" | debconf-set-selections
+  printf '%s\n' "iptables-persistent iptables-persistent/autosave_v6 boolean true" | debconf-set-selections
   apt-get -y -qq install iptables-persistent >/dev/null
   netfilter-persistent save >/dev/null
   log "已持久化"
@@ -784,7 +784,7 @@ hy2_enabled() { [[ "${ENABLE_HY2:-0}" == "1" ]] || grep -q '^ENABLE_HY2=1' "${EN
 
 step_title() { local v="${1}_TITLE"; printf '%s' "${!v:-$1}"; }
 step_optional() { local v="${1}_OPTIONAL"; printf '%s' "${!v:-0}"; }
-step_state() { if "${1}_check" >/dev/null 2>&1; then echo "已配置"; else echo "未配置"; fi; }
+step_state() { if "${1}_check" >/dev/null 2>&1; then printf '已配置\n'; else printf '未配置\n'; fi; }
 
 selected() {
   local id="$1"
@@ -799,7 +799,7 @@ print_plan() {
   local id
   for id in "${STEPS[@]}"; do
     selected "${id}" || { printf '%-10s %-8s %-6s %s（按参数排除）\n' "${id}" "-" "-" "$(step_title "${id}")"; continue; }
-    printf '%-10s %-8s %-6s %s\n' "${id}" "$(step_state "${id}")" "$([ "$(step_optional "${id}")" = 1 ] && echo yes || echo no)" "$(step_title "${id}")"
+    printf '%-10s %-8s %-6s %s\n' "${id}" "$(step_state "${id}")" "$([ "$(step_optional "${id}")" = 1 ] && printf yes || printf no)" "$(step_title "${id}")"
   done
   printf '%s\n\n' "--------------------------------------------------------------"
 }

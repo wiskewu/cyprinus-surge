@@ -29,8 +29,8 @@ porthop_run() {
     log "已添加：udp ${PORTHOP_START}:${PORTHOP_END} → ${PORTHOP_START}（${PORTHOP_IFACE}）"
   fi
   export DEBIAN_FRONTEND=noninteractive
-  echo "iptables-persistent iptables-persistent/autosave_v4 boolean true" | debconf-set-selections
-  echo "iptables-persistent iptables-persistent/autosave_v6 boolean true" | debconf-set-selections
+  printf '%s\n' "iptables-persistent iptables-persistent/autosave_v4 boolean true" | debconf-set-selections
+  printf '%s\n' "iptables-persistent iptables-persistent/autosave_v6 boolean true" | debconf-set-selections
   apt-get -y -qq install iptables-persistent >/dev/null
   netfilter-persistent save >/dev/null
   log "已持久化"

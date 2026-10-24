@@ -83,18 +83,18 @@ curl -s -o /dev/null -w '%{http_code}' --max-time 20 \
   "${TARGET_URL}" >"${TMP}/code" 2>"${TMP}/curl.err"
 CURL_RC=$?
 set -e
-CODE="$(cat "${TMP}/code" 2>/dev/null || echo 000)"
+CODE="$(cat "${TMP}/code" 2>/dev/null || printf 000)"
 log "    HTTP ${CODE}，curl 退出码 ${CURL_RC}；403/401 属正常，此处只验证路由"
 
 log "5/5 核对 ai-out 是否真的被用到"
 grep -o 'outbound/[a-z0-9_-]*' "${TMP}/client.log" 2>/dev/null | sort -u >"${TMP}/used" || true
-log "    客户端用到的出站：$(tr '\n' ' ' <"${TMP}/used" 2>/dev/null || echo '（日志里没有 outbound 记录）')"
+log "    客户端用到的出站：$(tr '\n' ' ' <"${TMP}/used" 2>/dev/null || printf '（日志里没有 outbound 记录）')"
 
 FAILED=0
 grep -q 'ai-out' "${TMP}/used" 2>/dev/null || FAILED=1
 grep -q 'ai-out' "${TMP}/client.json" || FAILED=1   # 兜底：配置里至少要有这条出站
 
-echo
+printf '\n'
 if [[ "${FAILED}" == 0 ]]; then
   log "通过：AI 域名确实走 ai-out（独立出口）"
   cat <<EOF
