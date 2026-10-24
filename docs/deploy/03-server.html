@@ -94,6 +94,26 @@ systemctl status sing-box
 journalctl -u sing-box -n 50 --no-pager
 systemctl restart sing-box</code></pre>
 
+<h2 id="harden">加固：降权与 systemd 沙箱 <span class="tag">可选</span></h2>
+<p>默认的单元文件让 sing-box 以 root 全权限运行。它是唯一监听公网、解析密文的进程，值得收一次权限。脚本幂等，随时可以 <code>--check</code> 复查或 <code>--revert</code> 退回。</p>
+<pre><code>sudo bash 09-harden.sh          # 建 system 用户、收权限、重写 unit、重启并自检
+sudo bash 09-harden.sh --check  # 只看现状
+sudo bash 09-harden.sh --revert # 用备份的 .orig 覆盖回去并重启</code></pre>
+<div class="tw">
+<table>
+<thead><tr><th>做了什么</th><th>为什么</th></tr></thead>
+<tbody>
+<tr><td><code>User=sing-box</code> + <code>CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW</code></td><td>只需要三项能力：操作 nftables/路由、绑 443、创建 TUN。其余 root 权限一律不给</td></tr>
+<tr><td><code>/etc/sing-box</code> 归 <code>root:sing-box</code>，目录 750、文件 640</td><td>配置里有 REALITY 私钥与证书私钥，只有该组可读</td></tr>
+<tr><td><code>ProtectSystem=strict</code>、<code>ProtectHome</code>、<code>PrivateTmp</code>、<code>ReadWritePaths=/var/lib/sing-box</code></td><td>文件系统只读，唯一可写是自己的运行目录</td></tr>
+<tr><td><code>ProtectKernelTunables</code>、<code>ProtectKernelModules</code>、<code>ProtectKernelLogs</code>、<code>ProtectControlGroups</code>、<code>ProtectClock</code>、<code>ProtectHostname</code>、<code>ProtectProc=invisible</code></td><td>内核面全部收掉，nftables 走 netlink 不受影响</td></tr>
+<tr><td><code>RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK</code>、<code>RestrictNamespaces</code>、<code>MemoryDenyWriteExecute</code>、<code>SystemCallFilter=@system-service</code></td><td>只留网络相关的地址族与系统调用</td></tr>
+</tbody>
+</table>
+</div>
+<div class="bad"><b>改完会重启 sing-box。</b>脚本重启后验证「服务 active + <code>VLESS_PORT</code> 在监听 + 启用 Hy2 时 <code>HY2_PORT/udp</code> 在监听」，任一不满足就自动回滚到原单元。若在沙箱下起不来，多半是某个 <code>Protect*</code> 或 <code>SystemCallFilter</code> 挡了 TUN 与 netlink：删掉对应一行再跑。</div>
+<div class="note">原单元备份在 <code>/etc/systemd/system/sing-box.service.orig</code>，只在首次加固时写一次，重复执行不会覆盖它。用 <code>10-install-singbox.sh</code> 重装 sing-box 会把 unit 覆盖回未加固版本，重装后需要再跑一次本脚本。</div>
+
 <h2 id="devices">设备管理</h2>
 <p><code>device.sh</code> 在<b>服务器</b>上就地完成：改名单 → 重渲染服务端 → 重新生成那台的客户端 JSON，然后你把 JSON 拿去分发。它不自己实现任何 sing-box 逻辑，渲染一律走现有脚本，所以不会和模板漂移。</p>
 <pre><code>sudo bash device.sh list
