@@ -80,7 +80,7 @@ server_run() {
     log "DRY_RUN：已生成 ${out}"
     return 0
   fi
-  install -m 600 "${T}/server.json" "${DEPLOY_DIR}/config.json"
+  install_service_file "${T}/server.json" "${DEPLOY_DIR}/config.json"
   systemctl enable sing-box >/dev/null 2>&1 || true
   systemctl restart sing-box
   sleep 1

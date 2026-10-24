@@ -39,7 +39,14 @@ hy2_run() {
     --fullchain-file "${DEPLOY_DIR}/cert.pem" \
     --key-file "${DEPLOY_DIR}/key.pem" \
     --reloadcmd "systemctl restart sing-box" || die "安装证书失败"
+  # acme.sh 直接写目标路径，权限是 600 root:root。降权运行时 sing-box 读不到，
+  # 这里补一次组读，规则与 install_service_file 一致。
+  svc_user="$(systemctl show -p User --value sing-box 2>/dev/null || true)"
   chmod 600 "${DEPLOY_DIR}/cert.pem" "${DEPLOY_DIR}/key.pem"
+  if [[ -n "${svc_user}" && "${svc_user}" != "root" ]] && group="$(id -gn "${svc_user}" 2>/dev/null)"; then
+    chgrp "${group}" "${DEPLOY_DIR}/cert.pem" "${DEPLOY_DIR}/key.pem" 2>/dev/null || true
+    chmod 640 "${DEPLOY_DIR}/cert.pem" "${DEPLOY_DIR}/key.pem" 2>/dev/null || true
+  fi
 
   for f in "${ENVFILE}" "${CLIENT_ENV}"; do
     [[ -f "${f}" ]] || continue

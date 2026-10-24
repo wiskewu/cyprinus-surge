@@ -2,7 +2,7 @@
 # shellcheck disable=SC2034  # 步骤元数据与跨文件变量由间接展开读取
 # ===========================================================================
 # deploy.sh，一键脚本。自动生成，勿手改。
-#   生成时间：2026-10-24T15:44:45Z
+#   生成时间：2026-10-24T17:04:27Z
 #   来源：lib.sh + steps/*.sh + onekey/driver.sh
 #   重新生成：bash build-onekey.sh
 # ===========================================================================
@@ -54,6 +54,20 @@ cleanup_tmp_dirs() {
 }
 # 用法：mktemp_dir VAR —— 建目录、登记到退出清理表，结果写进 VAR。
 # 不用 $(mktemp_dir) 取值：命令替换在子 shell 里跑，登记表加了也传不出来。
+# 装服务要读的文件。默认 600 root:root；若 sing-box 以非 root 运行，改成
+# root:<该用户的组> 640，否则重渲染一次就把加固后的可读权限盖掉，服务直接起不来。
+install_service_file() { # $1=源文件 $2=目标路径
+  local src="$1" dst="$2" user group
+  install -m 600 "${src}" "${dst}"
+  user="$(systemctl show -p User --value sing-box 2>/dev/null || true)"
+  [[ -n "${user}" && "${user}" != "root" ]] || return 0
+  group="$(id -gn "${user}" 2>/dev/null || true)"
+  [[ -n "${group}" ]] || return 0
+  chgrp "${group}" "${dst}" 2>/dev/null || true
+  chmod 640 "${dst}" 2>/dev/null || true
+  return 0
+}
+
 mktemp_dir() {
   local _d
   [[ -n "${1:-}" ]] || die "mktemp_dir 需要一个变量名"
@@ -654,7 +668,7 @@ server_run() {
     log "DRY_RUN：已生成 ${out}"
     return 0
   fi
-  install -m 600 "${T}/server.json" "${DEPLOY_DIR}/config.json"
+  install_service_file "${T}/server.json" "${DEPLOY_DIR}/config.json"
   systemctl enable sing-box >/dev/null 2>&1 || true
   systemctl restart sing-box
   sleep 1
@@ -711,7 +725,14 @@ hy2_run() {
     --fullchain-file "${DEPLOY_DIR}/cert.pem" \
     --key-file "${DEPLOY_DIR}/key.pem" \
     --reloadcmd "systemctl restart sing-box" || die "安装证书失败"
+  # acme.sh 直接写目标路径，权限是 600 root:root。降权运行时 sing-box 读不到，
+  # 这里补一次组读，规则与 install_service_file 一致。
+  svc_user="$(systemctl show -p User --value sing-box 2>/dev/null || true)"
   chmod 600 "${DEPLOY_DIR}/cert.pem" "${DEPLOY_DIR}/key.pem"
+  if [[ -n "${svc_user}" && "${svc_user}" != "root" ]] && group="$(id -gn "${svc_user}" 2>/dev/null)"; then
+    chgrp "${group}" "${DEPLOY_DIR}/cert.pem" "${DEPLOY_DIR}/key.pem" 2>/dev/null || true
+    chmod 640 "${DEPLOY_DIR}/cert.pem" "${DEPLOY_DIR}/key.pem" 2>/dev/null || true
+  fi
 
   for f in "${ENVFILE}" "${CLIENT_ENV}"; do
     [[ -f "${f}" ]] || continue

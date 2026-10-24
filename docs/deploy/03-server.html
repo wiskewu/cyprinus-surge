@@ -117,6 +117,8 @@ sudo bash 09-harden.sh --revert  # 用备份的 .orig 覆盖回去并重启</cod
 <p>脚本的判定不是「服务 active」就算过。sing-box 起来后还要几十到几百毫秒才绑定端口，只看 unit 状态会把「还在绑定」误判成失败，因此它会等端口：服务 active 且 <code>VLESS_PORT</code> 在监听，启用 Hy2 时再要求 <code>HY2_PORT/udp</code> 在监听，最多等 20 秒。任一条件不满足就回滚。</p>
 <pre><code>sudo bash 09-harden.sh --check</code></pre>
 <p>关键三行：<code>生效 User</code> 应为 <code>sing-box</code>、<code>StateDirectory</code> 应为 <code>sing-box</code>、<code>沙箱</code> 应为 <code>完整</code>。另有两行用来排除干扰：<code>FragmentPath</code> 与 <code>DropInPaths</code>，后者不为空说明有 drop-in 覆盖了单元。</p>
+<div class="warn"><b>重渲染会把配置权限改回 <code>600 root:root</code>。</b>降权后 sing-box 读不到，表现为 <code>read config at …: permission denied</code>。渲染脚本已改用 <code>install_service_file</code>，按单元里的 <code>User=</code> 自动落成 <code>640 root:&lt;该用户的组&gt;</code>；手工 <code>install -m 600</code> 覆盖过配置的，补 <code>chgrp</code> 后重启即可。</div>
+
 <div class="note"><b>排障时先对齐时间。</b><code>journalctl -u sing-box -n 30</code> 会把历史失败一起打出来，容易把几小时前的 <code>FATAL chdir</code> 当成这次的错误。用 <code>journalctl -u sing-box --since "10 min ago" --no-pager</code>，或者按脚本打印的调试信息为准。</div>
 
 <h3 id="harden-fail">沙箱下起不来时怎么定位</h3>

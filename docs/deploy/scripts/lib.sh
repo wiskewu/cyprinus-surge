@@ -44,6 +44,20 @@ cleanup_tmp_dirs() {
 }
 # 用法：mktemp_dir VAR —— 建目录、登记到退出清理表，结果写进 VAR。
 # 不用 $(mktemp_dir) 取值：命令替换在子 shell 里跑，登记表加了也传不出来。
+# 装服务要读的文件。默认 600 root:root；若 sing-box 以非 root 运行，改成
+# root:<该用户的组> 640，否则重渲染一次就把加固后的可读权限盖掉，服务直接起不来。
+install_service_file() { # $1=源文件 $2=目标路径
+  local src="$1" dst="$2" user group
+  install -m 600 "${src}" "${dst}"
+  user="$(systemctl show -p User --value sing-box 2>/dev/null || true)"
+  [[ -n "${user}" && "${user}" != "root" ]] || return 0
+  group="$(id -gn "${user}" 2>/dev/null || true)"
+  [[ -n "${group}" ]] || return 0
+  chgrp "${group}" "${dst}" 2>/dev/null || true
+  chmod 640 "${dst}" 2>/dev/null || true
+  return 0
+}
+
 mktemp_dir() {
   local _d
   [[ -n "${1:-}" ]] || die "mktemp_dir 需要一个变量名"
