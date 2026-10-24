@@ -51,7 +51,7 @@ ENABLE_IPT_LOCAL_NAT     N;</code></pre>
 ssh &lt;客户端&gt; 'cd ~/scripts &amp;&amp; SSH_PORT="22 4061" bash 20-client.sh --keys ~/laptop.env --user root'</code></pre>
 <p><code>--user</code> 写服务器上的登录名，不是本机用户名。不给就用本机用户名去连，服务器没有同名账号时表现为一直要密码或 <code>Permission denied</code>。<code>SSH_PORT</code> 只在密钥包里没写回端口时才需要：服务端 <code>10-server.sh</code> 跑完会把探测值回写进包，分发的若是那份就不用这条。</p>
 <p>做了三件事：装 <code>fwknop</code>；写 <code>~/.fwknoprc</code>（0600）；往 <code>~/.ssh/config</code> 追加带 <code># BEGIN/END ssh-spa</code> 标记的托管块，重跑只原地替换不叠加，<code>--uninstall</code> 摘掉后与原文件逐字节一致。</p>
-<p><code>~/.fwknoprc</code> 里关键的是 <code>ALLOW_IP</code>，默认写 <code>source</code>：SPA 包里写 <code>0.0.0.0</code>，服务端按「包从哪个 IP 来」放行——<b>不需要 wget，也不怕你换网络</b>。需要时在密钥包里加一行 <code>ALLOW_IP=…</code> 覆盖：</p>
+<p><code>~/.fwknoprc</code> 里关键的是 <code>ALLOW_IP</code>，默认写 <code>source</code>：SPA 包里写 <code>0.0.0.0</code>，服务端按「包从哪个 IP 来」放行：<b>不需要 wget，也不怕你换网络</b>。需要时在密钥包里加一行 <code>ALLOW_IP=…</code> 覆盖：</p>
 <div class="tw">
 <table>
 <thead><tr><th>取值</th><th>客户端要什么</th><th>适合</th></tr></thead>
@@ -82,9 +82,9 @@ ssh &lt;客户端&gt; 'cd ~/scripts &amp;&amp; SSH_PORT="22 4061" bash 20-client
 <p>装包路径按顺序探测：brew → apt（<code>fwknop-client</code>）→ pacman。缺 <code>nc</code> 只警告不中止，因为 <code>ProxyCommand</code> 的最后一步要它（Debian/Ubuntu：<code>apt install netcat-openbsd</code>）。</p>
 
 <h2>第 4 步 · 收口</h2>
-<div class="bad"><b>顺序不能反，而且要先验证敲门。</b>在当前 SSH 会话里另开一个连接确认能进；同时客户端 <code>fwknop -n &lt;别名&gt;</code> 之后 <code>sudo iptables -S FWKNOP_INPUT</code> 必须出现该端口的 ACCEPT。脚本只探测端口就删公网规则，不替你验证敲门链路——敲不通时收口等于锁死自己。</div>
+<div class="bad"><b>顺序不能反，而且要先验证敲门。</b>在当前 SSH 会话里另开一个连接确认能进；同时客户端 <code>fwknop -n &lt;别名&gt;</code> 之后 <code>sudo iptables -S FWKNOP_INPUT</code> 必须出现该端口的 ACCEPT。脚本只探测端口就删公网规则，不替你验证敲门链路，敲不通时收口等于锁死自己。</div>
 <pre><code>bash /root/ssh-spa/10-server.sh --keys /root/spa-keys.env --close-ssh</code></pre>
-<p>它会删除<b>探测到的每一个</b>公网 SSH 端口规则（<code>ufw limit</code> 和 <code>ufw allow</code> 两种都试），<b>然后回读 <code>ufw status</code> 确认规则真的没了</b>——ufw 删一条不存在的规则也返回 0，只看退出码会把「没关上」报成「已关闭」。还有规则残留时脚本直接报错退出。</p>
+<p>它会删除<b>探测到的每一个</b>公网 SSH 端口规则（<code>ufw limit</code> 和 <code>ufw allow</code> 两种都试），<b>然后回读 <code>ufw status</code> 确认规则真的没了</b>，ufw 删一条不存在的规则也返回 0，只看退出码会把「没关上」报成「已关闭」。还有规则残留时脚本直接报错退出。</p>
 <p>sshd 若同时监听多个端口，全部都会被处理：只关一个的话另一个还开着，而 SPA 只放行其中之一，等于多开一扇没用的门。</p>
 <p>收口前会检测 <code>tailscale0</code> / <code>wg0</code> 这类并行通道，没有就提醒你收口后只剩云控制台 VNC 能回来（只提醒，不阻止）。</p>
 <p>不想要了就退回去，步骤见 <a href="06-rollback.html">第 6 页</a>。</p>

@@ -1014,7 +1014,7 @@ svg[data-animation="trace"] [data-graph-role="automatic-crossover"]:has(> [data-
         <p><b>结论：</b>网上绝大多数老教程的配置在 1.14 上<b>起不来</b>。本方案所有配置按 1.14.x 编写，并用 <code>sing-box check</code> 校验后才上线。</p>
       </div>
     </div>
-    <div class="p-note is-warn"><b>不做的承诺：</b>自建不等于「不会被封」。本方案做的是概率工程——把<b>入口抗封锁、出口纯净度、全平台分流</b>拆成三层，任一层失效都能单独替换，而不是把所有需求压在一台机器的单一 IP 上。</div>
+    <div class="p-note is-warn"><b>不做的承诺：</b>自建不等于「不会被封」。本方案做的是概率工程，把<b>入口抗封锁、出口纯净度、全平台分流</b>拆成三层，任一层失效都能单独替换，而不是把所有需求压在一台机器的单一 IP 上。</div>
   </div>
 </section>
 
@@ -1329,7 +1329,7 @@ svg[data-animation="trace"] [data-graph-role="automatic-crossover"]:has(> [data-
       <div class="p-card">
         <h4>入口层（抗封锁）</h4>
         <p>解决「连接能不能建立」。同一台 VPS 上跑两个入站，端口互不冲突：REALITY 走 TCP/443，Hysteria2 走 UDP。</p>
-        <p>失效时的动作：换端口、换 <code>dest</code>、换 <code>short_id</code>——<b>零成本、5 分钟</b>。</p>
+        <p>失效时的动作：换端口、换 <code>dest</code>、换 <code>short_id</code>：<b>零成本、5 分钟</b>。</p>
       </div>
       <div class="p-card">
         <h4>出口层（纯净度）</h4>
@@ -1350,7 +1350,7 @@ svg[data-animation="trace"] [data-graph-role="automatic-crossover"]:has(> [data-
   <div class="p-shell">
     <header class="p-prose">
       <h2><span class="p-num">04</span>服务器选型</h2>
-      <p class="p-sub">延迟主要由「中国大陆到 VPS 的物理线路」决定，CPU/内存是次要因素。500ms 预算非常宽裕，因此要为<b>晚高峰抖动小、可换 IP</b>付费，而不是为「最低延迟」付费。</p>
+      <p class="p-sub">延迟主要由「中国大陆到 VPS 的物理线路」决定，CPU/内存是次要因素。500ms 预算留有余量，因此要为<b>晚高峰抖动小、可换 IP</b>付费，而不是为「最低延迟」付费。</p>
     </header>
     <h3>线路等级</h3>
     <div class="p-tablewrap">
@@ -1378,7 +1378,7 @@ svg[data-animation="trace"] [data-graph-role="automatic-crossover"]:has(> [data-
     <h3>下单前逐条打勾</h3>    <div class="p-grid c2">
       <div class="p-card">
         <ul class="p-check">
-          <li>支持<b>换 IP</b>或按小时计费——IP 整段被封时换协议无效，只能换 IP</li>
+          <li>支持<b>换 IP</b>或按小时计费：IP 整段被封时换协议无效，只能换 IP</li>
           <li>独立 IPv4（不是 NAT 共享 IP）；有 IPv6 更好，但必须能只走 v4 出站</li>
           <li>不与被大量代理滥用的热门 IP 段相邻</li>
         </ul>
@@ -1714,7 +1714,7 @@ svg[data-animation="trace"] [data-graph-role="automatic-crossover"]:has(> [data-
       <div class="p-card">
         <h4>官方阈值 vs 本方案门槛</h4>
         <p>IPQS 的 Fraud Score 是 0–100，<b>越高越脏</b>。官方口径是「≥85 高度可疑、≥90 建议直接拦截」；「0–20 干净」属于偏严格的社区口径。</p>
-        <p>本方案采用 <b>≤20</b> 作为自建机的硬门槛——这是<b>主动加严</b>，不是官方标准。</p>
+        <p>本方案采用 <b>≤20</b> 作为自建机的硬门槛，这是<b>主动加严</b>，不是官方标准。</p>
       </div>
       <div class="p-card is-warn">
         <h4>低分不等于 AI 可用</h4>
@@ -1728,7 +1728,7 @@ svg[data-animation="trace"] [data-graph-role="automatic-crossover"]:has(> [data-
       <div class="p-step is-gate"><b>第 1 步</b><span>IPQS：fraud_score、proxy、vpn、tor、recent_abuse、ASN</span></div>
       <div class="p-step"><b>第 2 步</b><span>ASN 与 IP 类型（ipinfo.io / ip.ping0.cc）：是否原生、是否宿主段</span></div>
       <div class="p-step"><b>第 3 步</b><span>实测解锁：ChatGPT 登录对话、Gemini、Claude、Google 是否弹验证码</span></div>
-      <div class="p-step is-gate"><b>第 4 步</b><span>不合格直接换 IP 或换机——<b>禁止先部署再发现</b></span></div>
+      <div class="p-step is-gate"><b>第 4 步</b><span>不合格直接换 IP 或换机：<b>禁止先部署再发现</b></span></div>
     </div>
     <div class="p-tablewrap">
       <table class="p-t">
@@ -2097,7 +2097,7 @@ svg[data-animation="trace"] [data-graph-role="automatic-crossover"]:has(> [data-
         <ul>
           <li>SSH 仅密钥、改端口、fail2ban、ufw 只放行必需端口</li>
           <li>Hysteria2 证书用 acme.sh DNS-01 自动续期 + 到期告警</li>
-          <li>NTP 时间同步——REALITY 握手依赖时间窗</li>
+          <li>NTP 时间同步：REALITY 握手依赖时间窗</li>
         </ul>
       </div>
       <div class="p-card">
@@ -2424,7 +2424,7 @@ svg[data-animation="trace"] [data-graph-role="automatic-crossover"]:has(> [data-
         <tbody>
           <tr><td>经济</td><td>美西 9929 / CN2 GT 小机 $5–10 + WARP 兜底</td><td>≈¥40–80</td><td>白天好，晚高峰可能抖；适合先跑通</td></tr>
           <tr><td><b>标准（推荐）</b></td><td>搬瓦工 / DMIT CN2 GIA 约 $50–100/年 + 可选静态 ISP 出口</td><td>≈¥60–150</td><td>主力方案，稳定性与成本平衡</td></tr>
-          <tr><td>进阶</td><td>CN2 GIA 主 + 香港/日本备 + 静态 ISP / 住宅 AI 出口</td><td>≈¥200–600</td><td>极致稳定；AI 出口纯净度最高</td></tr>
+          <tr><td>进阶</td><td>CN2 GIA 主 + 香港/日本备 + 静态 ISP / 住宅 AI 出口</td><td>≈¥200–600</td><td>稳定性最好；AI 出口纯净度最高</td></tr>
         </tbody>
       </table>
     </div>

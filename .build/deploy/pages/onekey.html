@@ -19,7 +19,7 @@ server     未配置 no     渲染服务端配置并启动（双入口）
       (r) 复用已存在配置  (o) 覆盖重跑  (s) 跳过   [r]
 将执行：secrets server
 确认开始？[Y/n]</code></pre>
-<p>已配置的步骤默认「复用」——只有你选 <code>o</code> 才会重跑并覆盖。</p>
+<p>已配置的步骤默认「复用」，只有你选 <code>o</code> 才会重跑并覆盖。</p>
 
 <h2>参数</h2>
 <div class="tw">
@@ -69,7 +69,7 @@ server     未配置 no     渲染服务端配置并启动（双入口）
 </table>
 </div>
 <p>两个可选步骤只在 <code>ENABLE_HY2=1</code> 时执行；否则自动跳过并说明原因。<br>
-<code>system</code> 那一行的「密码登录已关」在<b>没有可用公钥</b>时不计入未配置——<a href="01-init.html">第 1 页</a>会提示你先 <code>ssh-copy-id</code>，而不是反复报错。</p>
+<code>system</code> 那一行的「密码登录已关」在<b>没有可用公钥</b>时不计入未配置：<a href="01-init.html">第 1 页</a>会提示你先 <code>ssh-copy-id</code>，而不是反复报错。</p>
 
 <h2>卸载会删什么</h2>
 <ul>

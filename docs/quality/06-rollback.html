@@ -75,7 +75,7 @@ details .body{padding:4px 14px 14px}
 <nav class="nav"><div class="wrap"><a href="index.html">0 · 总览</a><a href="01-how.html">1 · 工作原理</a><a href="02-keys.html">2 · 多客户端密钥</a><a href="03-deploy.html">3 · 部署</a><a href="04-verify.html">4 · 验收与运维</a><a href="05-ops.html">5 · 排查</a><a href="06-rollback.html" aria-current="page">6 · 卸载与回退</a></div></nav>
 <main class="wrap">
 <h1>6 · 卸载与回退</h1>
-<p class="lede">不想用了、换机器了、把自己卡在门外了——退回公网直连，脚本负责顺序，你只需要回答几个问题。</p>
+<p class="lede">不想用了、换机器了、把自己卡在门外了，退回公网直连，脚本负责顺序，你只需要回答几个问题。</p>
 
 <h2>退出（回到不敲门的直连）</h2>
 <p>用 <code>90-uninstall.sh</code>，不要手敲 iptables。登录方式、密钥包去留、是否真的拆，都会逐条问，<b>不替你选默认值</b>：</p>
@@ -91,7 +91,7 @@ sudo bash 90-uninstall.sh --password no --purge -y                 # 连 access.
 # 每台客户端：还原 ~/.fwknoprc，摘掉 ~/.ssh/config 里的托管块
 bash 90-uninstall.sh --client
 bash 90-uninstall.sh --client --purge --keys ~/laptop.env   # 连本地那份密钥包一起删</code></pre>
-<div class="bad"><b>顺序是安全的关键。</b>收口之后公网 SSH 规则已经不存在，唯一在放行的是 <code>FWKNOP_INPUT</code> 里那条临时规则。<code>90-uninstall.sh</code> 因此<b>先</b> <code>ufw allow</code> 并回读确认，确认不了就直接退出（此时 SPA 还完整）——绝不在「SSH 没路可走」的状态下先拆 SPA。</div>
+<div class="bad"><b>顺序是安全的关键。</b>收口之后公网 SSH 规则已经不存在，唯一在放行的是 <code>FWKNOP_INPUT</code> 里那条临时规则。<code>90-uninstall.sh</code> 因此<b>先</b> <code>ufw allow</code> 并回读确认，确认不了就直接退出（此时 SPA 还完整），绝不在「SSH 没路可走」的状态下先拆 SPA。</div>
 <div class="tw">
 <table>
 <thead><tr><th>参数</th><th>作用</th><th>不给会怎样</th></tr></thead>
@@ -103,7 +103,7 @@ bash 90-uninstall.sh --client --purge --keys ~/laptop.env   # 连本地那份密
 </tbody>
 </table>
 </div>
-<p>改的是<b>实际生效的那一行</b>：sshd 对每个关键字只取「第一个出现的值」，而 <code>Include sshd_config.d</code> 会按文件名顺序就地展开。所以 <code>50-cloud-init.conf</code> 里若写着 <code>PasswordAuthentication no</code>，脚本改的就是它，而不是自己那份 <code>99-*.conf</code>。改完 <code>sshd -t</code> 校验、reload，并用 <code>sshd -T</code> 回读确认——对不上就把「谁设的」列出来。</p>
+<p>改的是<b>实际生效的那一行</b>：sshd 对每个关键字只取「第一个出现的值」，而 <code>Include sshd_config.d</code> 会按文件名顺序就地展开。所以 <code>50-cloud-init.conf</code> 里若写着 <code>PasswordAuthentication no</code>，脚本改的就是它，而不是自己那份 <code>99-*.conf</code>。改完 <code>sshd -t</code> 校验、reload，并用 <code>sshd -T</code> 回读确认，对不上就把「谁设的」列出来。</p>
 <div class="warn"><b>开密码登录＝回到可被爆破的状态。</b>只在你需要换回旧方式、或机器上没有可用公钥时才开；开着就让 fail2ban 继续跑（<code>fail2ban-client status sshd</code>）。只想恢复访问的话，更稳的做法是把新公钥装进 <code>authorized_keys</code>，密码登录保持 no。</div>
 <p>还原之后的状态：公网 SSH 直连、不再需要敲门、<code>fwknopd</code> 停用、<code>fwknopd.conf</code> 用回包自带那份。fail2ban 与代理配置不动；客户端的 <code>~/.ssh/config</code> 里只删带 <code># BEGIN ssh-spa</code> 标记的那一段，你自己的配置原样保留。</p>
 <p>选「仅公钥」而本机又没找到 <code>authorized_keys</code> 时，脚本会在拆之前警告：拆完只剩云控制台能进。</p>
@@ -160,7 +160,7 @@ bash 90-uninstall.sh --client --purge   # 再删本地 spa-keys.env，交互式�
 <div class="note"><b>两种情况脚本不会删 <code>~/.fwknoprc</code>。</b>文件里没有「由 20-client.sh 生成」标记时不删，那是 fwknop 装完自带的样例或你自己写的；本来就没有托管块时也无事可做，输出「无托管块」即为正常。服务端已经 <code>--purge</code> 过的话，本地那份密钥包敲不动门了，留着的价值只在于对账。</div>
 
 <h2 id="lockout">锁门急救</h2>
-<p>万一还是锁了——云厂商控制台的 VNC / 串口，或者你之前装了 Tailscale（见 <a href="05-ops.html#backup">第 5 页</a>）。<b>端口按探测结果恢复，不是 22</b>：</p>
+<p>万一还是锁了，云厂商控制台的 VNC / 串口，或者你之前装了 Tailscale（见 <a href="05-ops.html#backup">第 5 页</a>）。<b>端口按探测结果恢复，不是 22</b>：</p>
 <pre><code>sudo systemctl stop fwknop-server
 sudo iptables -D INPUT -j FWKNOP_INPUT
 ss -tlnp | grep sshd          # 看看真实端口

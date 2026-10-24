@@ -15,7 +15,7 @@
 <p>代价只是多一个密钥包文件，脚本已经替你做了。</p>
 
 <h2>为什么可以靠密钥区分设备</h2>
-<p><code>access.conf</code> 支持多个 stanza，服务端收到包后<b>逐个试解密</b>，只有对上的那个能开规则（<code>server/incoming_spa.c</code> 的 <code>incoming_spa()</code>）。所以所有 stanza 都写 <code>SOURCE ANY</code>——客户端会换 IP，靠地址区分在漫游时直接失效。</p>
+<p><code>access.conf</code> 支持多个 stanza，服务端收到包后<b>逐个试解密</b>，只有对上的那个能开规则（<code>server/incoming_spa.c</code> 的 <code>incoming_spa()</code>）。所以所有 stanza 都写 <code>SOURCE ANY</code>，客户端会换 IP，靠地址区分在漫游时直接失效。</p>
 
 <h2>参数与命名</h2>
 <div class="tw">
@@ -31,10 +31,10 @@
 </tbody>
 </table>
 </div>
-<p>名字只允许 <code>[A-Za-z0-9._-]</code>：它会进 <code>grep</code>、fwknop 的 stanza 名和 ssh config 的 Host。<code>hosts</code> 里的名字起短一点——以后你要敲的就是 <code>ssh server1</code>、<code>fwknop -n server1</code>。多台服务器用<b>同一份</b>密钥就够：客户端拿到 <code>HOSTS</code> 里每台一个 stanza，每台服务器自己渲染自己的 <code>access.conf</code>。</p>
+<p>名字只允许 <code>[A-Za-z0-9._-]</code>：它会进 <code>grep</code>、fwknop 的 stanza 名和 ssh config 的 Host。<code>hosts</code> 里的名字起短一点，以后你要敲的就是 <code>ssh server1</code>、<code>fwknop -n server1</code>。多台服务器用<b>同一份</b>密钥就够：客户端拿到 <code>HOSTS</code> 里每台一个 stanza，每台服务器自己渲染自己的 <code>access.conf</code>。</p>
 
 <h2>和部署手册的 <code>devices.list</code> 没有关系</h2>
-<p>两套凭据、两套吊销，互不影响——分属不同层，「能不能进门」和「进门后能不能上网」：</p>
+<p>两套凭据、两套吊销，互不影响，分属不同层，「能不能进门」和「进门后能不能上网」：</p>
 <div class="tw">
 <table>
 <thead><tr><th>哪一套</th><th>管什么</th><th>名字从哪来</th><th>吊销怎么做</th></tr></thead>
@@ -107,6 +107,6 @@ sudo bash 10-server.sh --keys spa-keys.env
 
 # 全量轮换：--force 重新生成，分发新包，逐台重跑
 bash 00-gen-keys.sh --hosts "..." --clients "laptop phone" --force</code></pre>
-<p>两套 stanza 可以共存，所以能先加新的、确认都迁走了再删旧的。<b>吊销后顺手把设备上那份密钥包删掉</b>——服务端拒绝对它只是「连不上」，本地文件仍是有效凭据。</p>
+<p>两套 stanza 可以共存，所以能先加新的、确认都迁走了再删旧的。<b>吊销后顺手把设备上那份密钥包删掉</b>，服务端拒绝对它只是「连不上」，本地文件仍是有效凭据。</p>
 
 <p style="margin-top:24px"><a href="01-how.html">← 上一步</a>　·　<a href="03-deploy.html">下一步：部署 →</a></p>

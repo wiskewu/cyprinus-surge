@@ -57,7 +57,7 @@ scutil --dns | grep -m2 nameserver         # 不应再有隧道内的解析器</
 <p>要长期关掉，在「系统设置 → 通用 → 登录项与扩展 → 网络扩展」里取消勾选该扩展；彻底移除用 <code>sudo systemextensionsctl uninstall &lt;teamID&gt; &lt;bundleID&gt;</code>，参数取自 <code>systemextensionsctl list</code>。代价是这类客户端在没有扩展时无法建立隧道，等于不可用。</p>
 
 <h2>结论二：系统代理残留在网络服务上</h2>
-<p>另一个客户端的系统代理设置被写进了当前 Wi-Fi 服务，指向它自己的本地混合端口。那个客户端早已退出，端口无人监听，于是所有读取系统代理的程序——浏览器、聊天工具、应用内更新——一律连不上；<code>curl</code> 不读系统代理，所以一切正常。</p>
+<p>另一个客户端的系统代理设置被写进了当前 Wi-Fi 服务，指向它自己的本地混合端口。那个客户端早已退出，端口无人监听，于是所有读取系统代理的程序（浏览器、聊天工具、应用内更新）一律连不上；<code>curl</code> 不读系统代理，所以一切正常。</p>
 <pre><code># 关掉三条代理设置，需要管理员授权
 sudo networksetup -setwebproxystate        "Wi-Fi" off
 sudo networksetup -setsecurewebproxystate  "Wi-Fi" off

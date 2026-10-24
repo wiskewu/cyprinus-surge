@@ -71,6 +71,7 @@ details .body{padding:4px 14px 14px}
 <nav class="nav"><div class="wrap"><a href="index.html">0 · 总览与准备</a><a href="01-init.html">1 · 系统初始化</a><a href="02-install.html">2 · 安装与密钥</a><a href="03-server.html">3 · 服务端配置</a><a href="04-hy2.html">4 · 可选 Hysteria2</a><a href="05-client.html">5 · 客户端</a><a href="06-ops.html" aria-current="page">6 · 验收与备份</a><a href="onekey.html">一键</a><a href="troubleshooting.html">排查</a></div></nav>
 <main class="wrap">
 <h1>6 · 验收与备份</h1>
+<p class="lede">目标：确认节点真的可用，并留下能恢复的备份。验收命令在客户端机器执行，备份与日常检查在服务器执行。</p>
 
 <h2>验收（客户端机器）</h2>
 <pre><code>bash docs/deploy/scripts/60-verify-client.sh ./client.env</code></pre>
@@ -104,7 +105,7 @@ sudo bash device.sh list                   # 确认这台在名单里</code></pr
 bash 70-backup.sh backup     # 备份到 /root/backups/
 bash 70-backup.sh list
 bash 70-backup.sh restore /root/backups/sing-box-日期.tgz</code></pre>
-<p>备份含私钥，等同机器凭据，别放网盘或仓库。<code>/etc/sing-box</code> 整个目录都会进包，所以 <b><code>devices.list</code> 与 <code>clients/*.json</code> 也在里面</b>——一份备份等于全部设备的凭据，泄露就得挨个 <code>device.sh rotate</code>。</p>
+<p>备份含私钥，等同机器凭据，别放网盘或仓库。<code>/etc/sing-box</code> 整个目录都会进包，所以 <b><code>devices.list</code> 与 <code>clients/*.json</code> 也在里面</b>，一份备份等于全部设备的凭据，泄露就得挨个 <code>device.sh rotate</code>。</p>
 
 <h2>日常三条</h2>
 <pre><code>vnstat -m                              # 本月流量（套餐 1TB/月，超了限速 1Mbps）
@@ -112,7 +113,7 @@ journalctl -u sing-box -n 50 --no-pager
 bash 40-check-server.sh</code></pre>
 
 <h2 id="monitor">观测：clash_api 与定时探针 <span class="tag">可选</span></h2>
-<p>节点出问题时的两类问题——「服务还在不在」与「出口有没有被风控」——靠猜不准，用 <code>80-monitor.sh</code> 记成时序。</p>
+<p>节点出问题时的两类问题（「服务还在不在」与「出口有没有被风控」）靠猜不准，用 <code>80-monitor.sh</code> 记成时序。</p>
 <pre><code>sudo bash 80-monitor.sh              # 一键：打开 clash_api + 装 5 分钟探针 + 立刻跑一次
 sudo bash 80-monitor.sh --probe      # 只跑一次探针
 sudo bash 80-monitor.sh --status     # 看最近 20 条记录与 clash_api 概览

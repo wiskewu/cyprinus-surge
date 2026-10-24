@@ -100,7 +100,7 @@ details .body{padding:4px 14px 14px}
 <p><b>处理：同一时间只留一个</b>，退出另一个后重启留下的那个。</p>
 
 <h2>启动报 <code>detour to an empty direct outbound makes no sense</code></h2>
-<p>sing-box 1.12+ 不允许 DNS 服务器的 <code>detour</code> 指向一个「空」direct 出站——也就是 <code>{"type":"direct","tag":"direct"}</code> 这种不带任何选项的直连：</p>
+<p>sing-box 1.12+ 不允许 DNS 服务器的 <code>detour</code> 指向一个「空」direct 出站，也就是 <code>{"type":"direct","tag":"direct"}</code> 这种不带任何选项的直连：</p>
 <pre><code>FATAL start service: start dns-transport: start dns/https[dns-cn]:
       detour to an empty direct outbound makes no sense</code></pre>
 <p>两种改法，语义不同：</p>
@@ -109,7 +109,7 @@ details .body{padding:4px 14px 14px}
 <li><b>给 direct 出站加任一选项</b>让它不再"空"，例如 <code>"domain_resolver": { "server": "dns-cn" }</code> → 国内域名仍走直连解析</li>
 </ul>
 <p>本方案用第二种：国内域名直连解析，不依赖隧道。<code>50-render-client.sh</code> 生成的配置已经带上。</p>
-<div class="warn"><b><code>sing-box check</code> 查不出这个错。</b>check 不初始化 DNS 传输，所以「能导入 / 能过 check」不代表能启动——必须以真正启动一次为准。</div>
+<div class="warn"><b><code>sing-box check</code> 查不出这个错。</b>check 不初始化 DNS 传输，所以「能导入 / 能过 check」不代表能启动，必须以真正启动一次为准。</div>
 
 <h2>GUI 报 <code>missing tags</code> 或 <code>duplicate outbound tag</code></h2>
 <div class="tw">
@@ -146,7 +146,7 @@ details .body{padding:4px 14px 14px}
 <li><code>short_id</code> 不是偶数长度 hex</li>
 </ol>
 
-<h2>日志里的 <code>REALITY: processed invalid connection</code></h2>
+<h2 id="reality-noise">日志里的 <code>REALITY: processed invalid connection</code></h2>
 <p><b>不是故障。</b>REALITY 对任何拿不到正确凭据的 TLS 连接都会记这一行，并把它转发给伪装站点。扫描器、浏览器直接访问服务器 IP、参数写错的客户端，都会产生它。</p>
 <p>判断：看来源。不是自己的宽带地址 → 忽略；是自己的地址且客户端连不上 → 参数不匹配，对比这 6 项：服务器地址、端口、SNI、UUID、REALITY 公钥、short_id（外加 <code>flow</code> 必须一致）。</p>
 
@@ -192,7 +192,7 @@ curl -s -H "Authorization: Bearer $S" "http://$C/connections" | grep -o '"chains
 <ul>
 <li><code>implicit default HTTP client using default outbound for remote rule-sets is deprecated</code><br>
 1.14 起不再隐式用默认出站下载规则集（1.16 会移除）。<b>当前模板已修</b>：配置里显式写了顶层 <code>http_clients</code> 与 <code>route.default_http_client</code>，重新渲染一次客户端配置即可，告警会消失。仍看到这条，说明 JSON 是旧版模板生成的。</li>
-<li><code>REALITY: processed invalid connection</code>（见上一节）</li>
+<li><code>REALITY: processed invalid connection</code>，含义与处理见本页<a href="#reality-noise">同名小节</a>。</li>
 </ul>
 
 <h2>故障手册</h2>
@@ -208,7 +208,7 @@ curl -s -H "Authorization: Bearer $S" "http://$C/connections" | grep -o '"chains
 <tr><td>国内站点变慢</td><td>规则集没更新或 <code>sniff</code> 未生效；看连接列表的 chains</td></tr>
 <tr><td>突然全部失效且时间异常</td><td>NTP 漂移：<code>timedatectl set-ntp true</code> + 重启 timesyncd</td></tr>
 <tr><td>流量超了变慢</td><td>限速到 1Mbps（不是停机），<code>vnstat -m</code> 确认</td></tr>
-<tr><td>SSH 能连上但立刻 <code>Connection reset</code>（换端口就好）</td><td>端口路径上有 <b>RST 注入</b>（对 22 端口最常见）或服务商的「22 端口保护」。测法：<code>curl --interface en0 -sS telnet://&lt;IP&gt;:22</code> 与 <code>…:其他端口</code> 对比——一个 <code>reset</code>、一个能打出 <code>SSH-2.0-…</code> banner，就是它。解法：sshd 换个高位端口，客户端 <code>Port</code> 同步改</td></tr>
+<tr><td>SSH 能连上但立刻 <code>Connection reset</code>（换端口就好）</td><td>端口路径上有 <b>RST 注入</b>（对 22 端口最常见）或服务商的「22 端口保护」。测法：<code>curl --interface en0 -sS telnet://&lt;IP&gt;:22</code> 与 <code>…:其他端口</code> 对比，一个 <code>reset</code>、一个能打出 <code>SSH-2.0-…</code> banner，就是它。解法：sshd 换个高位端口，客户端 <code>Port</code> 同步改</td></tr>
 <tr><td>SSH 端口连不上</td><td>先确认不是云厂商安全组挡的（<a href="01-init.html">第二层防火墙</a>）：控制台里也要放行你的 SSH 端口。然后从控制台执行 <code>ufw allow 你的端口/tcp &amp;&amp; ufw reload</code>，再带 <code>SSH_PORT=</code> 重跑 <code>00</code></td></tr>
 <tr><td>能连上但 <code>ssh</code> / 隧道立刻被断（<code>Connection closed by UNKNOWN port 65535</code>）</td><td>典型是<b>TUN 打环</b>：配置里 <code>auto_detect_interface=false</code>，出站没绑物理网卡，<code>direct</code> 出站又按默认路由走回 tun。加上 <code>"auto_detect_interface": true</code>，或用 <code>DEFAULT_INTERFACE=&lt;物理网卡&gt;</code> 重渲染（写进 <code>route.default_interface</code>）。注意：GUI 客户端导入的是副本，改文件不重导入不生效</td></tr>
 <tr><td><code>00</code> 第 6 步报「未生效：可能没有 Include」</td><td>镜像的 <code>sshd_config</code> 没 <code>Include sshd_config.d</code>，脚本写的 drop-in 就是死文件（新版脚本会自动补一条 Include 并回读验证）。手工版的记法：<code>head -3 /etc/ssh/sshd_config</code> 看有没有 Include，再 <code>sshd -T | grep -i ^passwordauthentication</code> 看当前生效值，把靠前的那个 <code>yes</code> 改掉即可。见 <a href="01-init.html">第 1 页</a></td></tr>
@@ -220,7 +220,7 @@ curl -s -H "Authorization: Bearer $S" "http://$C/connections" | grep -o '"chains
 </div>
 
 <h2>本机 TUN 捕获 SSH</h2>
-<p>如果你自己电脑上跑着 Clash / sing-box 之类的 TUN（虚拟网卡），<b>连服务器的 SSH 也会被隧道接管</b>——服务器 IP 不在隧道的直连规则里，握手就死在半路。症状是 <code>kex_exchange_identification: Connection closed</code>、<code>Connection closed by UNKNOWN port 65535</code>，或者干脆超时，但服务器明明在跑。</p>
+<p>如果你自己电脑上跑着 Clash / sing-box 之类的 TUN（虚拟网卡），<b>连服务器的 SSH 也会被隧道接管</b>，服务器 IP 不在隧道的直连规则里，握手就死在半路。症状是 <code>kex_exchange_identification: Connection closed</code>、<code>Connection closed by UNKNOWN port 65535</code>，或者干脆超时，但服务器明明在跑。</p>
 <div class="bad"><b><code>nc -vz</code> 报「能通」不能当证据。</b>TUN 在本地就把 TCP 握手接住了，连本来没服务监听的端口也会「成功」。判断：<code>route -n get &lt;服务器IP&gt; | grep interface</code>，看到 <code>utunX</code> 就是被接管了。</div>
 <p><b>正确的修法在代理配置里：把服务器自己的 IP 设为直连。</b>规则要加在<b>真正持有 <code>utun</code> 的那个客户端</b>上（先 <code>pgrep -fl 'clash|mihomo|sing-box'</code> 看一眼）；机场客户端通常只把自己的节点加入直连，你自建的 VPS 不在它名单里。（本手册的 <code>50-render-client.sh</code> 现在会自动给 sing-box 写这条规则，旧配置重新渲染一次就修好。）</p>
 <pre><code># sing-box：route.rules 的第一条
@@ -237,7 +237,7 @@ sudo ip route add &lt;服务器IP&gt; via &lt;局域网网关&gt;</code></pre>
 
 <h2>测量视角</h2>
 <div class="warn"><b>本机有 TUN 时，测出来的每一个数字都可能是假的。</b>一个跑着代理客户端的机器会把自己的 <code>curl</code> / <code>nc</code> 也送进隧道里，于是「延迟很低」「端口通」都是隧道内的回环表现，不是真实链路。验收前先确认测试机器上<b>没有</b>任何代理客户端在跑。</div>
-<p>唯一在隧道开启时仍然可靠的信号是 <code>ping</code>——ICMP 通常不被代理接管，所以它能给出到源站（或到 Cloudflare 节点）的真实往返延迟。常用组合：</p>
+<p>唯一在隧道开启时仍然可靠的信号是 <code>ping</code>，ICMP 通常不被代理接管，所以它能给出到源站（或到 Cloudflare 节点）的真实往返延迟。常用组合：</p>
 <pre><code>ping &lt;服务器IP&gt;                      # 真实 RTT（绕过 TUN）
 mtr -r -c 200 &lt;服务器IP&gt;             # 真实丢包与抖动
 curl -o /dev/null -s -w '%{time_starttransfer}\n' https://www.google.com   # 走代理后的 TTFB</code></pre>

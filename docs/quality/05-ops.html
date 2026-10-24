@@ -86,7 +86,7 @@ details .body{padding:4px 14px 14px}
 <tr><td>敲门后仍连不上</td><td><code>iptables -S FWKNOP_INPUT</code> 看规则插上没有；<code>iptables -S INPUT | grep FWKNOP_INPUT</code> 看跳转还在不在（多半是 ufw reload 过）</td></tr>
 <tr><td>客户端报「stanza not found」</td><td><code>~/.fwknoprc</code> 里没有 <code>[&lt;主机名&gt;]</code> 段。fwknop 装完会丢一个全注释的同名样例，脚本先备份成 <code>~/.fwknoprc.bak</code></td></tr>
 <tr><td>客户端报密钥错误</td><td>两端密钥对不上。多半是自带的样例 <code>~/.fwknoprc</code> 覆盖了生成的版本</td></tr>
-<tr><td>服务端日志反复 <code>Non-corresponding HMAC for this stanza</code></td><td>三种原因，按顺序排：① <b><code>HMAC_DIGEST_TYPE</code> 两端不一致</b> —— stanza 不写这一项时 fwknopd 固定按 <code>SHA256</code> 校验，客户端写 <code>SHA512</code> 就永久失败，密钥全对也一样，对比 <code>grep HMAC_DIGEST ~/.fwknoprc</code> 与 <code>grep HMAC_DIGEST /etc/fwknop/access.conf</code>；② 两端 <code>HMAC_KEY_BASE64</code> 不同；③ 改过 <code>access.conf</code> 没重启，fwknopd 还在用内存里的旧配置。多 stanza 时未匹配的那些必然打印这条，只有全都不通过才是问题</td></tr>
+<tr><td>服务端日志反复 <code>Non-corresponding HMAC for this stanza</code></td><td>三种原因，按顺序排：① <b><code>HMAC_DIGEST_TYPE</code> 两端不一致</b>：stanza 不写这一项时 fwknopd 固定按 <code>SHA256</code> 校验，客户端写 <code>SHA512</code> 就永久失败，密钥全对也一样，对比 <code>grep HMAC_DIGEST ~/.fwknoprc</code> 与 <code>grep HMAC_DIGEST /etc/fwknop/access.conf</code>；② 两端 <code>HMAC_KEY_BASE64</code> 不同；③ 改过 <code>access.conf</code> 没重启，fwknopd 还在用内存里的旧配置。多 stanza 时未匹配的那些必然打印这条，只有全都不通过才是问题</td></tr>
 <tr><td>服务端 fwknopd 起不来</td><td><code>fwknopd -F</code> 前台跑。常见是 <code>access.conf</code> 里混进空格或中文标点</td></tr>
 <tr><td>日志里没有 SPA 记录</td><td>包根本没到。先查云安全组有没有放行 <code>62201/udp</code>，再 <code>tcpdump -i any udp port 62201</code>；两处都正常才是服务商封了 UDP</td></tr>
 <tr><td><code>nmap</code> 显示 22 是 <code>closed</code></td><td>还有别的东西在放行：云安全组、ufw 其他规则</td></tr>
@@ -102,8 +102,8 @@ details .body{padding:4px 14px 14px}
 
 <h2>本机 TUN 捕获 SSH 与测速</h2>
 <p>本机跑着 Clash / sing-box 的 TUN 时，连服务器的流量也会被隧道接管（服务器 IP 不在直连规则里）。症状是 <code>kex_exchange_identification</code>、<code>Connection closed by UNKNOWN port 65535</code>，或超时，但服务器明明在跑。</p>
-<div class="bad"><b>先看一个假象：<code>nc -vz</code> 说「能通」也不可信。</b>TUN 在本地就把 TCP 握手接住了，<i>包括本来没任何服务监听的端口</i>——比如 <code>nc -vz &lt;IP&gt; 62201</code>（SPA 是 UDP，服务器上根本没有 TCP 62201）也会报 <code>succeeded</code>。判断方法一：<code>route -n get &lt;服务器IP&gt; | grep interface</code>，输出 <code>utunX</code> 就是被接管了。方法二（能真正绕开 TUN 的连通性测试，macOS 上是 <code>IP_BOUND_IF</code>）：<code>curl --interface en0 -sS telnet://&lt;服务器IP&gt;:&lt;端口&gt;</code>——打到真 sshd 会出 <code>SSH-2.0-…</code>；用 <code>nc -s &lt;本机en0地址&gt;</code> 不行，那只是绑源地址，路由仍旧走 tun。</div>
-<p><b>通用解法是配置层面的，不是去改本机路由：</b>把服务器自己的地址设为直连——所有客户端都有这个规则，只是命令行配置不像 GUI 那样自动帮你加。</p>
+<div class="bad"><b>先看一个假象：<code>nc -vz</code> 说「能通」也不可信。</b>TUN 在本地就把 TCP 握手接住了，<i>包括本来没任何服务监听的端口</i>，比如 <code>nc -vz &lt;IP&gt; 62201</code>（SPA 是 UDP，服务器上根本没有 TCP 62201）也会报 <code>succeeded</code>。判断方法一：<code>route -n get &lt;服务器IP&gt; | grep interface</code>，输出 <code>utunX</code> 就是被接管了。方法二（能真正绕开 TUN 的连通性测试，macOS 上是 <code>IP_BOUND_IF</code>）：<code>curl --interface en0 -sS telnet://&lt;服务器IP&gt;:&lt;端口&gt;</code>，打到真 sshd 会出 <code>SSH-2.0-…</code>；用 <code>nc -s &lt;本机en0地址&gt;</code> 不行，那只是绑源地址，路由仍旧走 tun。</div>
+<p><b>通用解法是配置层面的，不是去改本机路由：</b>把服务器自己的地址设为直连，所有客户端都有这个规则，只是命令行配置不像 GUI 那样自动帮你加。</p>
 <div class="warn"><b>注意层级：规则必须加在「真正持有 utun 的那个客户端」里。</b>先确认是谁：<code>pgrep -fl 'clash|mihomo|sing-box|surge|stash'</code> + <code>route -n get &lt;服务器IP&gt; | grep interface</code>。常见误区：机场客户端只把<b>它自己的节点</b>加入直连（否则环路），你自建的 VPS 不在名单里，照样被送进隧道。改 sing-box 的配置文件对 Clash Verge 的隧道毫无影响。</div>
 <pre><code># sing-box：route.rules 的第一条（本手册的 50-render-client.sh 已经自动写进去了）
 { "ip_cidr": ["&lt;服务器IP&gt;/32"], "action": "route", "outbound": "direct" }
@@ -121,7 +121,7 @@ sudo route -n add -host &lt;服务器IP&gt; &lt;局域网网关&gt;
 sudo ip route add &lt;服务器IP&gt; via &lt;局域网网关&gt;
 # 用完删掉
 sudo route -n delete -host &lt;服务器IP&gt;</code></pre>
-<div class="warn"><b>本机有 TUN 时，测出来的每个数字都可能是假的。</b>跑着代理客户端的机器会把 <code>nc</code> / <code>mtr</code> / <code>curl</code> 也送进隧道。验收前先确认测试机器上<b>没有</b>代理客户端在跑。唯一仍可靠的是 <code>ping</code>——ICMP 通常不被代理接管。</div>
+<div class="warn"><b>本机有 TUN 时，测出来的每个数字都可能是假的。</b>跑着代理客户端的机器会把 <code>nc</code> / <code>mtr</code> / <code>curl</code> 也送进隧道。验收前先确认测试机器上<b>没有</b>代理客户端在跑。唯一仍可靠的是 <code>ping</code>，ICMP 通常不被代理接管。</div>
 
 <div class="note"><b>隧道与系统代理是两件事。</b>停掉 TUN 客户端后仍然没网、或浏览器报错而终端正常，排查步骤与验收清单见 <a href="../issue/macos-tunnel-proxy.html">问题记录 1 · 隧道与系统代理残留</a>。</div>
 
@@ -154,7 +154,7 @@ sudo route -n delete -host &lt;服务器IP&gt;</code></pre>
 <h2 id="limits">已知限制</h2>
 <ul>
 <li><b>不是万能。</b>挡的是「没密钥的人连不上 sshd」。OpenSSH 自身的 0day 仍要靠及时打补丁；拿到密钥的中间人依然成立。改变的是<b>暴露窗口</b>。</li>
-<li><b>密钥就是命门。</b>泄露 = 22 随时对攻击者开放，且<b>日志里没有任何异常</b>——在他看来就是一次合法敲门。</li>
+<li><b>密钥就是命门。</b>泄露 = 22 随时对攻击者开放，且<b>日志里没有任何异常</b>，在他看来就是一次合法敲门。</li>
 <li><b>需要 UDP 出境。</b>部分校园网/公司网封 UDP 时 SPA 反而挡了你的路。</li>
 <li><b>服务商可能封 UDP 或非标端口。</b>表现和「客户端丢包」一模一样，先 <code>tcpdump</code> 确认包到没到。</li>
 <li><b>脚本按 Debian/Ubuntu 写</b>（apt + ufw + systemd；服务端包 <code>fwknop-server</code>、客户端包 <code>fwknop-client</code>）。客户端脚本已支持 brew / pacman。</li>
@@ -162,7 +162,7 @@ sudo route -n delete -host &lt;服务器IP&gt;</code></pre>
 
 <h2>参考</h2>
 <ul>
-<li><a href="https://www.michelebologna.net/2026/ssh-port-22-fwknop-single-packet-authorization/">Why I close SSH port 22 entirely</a>——本手册的出发点，多客户端部分按其「一组共享密钥」扩写</li>
+<li><a href="https://www.michelebologna.net/2026/ssh-port-22-fwknop-single-packet-authorization/">Why I close SSH port 22 entirely</a>：本手册的出发点，多客户端部分按其「一组共享密钥」扩写</li>
 <li><a href="https://www.cipherdyne.org/fwknop/docs/fwknop-tutorial.html">fwknop 官方教程</a> · <a href="https://manpages.debian.org/unstable/fwknop-server/fwknopd.8.en.html">fwknopd(8)</a></li>
 </ul>
 

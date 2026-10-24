@@ -19,7 +19,7 @@
 
 <div class="note"><b>第 4 步不做也能跑。</b>REALITY 单入口已经够用，它只是多一条抗 UDP 干扰的路。跳过它就跳到第 5 步。</div>
 
-<p>第 2 步会同时建好设备名单 <code>devices.list</code>。<b>多台设备请用 <code>device.sh</code></b>（服务端 <code>sudo bash device.sh add laptop</code>），不要让多台共用同一份配置——那样没法单独吊销一台。见 <a href="03-server.html#devices">第 3 页</a>。</p>
+<p>第 2 步会同时建好设备名单 <code>devices.list</code>。<b>多台设备请用 <code>device.sh</code></b>（服务端 <code>sudo bash device.sh add laptop</code>），不要让多台共用同一份配置，那样没法单独吊销一台。见 <a href="03-server.html#devices">第 3 页</a>。</p>
 
 <h2>开始前确认</h2>
 <ul>
@@ -29,7 +29,7 @@
 </ul>
 
 <h2>SSH 端口全程开着</h2>
-<p>本手册的 6 步<b>都不会关闭公网 SSH 端口</b>，只做两件事：放行它（第 1 步自动探测真实端口，不假设是 22），以及关掉密码登录。端口什么时候关、要不要关，见 <a href="../quality/index.html">SSH 加固手册</a>——那是可选的第 7 步，不做也完全能用。</p>
+<p>本手册的 6 步<b>都不会关闭公网 SSH 端口</b>，只做两件事：放行它（第 1 步自动探测真实端口，不假设是 22），以及关掉密码登录。端口什么时候关、要不要关，见 <a href="../quality/index.html">SSH 加固手册</a>，那是可选的第 7 步，不做也完全能用。</p>
 
 <h2>把脚本传上去</h2>
 <pre><code>scp -r docs/deploy/scripts root@你的服务器IP:/root/deploy</code></pre>

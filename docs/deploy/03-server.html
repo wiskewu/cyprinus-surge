@@ -71,6 +71,7 @@ details .body{padding:4px 14px 14px}
 <nav class="nav"><div class="wrap"><a href="index.html">0 · 总览与准备</a><a href="01-init.html">1 · 系统初始化</a><a href="02-install.html">2 · 安装与密钥</a><a href="03-server.html" aria-current="page">3 · 服务端配置</a><a href="04-hy2.html">4 · 可选 Hysteria2</a><a href="05-client.html">5 · 客户端</a><a href="06-ops.html">6 · 验收与备份</a><a href="onekey.html">一键</a><a href="troubleshooting.html">排查</a></div></nav>
 <main class="wrap">
 <h1>3 · 服务端配置与自检</h1>
+<p class="lede">目标：把第 2 步生成的参数渲染成 sing-box 配置、启动服务，再用自检脚本确认监听、日志、证书都对。读者是维护这台节点的人。</p>
 
 <pre><code>cd /root/deploy
 bash 30-render-server.sh
@@ -81,10 +82,10 @@ bash 40-check-server.sh</code></pre>
 
 <h2>设备名单</h2>
 <p><code>20-secrets.sh</code> 顺便建了 <code>/etc/sing-box/devices.list</code>，第一台叫 <code>main</code>。服务端的 <code>users</code> 数组就是从它渲染的，所以<b>改名单 → 重跑 <code>30</code></b> 就生效。</p>
-<pre><code># 名字 凭据 平台 —— 一台设备一行
+<pre><code># 名字 凭据 平台：一台设备一行
 main   af2358a4-df32-419c-9774-63a44c540970  desktop
 phone  9b2c1d70-3e44-4a1b-8c02-7e5d9f10a333  android</code></pre>
-<p>一台设备一个凭据，同时当 VLESS 的 uuid 和 Hysteria2 的 password 用——所以<b>删一行就是吊销那台</b>，两条入口同时失效，不会漏一边。</p>
+<p>一台设备一个凭据，同时当 VLESS 的 uuid 和 Hysteria2 的 password 用，所以<b>删一行就是吊销那台</b>，两条入口同时失效，不会漏一边。</p>
 <div class="warn"><b>这份名单就是全部设备的凭据。</b>别提交到公开仓库：要版本管理就放私有仓库或加密后存；随手的本地副本用完删掉。</div>
 <div class="note">改凭据请用 <a href="#devices"><code>device.sh</code></a>，别手改名单：它会顺手重渲染服务端并重新生成那台的客户端配置。</div>
 
@@ -137,7 +138,7 @@ sudo bash device.sh render laptop                       # 只重渲染客户端�
 见 <a href="06-ops.html">第 6 页</a>。</li>
 <li><b>以后要换/要删</b>：<code>rotate</code> → 重新 <code>scp</code> → 客户端重新导入（旧 JSON 的凭据当场失效）；<code>revoke</code> 之后需删除对方机器上的那份 JSON。换设备不改名单时，客户端那份旧 JSON 照样能用。</li>
 </ol>
-<p>一台设备要出<b>多份</b>（比如笔记本同时要桌面与安卓版）：<code>device.sh</code> 只按名单里记的那个平台出一份，多份直接用渲染脚本——在服务器上跑，<code>--device</code> 会替它自己取凭据：</p>
+<p>一台设备要出<b>多份</b>（比如笔记本同时要桌面与安卓版）：<code>device.sh</code> 只按名单里记的那个平台出一份，多份直接用渲染脚本，在服务器上跑，<code>--device</code> 会替它自己取凭据：</p>
 <pre><code>sudo OUTDIR=/etc/sing-box/clients bash 50-render-client.sh /etc/sing-box/client.env --device laptop desktop android</code></pre>
 
 <p style="margin-top:24px"><a href="02-install.html">← 上一步</a>　·　<a href="04-hy2.html">下一步（可选）→</a>　·　<a href="05-client.html">跳过 Hysteria2 →</a></p>

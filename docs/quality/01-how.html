@@ -99,7 +99,7 @@ details .body{padding:4px 14px 14px}
 <thead><tr><th>要点</th><th>怎么做 / 为什么</th></tr></thead>
 <tbody>
 <tr><td>用 SPA 不用端口敲击</td><td>敲击序列是<b>明文</b>的，抓下来重放即可，且无认证。SPA 是加密 + 签名，带时间戳和一次性序列号，重放无效</td></tr>
-<tr><td><code>sleep 2</code> 不能省</td><td>在等 fwknopd 插规则。<code>&gt;/dev/null 2&gt;&amp;1</code> 也不能省——<code>ProxyCommand</code> 的 stdout 会被 ssh 当成通道读，fwknop 的输出会污染它</td></tr>
+<tr><td><code>sleep 2</code> 不能省</td><td>在等 fwknopd 插规则。<code>&gt;/dev/null 2&gt;&amp;1</code> 也不能省：<code>ProxyCommand</code> 的 stdout 会被 ssh 当成通道读，fwknop 的输出会污染它</td></tr>
 <tr><td>丢包就重敲</td><td>SPA 走 UDP，可能丢。<code>fwknop</code> 无状态，重复发没有副作用</td></tr>
 <tr><td>窗口到期不断线</td><td>撤的是<b>新连接</b>的许可，已建立的会话由连接跟踪维持。长会话要调大 <code>ACCESS_TIMEOUT</code></td></tr>
 </tbody>

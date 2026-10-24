@@ -91,7 +91,7 @@ bash 90-port-hop.sh</code></pre>
 <p>完成后要回到客户端重新渲染一次配置（它会读到 <code>ENABLE_HY2=1</code>）。</p>
 
 <h2 id="verify">验证 hy2 真的生效</h2>
-<p>客户端渲染出来的配置会多一个 <code>proxy-hy2</code> 出站，与 <code>proxy</code> 一起挂进 <code>auto</code>。<code>auto</code> 是个 urltest，<code>route.final</code> 指向它，所以「出口是服务器 IP」说明不了任何事——很可能一直是 REALITY 在承载。要证明 hy2 可用，得单独把它拎出来跑。</p>
+<p>客户端渲染出来的配置会多一个 <code>proxy-hy2</code> 出站，与 <code>proxy</code> 一起挂进 <code>auto</code>。<code>auto</code> 是个 urltest，<code>route.final</code> 指向它，所以「出口是服务器 IP」说明不了任何事，很可能一直是 REALITY 在承载。要证明 hy2 可用，得单独把它拎出来跑。</p>
 
 <h3>1. 服务端在监听</h3>
 <pre><code>systemctl is-active sing-box

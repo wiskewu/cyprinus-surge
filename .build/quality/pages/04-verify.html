@@ -74,6 +74,6 @@ ansible_ssh_common_args: &gt;-
 <li>配 <code>ControlPersist</code> 后每次 play 只敲一次</li>
 </ul>
 
-<div class="bad"><b>两个角色互相覆盖：</b>一个负责「加公网 SSH 规则」、一个负责「删」，每次 Ansible 都绿但端口又开了。<b>修法不是调顺序，是让两边读同一个变量</b>——谁最后跑结果都一样：<pre><code>linux_base_ssh_public: "{{ not (fwknop_enabled | default(false) | bool) }}"</code></pre></div>
+<div class="bad"><b>两个角色互相覆盖：</b>一个负责「加公网 SSH 规则」、一个负责「删」，每次 Ansible 都绿但端口又开了。<b>修法不是调顺序，是让两边读同一个变量</b>，谁最后跑结果都一样：<pre><code>linux_base_ssh_public: "{{ not (fwknop_enabled | default(false) | bool) }}"</code></pre></div>
 
 <p style="margin-top:24px"><a href="03-deploy.html">← 上一步</a>　·　<a href="05-ops.html">下一步：排查 →</a></p>

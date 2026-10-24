@@ -36,6 +36,8 @@ fi
 # bash 3.2 按字节扫变量名："$code，" 会被当成变量 code\357。
 if command -v python3 >/dev/null 2>&1; then
   python3 .build/check-var-braces.py "${files[@]}"
+  # 页面措辞：不写营销词、破折号、总结铺垫句、第一人称与感叹号
+  python3 .build/check-docs-style.py
 else
-  printf '未找到 python3，跳过变量边界检查\n'
+  printf '未找到 python3，跳过变量边界与页面措辞检查\n'
 fi
