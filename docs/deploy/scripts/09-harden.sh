@@ -43,7 +43,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 # 端口从 deploy.env 取；取不到就不做端口自检，只验服务状态
-load_env "${ENVFILE}" 2>/dev/null || true
+# deploy.env 可有可无：有就读端口与开关。注意 die 是 exit，不能靠 || true 兜住
+[[ -f "${ENVFILE}" ]] && load_env "${ENVFILE}"
 VLESS_PORT="${VLESS_PORT:-443}"
 HY2_PORT="${HY2_PORT:-8443}"
 ENABLE_HY2="${ENABLE_HY2:-0}"
@@ -61,13 +62,13 @@ running_user() {
 }
 
 report() {
-  printf '%-28s %s\n' '单元文件' "${UNIT}"
-  printf '%-28s %s\n' '服务状态' "$(systemctl is-active sing-box 2>/dev/null || printf '未知')"
-  printf '%-28s %s\n' '运行用户' "$(running_user)"
-  printf '%-28s %s\n' 'NoNewPrivileges' "$(unit_has NoNewPrivileges && printf 'yes' || printf '未设置')"
-  printf '%-28s %s\n' 'ProtectSystem' "$(unit_has ProtectSystem && grep -oE '^ProtectSystem=.*' "${UNIT}" | cut -d= -f2 || printf '未设置')"
-  printf '%-28s %s\n' 'CapabilityBoundingSet' "$(unit_has CapabilityBoundingSet && grep -oE '^CapabilityBoundingSet=.*' "${UNIT}" | cut -d= -f2 || printf '未设置')"
-  printf '%-28s %s\n' '备份' "$([[ -f "${UNIT_ORIG}" ]] && printf '%s' "${UNIT_ORIG}" || printf '无')"
+  printf '%s\t%s\n' '单元文件' "${UNIT}"
+  printf '%s\t%s\n' '服务状态' "$(systemctl is-active sing-box 2>/dev/null || printf '未知')"
+  printf '%s\t%s\n' '运行用户' "$(running_user)"
+  printf '%s\t%s\n' 'NoNewPrivileges' "$(unit_has NoNewPrivileges && printf 'yes' || printf '未设置')"
+  printf '%s\t%s\n' 'ProtectSystem' "$(unit_has ProtectSystem && grep -oE '^ProtectSystem=.*' "${UNIT}" | cut -d= -f2 || printf '未设置')"
+  printf '%s\t%s\n' 'CapabilityBoundingSet' "$(unit_has CapabilityBoundingSet && grep -oE '^CapabilityBoundingSet=.*' "${UNIT}" | cut -d= -f2 || printf '未设置')"
+  printf '%s\t%s\n' '备份' "$([[ -f "${UNIT_ORIG}" ]] && printf '%s' "${UNIT_ORIG}" || printf '无')"
 }
 
 port_listening() { # $1=tcp|udp $2=端口

@@ -2,7 +2,7 @@
 # shellcheck disable=SC2034  # 步骤元数据与跨文件变量由间接展开读取
 # ===========================================================================
 # deploy.sh，一键脚本。自动生成，勿手改。
-#   生成时间：2026-10-24T15:43:58Z
+#   生成时间：2026-10-24T15:44:45Z
 #   来源：lib.sh + steps/*.sh + onekey/driver.sh
 #   重新生成：bash build-onekey.sh
 # ===========================================================================
@@ -634,6 +634,15 @@ server_run() {
 
   render_vars "${TPL_DIR}/server.json.tmpl" "${T}/server.json"
   inject_block "${T}/server.json" "__INBOUNDS__" "${T}/inbounds.json"
+  # clash_api 只读面板：绑回环，配合 SSH 隧道用。关掉时片段留空，experimental 变空对象
+  local exp_frag="${T}/experimental.json"
+  if [[ "${ENABLE_CLASH_API:-0}" == "1" ]]; then
+    printf '    "clash_api": { "external_controller": "%s" }\n' \
+      "${CLASH_API_LISTEN:-127.0.0.1:9090}" >"${exp_frag}"
+  else
+    : >"${exp_frag}"
+  fi
+  inject_block "${T}/server.json" "__EXPERIMENTAL__" "${exp_frag}"
   json_valid "${T}/server.json"
   sb_check "${T}/server.json"
 

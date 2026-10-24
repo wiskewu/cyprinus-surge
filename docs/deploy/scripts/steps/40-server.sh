@@ -60,6 +60,15 @@ server_run() {
 
   render_vars "${TPL_DIR}/server.json.tmpl" "${T}/server.json"
   inject_block "${T}/server.json" "__INBOUNDS__" "${T}/inbounds.json"
+  # clash_api 只读面板：绑回环，配合 SSH 隧道用。关掉时片段留空，experimental 变空对象
+  local exp_frag="${T}/experimental.json"
+  if [[ "${ENABLE_CLASH_API:-0}" == "1" ]]; then
+    printf '    "clash_api": { "external_controller": "%s" }\n' \
+      "${CLASH_API_LISTEN:-127.0.0.1:9090}" >"${exp_frag}"
+  else
+    : >"${exp_frag}"
+  fi
+  inject_block "${T}/server.json" "__EXPERIMENTAL__" "${exp_frag}"
   json_valid "${T}/server.json"
   sb_check "${T}/server.json"
 
