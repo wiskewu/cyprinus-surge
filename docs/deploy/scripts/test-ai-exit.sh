@@ -22,14 +22,14 @@ TARGET_URL="${1:-https://chatgpt.com/cdn-cgi/trace}"
 MIXED_PORT="${MIXED_PORT:-2081}"      # 临时客户端入站
 SOCKS_PORT="${SOCKS_PORT:-1081}"      # 临时「落地机」
 SOCKS_USER="selftest" ; SOCKS_PASS="selftest"
-TMP="$(mktemp -d)"
+mktemp_dir TMP
 PIDS=""
 
 cleanup() {
   for p in ${PIDS}; do kill "${p}" 2>/dev/null || true; done
   sleep 0.3
   for p in ${PIDS}; do kill -9 "${p}" 2>/dev/null || true; done
-  rm -rf "${TMP}"
+  cleanup_tmp_dirs
   return 0
 }
 trap cleanup EXIT

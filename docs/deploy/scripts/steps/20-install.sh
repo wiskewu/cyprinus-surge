@@ -18,7 +18,7 @@ install_run() {
     aarch64|arm64) ARCH=arm64 ;;
     *) die "不支持的架构：$(uname -m)" ;;
   esac
-  TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' RETURN
+  mktemp_dir TMP
 
   if [[ -n "${SING_BOX_PKG:-}" ]]; then
     cp "${SING_BOX_PKG}" "${TMP}/sb.tar.gz"

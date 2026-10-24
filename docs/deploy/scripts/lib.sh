@@ -27,6 +27,28 @@ need_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "缺少命令 $1，请先跑 00-bootstrap.sh"
 }
 
+# ---- 临时目录：集中登记，脚本退出时统一清理 ----
+# 直接写 TMP="$(mktemp -d)" 的话，die 或中断退出会把目录留在 /tmp。用 mktemp_dir
+# 取目录，再在入口脚本里 trap cleanup_tmp_dirs EXIT。
+_TMP_DIRS=()
+cleanup_tmp_dirs() {
+  local d
+  for d in ${_TMP_DIRS[@]+"${_TMP_DIRS[@]}"}; do
+    [[ -n "${d}" ]] && rm -rf "${d}"
+  done
+  _TMP_DIRS=()
+  return 0
+}
+# 用法：mktemp_dir VAR —— 建目录、登记到退出清理表，结果写进 VAR。
+# 不用 $(mktemp_dir) 取值：命令替换在子 shell 里跑，登记表加了也传不出来。
+mktemp_dir() {
+  local _d
+  [[ -n "${1:-}" ]] || die "mktemp_dir 需要一个变量名"
+  _d="$(mktemp -d)"
+  _TMP_DIRS+=("${_d}")
+  printf -v "$1" '%s' "${_d}"
+}
+
 # 读取 KEY=VALUE 环境文件（不执行其中的命令）
 load_env() {
   local f="$1"

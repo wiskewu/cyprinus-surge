@@ -188,18 +188,13 @@ resolve_default_interface() {
   fi
 }
 
-# 渲染中途失败也别把临时目录留下
-_T=""
-# 末尾那句 [[ -n ... ]] 在 _T 为空时返回 1，会把脚本的 exit code 变成 1，
-# 所以 cleanup 必须自己 return 0
-cleanup() { [[ -n "${_T:-}" ]] && rm -rf "${_T}"; return 0; }
-trap cleanup EXIT
+# 渲染中途失败也别把临时目录留下：mktemp_dir 已登记，退出时统一删
+trap cleanup_tmp_dirs EXIT
 
 # ---------- 渲染一份 ----------
 render_one() {
   local out="$1" T OBJS
-  T="$(mktemp -d)"
-  _T="${T}"
+  mktemp_dir T
   mkdir -p "$(dirname "${out}")"
 
   # 入站。NO_TUN=1 时只出 mixed：服务器上跑测试客户端时用它，
@@ -251,7 +246,6 @@ render_one() {
   sb_check "${T}/client.json"
   install -m 600 "${T}/client.json" "${out}"
   rm -rf "${T}"
-  _T=""
 
   printf '  %-42s 入口=mixed:%s 主出口=%s AI=%s auto_iface=%s\n' \
     "${out}" \

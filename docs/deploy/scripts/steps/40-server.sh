@@ -34,7 +34,7 @@ server_run() {
   load_env "${ENVFILE}"
   export CERT_DIR="${CERT_DIR:-${DEPLOY_DIR}}"
   [[ -x "${SB_BIN}" ]] || die "sing-box 未安装"
-  T="$(mktemp -d)"; trap 'rm -rf "$T"' RETURN
+  mktemp_dir T
 
   # users 数组按设备名单渲染：一份设备名单 = 一组凭据，删一行就吊销那台
   local rows; rows="$(device_rows)"

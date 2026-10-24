@@ -2,7 +2,7 @@
 # shellcheck disable=SC2034  # 步骤元数据与跨文件变量由间接展开读取
 # ===========================================================================
 # deploy.sh，一键脚本。自动生成，勿手改。
-#   生成时间：2026-10-22T12:17:10Z
+#   生成时间：2026-10-24T15:16:57Z
 #   来源：lib.sh + steps/*.sh + onekey/driver.sh
 #   重新生成：bash build-onekey.sh
 # ===========================================================================
@@ -35,6 +35,28 @@ need_root() {
 
 need_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "缺少命令 $1，请先跑 00-bootstrap.sh"
+}
+
+# ---- 临时目录：集中登记，脚本退出时统一清理 ----
+# 直接写 TMP="$(mktemp -d)" 的话，die 或中断退出会把目录留在 /tmp。用 mktemp_dir
+# 取目录，再在入口脚本里 trap cleanup_tmp_dirs EXIT。
+_TMP_DIRS=()
+cleanup_tmp_dirs() {
+  local d
+  for d in ${_TMP_DIRS[@]+"${_TMP_DIRS[@]}"}; do
+    [[ -n "${d}" ]] && rm -rf "${d}"
+  done
+  _TMP_DIRS=()
+  return 0
+}
+# 用法：mktemp_dir VAR —— 建目录、登记到退出清理表，结果写进 VAR。
+# 不用 $(mktemp_dir) 取值：命令替换在子 shell 里跑，登记表加了也传不出来。
+mktemp_dir() {
+  local _d
+  [[ -n "${1:-}" ]] || die "mktemp_dir 需要一个变量名"
+  _d="$(mktemp -d)"
+  _TMP_DIRS+=("${_d}")
+  printf -v "$1" '%s' "${_d}"
 }
 
 # 读取 KEY=VALUE 环境文件（不执行其中的命令）
@@ -333,7 +355,7 @@ install_run() {
     aarch64|arm64) ARCH=arm64 ;;
     *) die "不支持的架构：$(uname -m)" ;;
   esac
-  TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' RETURN
+  mktemp_dir TMP
 
   if [[ -n "${SING_BOX_PKG:-}" ]]; then
     cp "${SING_BOX_PKG}" "${TMP}/sb.tar.gz"
@@ -574,7 +596,7 @@ server_run() {
   load_env "${ENVFILE}"
   export CERT_DIR="${CERT_DIR:-${DEPLOY_DIR}}"
   [[ -x "${SB_BIN}" ]] || die "sing-box 未安装"
-  T="$(mktemp -d)"; trap 'rm -rf "$T"' RETURN
+  mktemp_dir T
 
   # users 数组按设备名单渲染：一份设备名单 = 一组凭据，删一行就吊销那台
   local rows; rows="$(device_rows)"
@@ -908,6 +930,7 @@ do_uninstall() {
 }
 
 main() {
+  trap cleanup_tmp_dirs EXIT
   parse_args "$@"
   local _d="${DOMAIN:-}" _h="${ENABLE_HY2:-}" _r="${REALITY_DEST:-}" _s="${SERVER_IP:-}"
   # shellcheck disable=SC1090  # 路径来自变量，由调用方保证

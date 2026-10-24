@@ -182,6 +182,7 @@ do_uninstall() {
 }
 
 main() {
+  trap cleanup_tmp_dirs EXIT
   parse_args "$@"
   local _d="${DOMAIN:-}" _h="${ENABLE_HY2:-}" _r="${REALITY_DEST:-}" _s="${SERVER_IP:-}"
   # shellcheck disable=SC1090  # 路径来自变量，由调用方保证

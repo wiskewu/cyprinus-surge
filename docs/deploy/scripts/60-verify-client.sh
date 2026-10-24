@@ -139,7 +139,7 @@ EOF
 
 cleanup_hy2() {
   [[ -n "${SB_PID:-}" ]] && { kill "${SB_PID}" 2>/dev/null || true; wait "${SB_PID}" 2>/dev/null || true; }
-  [[ -n "${TMP_DIR:-}" ]] && rm -rf "${TMP_DIR}"
+  cleanup_tmp_dirs
   return 0
 }
 
@@ -159,7 +159,7 @@ start_hy2_only() {
     die "127.0.0.1:${HY2_PROBE_PORT} 已被占用，换端口：HY2_PROBE_PORT=2082 bash $0 ..."
   fi
 
-  TMP_DIR="$(mktemp -d)"
+  mktemp_dir TMP_DIR
   trap cleanup_hy2 EXIT INT TERM
   derive_hy2_config "${CONFIG}" "${TMP_DIR}/hy2-only.json" local
 
