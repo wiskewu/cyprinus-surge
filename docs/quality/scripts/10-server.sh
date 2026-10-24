@@ -223,12 +223,35 @@ systemctl is-active --quiet fwknop-server || {
 }
 iptables -S INPUT | grep -q FWKNOP_INPUT || die "fwknopd 在跑但没有创建 FWKNOP_INPUT 跳转，检查 ${FWD_CONF} 的 PCAP_INTF"
 
+# ufw 的每次变更（allow / delete / enable / reload）都会重建 INPUT 链，
+# fwknopd 插在第 1 位的跳转随之消失，SPA 规则就不再被求值。
+# 这里轮询补插，失败就返回 1，由调用方决定是保持公网 SSH 还是回滚。
+spa_jump_ok() { iptables -S INPUT 2>/dev/null | grep -q -- '-j FWKNOP_INPUT'; }
+
+ensure_spa_jump() {
+  local _try
+  spa_jump_ok && return 0
+  for _try in 1 2 3 4 5 6 7 8 9 10; do
+    systemctl restart fwknop-server >/dev/null 2>&1 || true
+    sleep 1
+    spa_jump_ok && return 0
+  done
+  return 1
+}
+
 # ---- 防火墙 ----
 log "5/5 防火墙"
 if command -v ufw >/dev/null 2>&1; then
   ufw allow "${SPA_PORT}/udp" >/dev/null
   log "已放行 ${SPA_PORT}/udp"
   if [[ "${CLOSE_SSH}" = 1 ]]; then
+    # 收口的前提是 SPA 真的能放行：跳转在、且最近有一次成功敲门
+    if ! ensure_spa_jump; then
+      die "fwknopd 的 INPUT 跳转插不上，SPA 不会放行。公网 SSH 规则保持原样，先排查 fwknopd"
+    fi
+    if ! iptables -S FWKNOP_INPUT 2>/dev/null | grep -q -- '^-A'; then
+      die "FWKNOP_INPUT 里没有生效中的放行规则：先在客户端敲一次门，确认 iptables -S FWKNOP_INPUT 有输出后再 --close-ssh"
+    fi
     # 收口前检查还有没有别的接入路径
     _alt=0
     ip -o link show 2>/dev/null | grep -qE 'tailscale0|wg0|tun[0-9]' && _alt=1
@@ -249,13 +272,22 @@ if command -v ufw >/dev/null 2>&1; then
     done
     [[ -z "${_left}" ]] || die "ufw 里仍有 SSH 规则：${_left}"
     log "公网 SSH 端口已全部关闭：${SSH_PORTS}"
+    # 删除同样会触发 ufw 重建 INPUT：跳转没了就等于把自己关在门外，回滚
+    if ! ensure_spa_jump; then
+      warn "删规则后跳转再次丢失，回滚公网 SSH 规则"
+      for p in ${SSH_PORTS}; do ufw limit "${p}/tcp" >/dev/null 2>&1 || true; done
+      die "已回滚，公网 SSH 恢复开放。SPA 未就绪时不要收口"
+    fi
+    log "SPA 跳转已就位，收口完成"
   else
     log "公网 ${SSH_PORTS} 保持开放，确认客户端可用后跑 --close-ssh"
   fi
-  # ufw enable/reload/reset 会重建 INPUT 链，冲掉 fwknopd 的跳转，重启让它插回去
-  systemctl restart fwknop-server
-  sleep 1
-  warn "重启后跳转规则仍缺失，确认 iptables 是否 nft 后端"
+  # 收尾再确认一次跳转，ufw 的最后一次变更会重建 INPUT
+  if ensure_spa_jump; then
+    log "FWKNOP_INPUT 跳转在位（INPUT 第 1 位）"
+  else
+    warn "FWKNOP_INPUT 跳转插不上：SPA 不会生效，公网 SSH 规则不要关"
+  fi
 else
   warn "未安装 ufw，跳过防火墙改动。需自行确认 ${SPA_PORT}/udp 可达、${SSH_PORTS} 未对公网开放"
 fi
