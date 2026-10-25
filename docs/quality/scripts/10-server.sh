@@ -13,6 +13,8 @@ ACCESS_CONF="${FWK_DIR}/access.conf"
 FWD_ORIG="${FWK_DIR}/fwknopd.conf.orig"
 KEYS="spa-keys.env"
 CLOSE_SSH=0
+# 收口前要求 fwknopd 在多长时间内有过成功敲门记录
+SPA_EVIDENCE_MIN="${SPA_EVIDENCE_MIN:-30}"
 PURGE=0
 MODE=deploy
 
@@ -245,13 +247,20 @@ if command -v ufw >/dev/null 2>&1; then
   ufw allow "${SPA_PORT}/udp" >/dev/null
   log "已放行 ${SPA_PORT}/udp"
   if [[ "${CLOSE_SSH}" = 1 ]]; then
-    # 收口的前提是 SPA 真的能放行：跳转在、且最近有一次成功敲门
+    # 收口的前提是 SPA 真的能放行：跳转插得上，且 fwknopd 有成功敲门的记录。
+    # 不能直接查 FWKNOP_INPUT 当前有无规则：本步刚重启过 fwknopd，
+    # 启动时 FLUSH_IPT_AT_INIT 会清空该链，之前敲出来的规则一定不在。
     if ! ensure_spa_jump; then
       die "fwknopd 的 INPUT 跳转插不上，SPA 不会放行。公网 SSH 规则保持原样，先排查 fwknopd"
     fi
-    if ! iptables -S FWKNOP_INPUT 2>/dev/null | grep -q -- '^-A'; then
-      die "FWKNOP_INPUT 里没有生效中的放行规则：先在客户端敲一次门，确认 iptables -S FWKNOP_INPUT 有输出后再 --close-ssh"
+    # journalctl | grep -q 在 pipefail 下会因为 SIGPIPE 返回 141，误判成「没有记录」，
+    # 所以用 grep -c 读完整份输出。
+    _knocks="$(journalctl -u fwknop-server --since "-${SPA_EVIDENCE_MIN} min" --no-pager 2>/dev/null \
+      | grep -c 'Added access rule to FWKNOP_INPUT' || true)"
+    if [[ "${_knocks:-0}" -eq 0 ]]; then
+      die "fwknopd 最近 ${SPA_EVIDENCE_MIN} 分钟内没有成功敲门的记录：先在客户端敲一次门（fwknop -n <主机名>），确认日志出现 Added access rule 后再 --close-ssh"
     fi
+    log "最近 ${SPA_EVIDENCE_MIN} 分钟内有 ${_knocks} 次成功敲门"
     # 收口前检查还有没有别的接入路径
     _alt=0
     ip -o link show 2>/dev/null | grep -qE 'tailscale0|wg0|tun[0-9]' && _alt=1

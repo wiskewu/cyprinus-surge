@@ -33,7 +33,7 @@
 </table>
 </div>
 
-<div class="bad"><b>顺序反了会把自己锁在门外。</b>第 4 步必须等第 3 步验证通过。脚本默认不收口，且会在收口前检查 <code>fwknopd</code> 是否真的起来、<code>FWKNOP_INPUT</code> 跳转是否真的插上，起不来就退出，此时防火墙还没动。没检测到并行的接入通道（<code>tailscale0</code> / <code>wg0</code>）时会提醒你：收口后只剩云控制台 VNC 能回来。</div>
+<div class="bad"><b>顺序反了会把自己锁在门外。</b>第 4 步必须等第 3 步验证通过。脚本默认不收口，且会在收口前检查 <code>fwknopd</code> 是否真的起来、<code>FWKNOP_INPUT</code> 跳转是否真的插上、最近 30 分钟是否有成功敲门记录，任一不满足就退出，此时防火墙还没动。没检测到并行的接入通道（<code>tailscale0</code> / <code>wg0</code>）时会提醒你：收口后只剩云控制台 VNC 能回来。</div>
 
 <p>这一步<b>完全可以不做</b>。不做的话 22 端口对全网开着，只是无法爆破（有密码登录被关着）。多数人的止步于此也够用。</p>
 
