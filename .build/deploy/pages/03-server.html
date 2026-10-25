@@ -23,8 +23,9 @@ systemctl status sing-box
 journalctl -u sing-box -n 50 --no-pager
 systemctl restart sing-box</code></pre>
 
-<h2 id="harden">加固：降权与 systemd 沙箱 <span class="tag">可选</span></h2>
+<h2 id="harden">加固：降权与 systemd 沙箱 <span class="tag">推荐</span></h2>
 <p>默认的单元文件让 sing-box 以 root 全权限运行。它是唯一监听公网、解析密文的进程，值得收一次权限。脚本幂等，随时可以 <code>--check</code> 复查或 <code>--revert</code> 退回。</p>
+<p><a href="onekey.html">一键脚本</a>把这一步作为 <code>harden</code> 步骤固定执行，位于 <code>hy2</code> 之后、<code>porthop</code> 之前，不需要单独跑。单独重装 sing-box 之后补一次 <code>bash deploy.sh --only harden --overwrite --yes</code>。</p>
 <pre><code>sudo bash 09-harden.sh           # 建 system 用户、收权限、重写 unit、重启并自检
 sudo bash 09-harden.sh --minimal # 只降权，不加沙箱指令
 sudo bash 09-harden.sh --check   # 只看现状

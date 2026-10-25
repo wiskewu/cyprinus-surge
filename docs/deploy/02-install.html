@@ -119,7 +119,7 @@ sudo bash 20-secrets.sh</code></pre>
 <h2>换版本与离线安装</h2>
 <pre><code>sudo SING_BOX_VERSION=1.15.0 bash 10-install-singbox.sh
 sudo SING_BOX_PKG=/root/sing-box.tar.gz bash 10-install-singbox.sh</code></pre>
-<div class="warn"><b>重装会覆盖 systemd 单元。</b>跑过 <code>09-harden.sh</code> 的机器，升级后要再跑一次加固，否则服务回到 root 全权限运行。</div>
+<div class="warn"><b>重装会覆盖 systemd 单元。</b>用 <code>deploy.sh</code> 升级时 <code>harden</code> 步骤在后面自动补回；单独跑 <code>10-install-singbox.sh</code> 升级的，补一次 <code>--only harden</code>，否则服务回到 root 全权限运行。</div>
 
 <h2>重建密钥</h2>
 <p><code>deploy.env</code> 已存在时脚本只打印一行提示并退出，不会覆盖：</p>

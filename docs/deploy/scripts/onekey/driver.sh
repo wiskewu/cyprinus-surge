@@ -22,7 +22,7 @@ usage() {
 
   --reuse            已配置的步骤直接复用（不提问）
   --overwrite        已配置的步骤重新执行并覆盖
-  --only a,b         只跑指定步骤（system,install,secrets,server,hy2,porthop）
+  --only a,b         只跑指定步骤（system,install,secrets,server,hy2,harden,porthop）
   --skip a,b         跳过指定步骤
   --yes              全部确认，不再提问
   --dry-run          只打印计划，不执行

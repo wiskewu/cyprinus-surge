@@ -1,5 +1,5 @@
 <h1>一键脚本</h1>
-<p class="lede"><code>deploy.sh</code> 把 6 个步骤串起来：先扫描每一步是否已配置，再让你决定「复用 / 覆盖 / 跳过」。它由 <code>build-onekey.sh</code> 自动生成，内容就是 <code>lib.sh</code> + <code>steps/*.sh</code> + 驱动逻辑。</p>
+<p class="lede"><code>deploy.sh</code> 把 7 个步骤串起来：先扫描每一步是否已配置，再让你决定「复用 / 覆盖 / 跳过」。它由 <code>build-onekey.sh</code> 自动生成，内容就是 <code>lib.sh</code> + <code>steps/*.sh</code> + 驱动逻辑。</p>
 
 <h2>快速开始</h2>
 <pre><code>scp -r docs/deploy/scripts root@你的服务器IP:/root/deploy
@@ -28,7 +28,7 @@ server     未配置 no     渲染服务端配置并启动（双入口）
 <tbody>
 <tr><td><code>--reuse</code></td><td>已配置的步骤一律复用，不提问</td></tr>
 <tr><td><code>--overwrite</code></td><td>已配置的步骤一律重跑并覆盖</td></tr>
-<tr><td><code>--only a,b</code></td><td>只跑指定步骤（<code>system,install,secrets,server,hy2,porthop</code>）</td></tr>
+<tr><td><code>--only a,b</code></td><td>只跑指定步骤（<code>system,install,secrets,server,hy2,harden,porthop</code>）</td></tr>
 <tr><td><code>--skip a,b</code></td><td>跳过指定步骤</td></tr>
 <tr><td><code>--yes</code></td><td>不再确认（配合 <code>--reuse</code> 可全自动）</td></tr>
 <tr><td><code>--dry-run</code></td><td>只打印计划和将执行的步骤</td></tr>
@@ -41,14 +41,14 @@ server     未配置 no     渲染服务端配置并启动（双入口）
 </div>
 
 <h2 id="map">步骤与依赖</h2>
-<p><code>deploy.sh</code> 的 6 个步骤名与 <a href="index.html">部署手册</a>的编号不是一一对应（它把「装 sing-box」和「生成密钥」拆成两步，把 Hysteria2 的证书与端口跳跃并成一步），对照如下：</p>
+<p><code>deploy.sh</code> 的 7 个步骤名与 <a href="index.html">部署手册</a>的编号不是一一对应（它把「装 sing-box」和「生成密钥」拆成两步，把 Hysteria2 的证书与端口跳跃并成一步，并在服务端配置之后固定跑一次加固），对照如下：</p>
 <div class="tw">
 <table>
 <thead><tr><th>手册</th><th>对应 deploy.sh 步骤</th><th>在哪台机器</th></tr></thead>
 <tbody>
 <tr><td>1 系统初始化</td><td><code>system</code></td><td>服务器</td></tr>
 <tr><td>2 装 sing-box + 生成密钥</td><td><code>install</code> → <code>secrets</code></td><td>服务器</td></tr>
-<tr><td>3 服务端配置 + 自检</td><td><code>server</code></td><td>服务器</td></tr>
+<tr><td>3 服务端配置 + 自检</td><td><code>server</code> → <code>harden</code></td><td>服务器</td></tr>
 <tr><td>4 Hysteria2（可选）</td><td><code>hy2</code> → <code>porthop</code></td><td>服务器</td></tr>
 <tr><td>5 客户端配置</td><td><b>不在本脚本内</b></td><td>客户端机器</td></tr>
 <tr><td>6 验收 + 备份</td><td><b>不在本脚本内</b></td><td>两边</td></tr>
@@ -63,12 +63,13 @@ server     未配置 no     渲染服务端配置并启动（双入口）
 <tr><td><code>install</code></td><td>steps/20-install.sh</td><td>否</td><td>二进制与 systemd 单元都在</td></tr>
 <tr><td><code>secrets</code></td><td>steps/30-secrets.sh</td><td>否</td><td><code>deploy.env</code> / <code>client.env</code> / <code>devices.list</code> 都存在</td></tr>
 <tr><td><code>server</code></td><td>steps/40-server.sh</td><td>否</td><td><code>config.json</code> 存在且服务在运行</td></tr>
+<tr><td><code>harden</code></td><td>steps/55-harden.sh</td><td>否</td><td>单元含 <code>User=sing-box</code> 与 <code>NoNewPrivileges=yes</code>，服务运行中</td></tr>
 <tr><td><code>hy2</code></td><td>steps/50-hy2.sh</td><td>是</td><td>证书存在且 <code>ENABLE_HY2=1</code></td></tr>
 <tr><td><code>porthop</code></td><td>steps/60-porthop.sh</td><td>是</td><td>iptables 里已有重定向规则</td></tr>
 </tbody>
 </table>
 </div>
-<p>两个可选步骤只在 <code>ENABLE_HY2=1</code> 时执行；否则自动跳过并说明原因。<br>
+<p>两个可选步骤只在 <code>ENABLE_HY2=1</code> 时执行；否则自动跳过并说明原因。<code>harden</code> 排在 <code>hy2</code> 之后：沙箱化后要验证 Hy2 端口，证书没装完时 8443 不会监听。<br>
 <code>system</code> 那一行的「密码登录已关」在<b>没有可用公钥</b>时不计入未配置：<a href="01-init.html">第 1 页</a>会提示你先 <code>ssh-copy-id</code>，而不是反复报错。</p>
 
 <h2>卸载会删什么</h2>
