@@ -47,6 +47,15 @@ done
 need_root
 
 valid_name() { [[ "${1}" =~ ^[A-Za-z0-9._-]+$ ]]; }
+
+# 隧道里 sshd 仍在非 22 端口，直接 ssh 10.66.0.1 会连 22 并超时。
+ssh_hint() {
+  local name="${1}" port
+  port="$(ssh_port)"
+  printf '\n客户端连入的命令：ssh -p %s root@%s\n' "${port}" "${WG_NET}"
+  printf '写入 ~/.ssh/config 可以省掉端口：\n'
+  printf '  Host %s\n    HostName %s\n    Port %s\n    User root\n' "${name}" "${WG_NET}" "${port}"
+}
 endpoint_ip() {
   if [[ -n "${WG_ENDPOINT:-}" ]]; then
     printf '%s' "${WG_ENDPOINT}"
@@ -144,6 +153,7 @@ case "${MODE}" in
     chmod 600 "${WG_DIR}/clients/${NAME}.conf"
     sed -i '/^DNS = $/d' "${WG_DIR}/clients/${NAME}.conf"
     log "已添加 ${NAME}：地址 ${ip}，配置 ${WG_DIR}/clients/${NAME}.conf"
+    ssh_hint "${NAME}"
     if command -v qrencode >/dev/null 2>&1; then
       qrencode -t ansiutf8 <"${WG_DIR}/clients/${NAME}.conf"
     else
