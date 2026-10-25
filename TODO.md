@@ -4,43 +4,57 @@
 新增条目按「影响面 / 必要性 / 效益 / 成本」四列写，便于排期。
 `80-monitor.sh` 已在生产机落地：clash_api 绑 127.0.0.1:9090，探针每 5 分钟一次。
 
-## 当前阻塞（需人工恢复）
+## 阻塞：本机到服务器的 UDP 被上游丢弃（2026-10-25）
 
-服务器 `69.8.129.176` 在 2026-10-24 收口 SSH 时锁死：`ufw --force delete` 触发 ufw 重建
-`INPUT` 链，`FWKNOP_INPUT` 的跳转随之消失，`4061/tcp` 的 ufw 规则同时被删。跳转不在，
-`FWKNOP_INPUT` 里的 ACCEPT 规则不会被求值，敲门再多也进不去。SSH 与 SPA 都不可用，
-只能走云控制台的 VNC 或串口。
+服务端本身已验证可用：命名空间对端经 `wg0` 连上 sshd 并读到 `SSH-2.0-OpenSSH_10.0p2`，
+手机端用 `laptop` 对端双向收发正常。
 
-恢复步骤：
+但当前这条宽带上，UDP 到 `<VPS_IP>` 全部丢弃，与端口无关：
 
-```bash
-ufw allow 4061/tcp comment 'ssh-temp'
-systemctl restart fwknop-server
-sleep 1
-iptables -S INPUT | head -3          # 第一行必须是 -A INPUT -j FWKNOP_INPUT
-iptables -I INPUT 1 -j FWKNOP_INPUT 2>/dev/null || true
-iptables -S INPUT | head -3          # 再确认一次
-```
+| 实验 | 结果 |
+| --- | --- |
+| 明文 UDP 打 `<VPS_IP>` 的 53 / 443 / 1194 / 4899 / 62201 | 服务端 `eth0` 抓到 0 个包 |
+| UDP 到公共 DNS 的 53 | 均有回包 |
+| UDP 到公共 NTP 的 123 | 有回包 |
+| TCP 到 `<VPS_IP>:4061` | 正常，SSH 可用 |
+| WireGuard 换 `443`、`51820`、`53` 三个端口 | 均无法完成握手，客户端 `rx_bytes=0` |
+| 停用或启用 Clash Verge 后重试 | 结果一致，与代理软件无关 |
 
-恢复后待办：同步修好的 `10-server.sh` 到 `/root/ssh-spa/`，确认跳转与 `fwknopd` 状态，
-从客户端敲一次门确认 `FWKNOP_INPUT` 有规则，再执行 `--close-ssh` 并验证「不敲门不可达、
-敲门可登录」。
+客户端侧排除：路由唯一且指向 `desktop` 适配器、`ifIndex` 一致、地址正确、服务运行中、
+官方客户端与用户态客户端表现一致。数据包确实离开发送端，但到不了服务器网卡。
 
-### 已修但尚未在服务器上生效
+结论：丢包发生在本机与服务器之间的上游（运营商、接入设备或机房侧防护），不在两端配置。
 
 | # | 事项 | 状态 |
 | --- | --- | --- |
-| 29 | `10-server.sh` 收口前校验跳转与放行规则，删除后复核，失败自动回滚 | 已改并过 lint，等恢复后同步到 `/root/ssh-spa/` |
-| 30 | `90-port-hop.sh` 改用 systemd 单元持久化 NAT，不再安装 `iptables-persistent` | 已在服务器生效（`sing-box-porthop.service` enabled/active），ufw 已装回 |
+| 49 | 确认是机房侧还是本地上游 | 需要另一条网络路径复测：手机蜂窝网络再连一次；仍通则说明是本宽带上游，仍不通则是机房侧 |
+| 50 | 管理入口改为不依赖 UDP | 候选方案见下节「管理入口候选方案」，需先定方案再动手 |
+| 48 | 公网 SSH 仅对当前 IP 放行 | 排查期的临时通道，属权宜。50 落地后删除该规则，恢复「仅 wg0 或仅 TLS 前置」 |
+| 44 | 手册改写为 WireGuard 模型 | 待 50 定稿后连同 `docs/quality` 六页一起改 |
+| 45 | 退役 fwknop | `fwknop-server` 已 inactive，`62201/udp` 规则仍在 |
+| 46 | `wg-probe` 数据面 | 与 49 同源，网络恢复后复核 |
 
-## shell 脚本
+## 管理入口候选方案（待定）
 
-变量大括号已在 30 个脚本里统一为 `${var}`，`npm run lint` 用
-`shellcheck -o require-variable-braces` 长期守住；`echo` 已全部换成
-`printf`，含写配置文件时用 `printf '%s\n'` 固定格式；临时目录改为
-`mktemp_dir` 登记 + `trap cleanup_tmp_dirs EXIT`，异常退出不留残留；
-布局由 `shfmt -i 2 -ci -bn` 统一，`npm run lint` 会检查是否漂移。
-本组暂无未完成项。
+前提：本宽带到服务器的 UDP 被上游丢弃，TCP 正常。方案按「是否新增组件」「是否要证书」「端口对外表现」比较。
+
+| 方案 | 服务器改动 | 客户端改动 | 端口对外表现 | 成熟度与代价 |
+| --- | --- | --- | --- | --- |
+| A 仅公钥 SSH + fail2ban | 无 | 无 | 端口全网可见，无密钥不可用 | SSH 自身能力，零新组件；失去「端口不可见」 |
+| B stunnel PSK 前置 sshd | 装 stunnel，监听 `8443/tcp`，一份 PSK 文件 | 装 stunnel，同一份 PSK | 需 TLS-PSK 握手，无 PSK 不可用 | stunnel 5.09 起支持免证书 PSK，Windows、macOS 均有官方安装包；两端各装一个组件 |
+| C 经现有 REALITY 代理回连 | 仅加一条 `ufw` 源地址规则 | 给该目的地加一条走代理的路由规则 | 端口对全网关闭，只接受服务器自身回连 | 复用已有 sing-box，无新组件；客户端分流规则要改 |
+| D HTTP CONNECT 代理 + 账号认证 | 装 `gost` 或 `3proxy`，监听 `8443/tcp` | `ProxyCommand` 内带账号密码 | 需代理认证 | 组件成熟，但多一个常驻服务与一份口令存储 |
+
+已实测、可作为选型依据的事实：
+
+| 事实 | 结论 |
+| --- | --- |
+| 服务器回连自身 `<VPS_IP>:4061` | 通，返回 `SSH-2.0-OpenSSH_10.0p2`，方案 C 的 hairpin 前提成立 |
+| TCP 到 `<VPS_IP>:4061` | 通，方案 A、B、D 的共同前提成立 |
+| UDP 到 `<VPS_IP>` 任意端口 | 全部丢弃，WireGuard 与任何 UDP 方案在本宽带不可用 |
+| `udp2raw` 之类「UDP 转 TCP」 | 其 Windows 支持需先装虚拟机导入 OpenWrt 镜像，不属于无痛接入，不采用 |
+
+排除项：同时保留 WireGuard 与另一套入口。两套入口意味着两套排障路径，本轮迁移已经因此耗时。
 
 ## 可观测性
 
@@ -54,9 +68,13 @@ iptables -S INPUT | head -3          # 再确认一次
 
 | # | 事项 | 影响面 | 必要性 | 效益 | 成本 |
 | --- | --- | --- | --- | --- | --- |
-| 17 | 把 `09-harden.sh` 纳入 `deploy.sh` 流水作为固定一步 | `steps/` 新增一步，`build-onekey.sh` 与一键脚本步骤表同步，文档「6 步」计数变化 | 高：现在加固靠人工记得跑，重装 sing-box 会覆盖单元并悄悄退回 root | 新机器天然降权与沙箱化，不依赖操作记忆 | 半天；要处理与 `20-install` 的先后顺序与幂等 |
 | 18 | 备份加密（`70-backup.sh` 加 age 或 gpg） | 备份产物格式变化，恢复流程要一起改；私钥需离线保管 | 高：备份含全部设备凭据与 REALITY 私钥，一份泄露等于全部吊销 | 备份可以放对象存储或异地而不担心泄露 | 2 小时 + 一次恢复演练；丢私钥等于丢备份 |
 | 19 | 凭据轮换流程与演练（REALITY `short_id`、Hy2 obfs 密码、SPA 密钥包） | 服务端与全部客户端各要重渲染一次，涉及 `device.sh rotate` 与 `00-gen-keys.sh` | 中：现在只有 `device.sh rotate` 单设备路径，整体轮换没有成文步骤 | 泄露或疑似泄露时有可执行的处置顺序，不靠临场判断 | 半天；轮换期间所有客户端要重发配置 |
+| 31 | 恢复 sshd 加固（`PasswordAuthentication yes`、`PermitRootLogin yes` 为备份回滚后的状态） | 客户端必须先有可用公钥；关掉密码登录后敲门也只剩公钥一条路 | 高：4061 现在对任何能敲门的人开放密码登录 | 回到「只认公钥」，爆破面消失 | 半小时；必须先在客户端验证公钥登录可用，否则重演锁死 |
+| 32 | 补齐 `deploy.env` 的 `ENABLE_HY2` / `HY2_PORT` / `HY2_HOP_RANGE` | `config.json` 与端口跳跃都在用，但环境文件里没有这三个键，`deploy.sh` 会把 Hy2 判成未配置 | 中：状态判定与实际配置不一致 | 一键脚本的步骤状态可信，不再误提示重跑 | 10 分钟；补完要跑一次 `deploy.sh --status` 复核 |
+| 33 | 审查 pipefail 下的管道截断误判：把 `cmd` 接 `grep -q` 的写法改为先取变量再匹配 | 已修 `10-server.sh` 收口守卫里的 journalctl 一处（曾因 SIGPIPE 永久判失败），`ss` 接 `grep -q` 的一组尚未审 | 中：误判方向是「以为没生效」，会触发不必要的回滚 | 检查类脚本不再因管道截断得出相反结论 | 1 小时；逐处替换 |
+| 34 | 清掉 `access.conf` 里多余的 `tcp/22` | `spa-keys.env` 的 `SSH_PORT="22 4061"` 让 SPA 同时放行 22，而 sshd 只监听 4061 | 低：属噪声，不影响安全 | 敲门后打开的端口与实际服务一致 | 10 分钟；改密钥包后重跑 `10-server.sh` |
+| 41 | 用 WireGuard 内网替代 SPA 作为 SSH 的唯一入口（服务端与自动验收已完成，剩余手册改写见 44） | 服务端新增 `wg0` 与密钥分发，sshd 只经 `wg0` 可达；`docs/quality` 六个页面整体改写，`fwknop` 退出关键路径 | 高：SPA 在 Windows 客户端没有可用实现，收口后那台机器进不来 | 端口对外完全不可见，Windows、macOS、iOS、Android 都有官方客户端，密钥与设备一一对应 | 半天脚本与验证，手册改写另计 1 天；风险是 UDP 被封的网络需要备用通道 |
 | 20 | fail2ban 之外的补充审计（CrowdSec 或 nftables 日志规则） | 服务端多一个常驻进程与日志消费 | 低：SSH 已由 SPA 隐藏，密码登录默认关闭 | 能发现异常连接模式，而不只是爆破计数 | 半天；常驻内存对小机器不友好 |
 
 ## 可用性与容量
@@ -75,12 +93,15 @@ iptables -S INPUT | head -3          # 再确认一次
 | 25 | macOS 客户端收敛：SFM 与 Clash Verge 二选一 | 用户侧配置习惯，`docs/issue` 已有同类故障记录 | 中：两者并存会互抢 TUN 与系统代理，症状难归因 | 排障时先排除一类变量 | 1 小时写清操作清单；不改代码 |
 | 26 | `60-verify-client.sh` 增加免 CLI 的检查子集 | 验收脚本多一个模式，与现有 `HY2_ONLY=emit` 并列 | 中：用 SFM 这类图形客户端的机器没有 `sing-box` 可执行文件 | 没有 CLI 也能跑通「代理可用、分流、出口」三项核心验收 | 2 小时；要保证不误导为完整验收 |
 | 27 | 规则集本地缓存与定时更新 | 客户端与服务端配置里的 `rule_set` 增加本地路径或缓存策略 | 中：`rule_set` 远程拉取超时会拖慢冷启动，弱网下直接失败 | 冷启动更快，弱网可用 | 半天；缓存过期要有人更新 |
+| 38 | 客户端一键安装脚本 `client-install.sh` | 新增客户端入口，串起 `20-client.sh`、`50-render-client.sh`、`60-verify-client.sh` 三条分散路径 | 高：换机器现在要手工跑三个脚本，且分属两套手册目录 | 一条命令复位客户端，也是 35 号待确认项的解法 | 半天；要覆盖 macOS 与 Linux，Windows 见 40 |
+| 39 | 配置分发与回滚 | `device.sh export <名字>` 打包 JSON 与校验和；客户端保留上一版配置 | 中：现在靠 scp 手工拷，覆盖即丢旧版 | 误操作可恢复，重发配置不靠记忆 | 半天；要与 `--purge` 的清理路径对齐 |
+| 40 | ~~Windows 走 SPA 的方案选择~~ 已由 41 取代，服务端已切换到 WireGuard | Windows 无 fwknop 官方构建，收口后无法直连。三条路：Go 版最小 SPA 客户端、WSL 里跑 `fwknop` 与 `ssh`、改用 Tailscale 或 WireGuard 作第二通道 | 高：服务器已收口，Windows 机器现在进不来 | 统一一套收口策略，不因客户端系统分叉 | Go 客户端 1 天；WSL 1 小时安装但要虚拟机资源，且 Windows 原生 `ssh` 需 `ProxyCommand` 调 `wsl.exe` 才生效；Tailscale 半天但引入第三方 |
 
 ## 真实环境验证
 
 | # | 事项 | 影响面 | 必要性 | 效益 | 成本 |
 | --- | --- | --- | --- | --- | --- |
-| 6 | 剩余脚本在 Debian 12/13、Ubuntu 22.04/24.04 实机跑通 | 逐脚本验证可行性：`09-harden.sh`、`99-selfcheck.sh` 已在 Debian 13 跑通，其余仍只有 Windows git-bash 沙箱结论 | 高 | 消除「沙箱里过、实机失败」这类返工，也是脚本能否推荐的依据 | 每台机器 1 到 2 小时 |
+| 6 | 剩余脚本在 Debian 12/13、Ubuntu 22.04/24.04 实机跑通 | 逐脚本验证可行性：`09-harden.sh`、`99-selfcheck.sh` 已在 Debian 13 跑通；新增的 `steps/55-harden.sh` 与 `deploy.sh --only harden` 只在沙箱验证过，`useradd`、`runuser`、目录属主与端口自检未在实机跑；其余脚本仍只有 Windows git-bash 结论 | 高 | 消除「沙箱里过、实机失败」这类返工，也是脚本能否推荐的依据 | 每台机器 1 到 2 小时 |
 | 7 | 防火墙与 sshd 的真实返回码 | `ufw --force delete` 删不存在的规则、`iptables -X` 清不存在的链、`sshd -t` 失败后的 reload 行为 | 中 | 消除「只看退出码把没关上报成已关闭」的残余风险 | 2 小时，需一台可反复重装的机器 |
 | 8 | `deploy.sh` 的证书与端口跳跃分支 | ACME DNS-01 签发、Hy2 端口跳跃、fail2ban 联动三处可选逻辑 | 中 | 可选分支目前只有设计结论，验证后才能在文档里给承诺 | 半天，需真实域名与云账号 |
 | 9 | `test-ai-exit.sh` 与 `80-monitor.sh` 探针口径 | 两个脚本依赖真实 sing-box 与可用出口，探针结论直接影响对出口的判断 | 中 | 确认探针记录的值与实际体感一致，避免误判风控 | 2 小时 |
@@ -97,6 +118,5 @@ iptables -S INPUT | head -3          # 再确认一次
 ## 建议顺序
 
 1. 探针已在生产机运行，攒一周数据后再判断 `21` 要不要做
-2. `17` 把加固并入一键流程，避免重装后权限悄悄退回 root
-3. `18` 备份加密与恢复演练，越早越省事
-4. 之后按 `21`、`24`、`26`、`23` 推进，`20` 与 `22` 按需
+2. `18` 备份加密与恢复演练，越早越省事
+3. 之后按 `21`、`24`、`26`、`23` 推进，`20` 与 `22` 按需
