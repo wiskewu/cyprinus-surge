@@ -66,17 +66,22 @@ ensure_deploy_dir() {
 # 运行目录必须归单元的实际运行用户。两个方向都会失败：以 sing-box 运行时
 # 目录归 root:root；或者单元回到 root、但能力集里没有 CAP_DAC_OVERRIDE 时，
 # root 进不了 sing-box 的 750 目录。两种都是 chdir 失败、服务起不来。
+# 运行目录（含里面的 cache.db）必须归单元的实际运行用户。三个方向都会失败：
+# 以 sing-box 运行时目录归 root:root；单元回到 root、但能力集里没有
+# CAP_DAC_OVERRIDE 时，root 进不了 sing-box 的 750 目录；目录对了但里面的
+# cache.db 还是上一次运行的用户，open 依旧 permission denied。所以 chown 必须递归。
 ensure_run_dir() {
-  local u
+  local u g
   u="$(service_user)"
   install -d "${RUN_DIR}"
   if [[ "${u}" == "root" ]]; then
-    chown root:root "${RUN_DIR}"
+    g=root
     chmod 700 "${RUN_DIR}"
   else
-    chown -R "${u}:${u}" "${RUN_DIR}"
+    g="$(id -gn "${u}" 2>/dev/null || printf 'root')"
     chmod 750 "${RUN_DIR}"
   fi
+  chown -R "${u}:${g}" "${RUN_DIR}"
 }
 
 install_service_file() { # $1=源文件 $2=目标路径

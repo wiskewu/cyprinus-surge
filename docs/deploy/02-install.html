@@ -133,7 +133,7 @@ sudo bash bin/deploy/one/secrets.sh</code></pre>
 <pre><code>sudo SING_BOX_VERSION=1.15.0 bash bin/deploy/one/install-singbox.sh
 sudo SING_BOX_PKG=/root/sing-box.tar.gz bash bin/deploy/one/install-singbox.sh</code></pre>
 <div class="warn"><b>重装只换二进制，不动已加固的单元。</b><code>install-singbox.sh</code> 发现单元以 <code>sing-box</code> 运行时原样保留，<code>/var/lib/sing-box</code> 与 <code>/etc/sing-box</code> 的属主按单元的实际运行用户重新归位。要退回 root 全权限运行用 <code>bin/harden/harden.sh --revert</code>。</div>
-<div class="note"><b>单元与运行目录属主必须一致。</b>旧版本脚本会把单元改回 <code>User=root</code> 而 <code>/var/lib/sing-box</code> 仍属 <code>sing-box</code>：root 的能力集里没有 <code>CAP_DAC_OVERRIDE</code>，<code>750</code> 目录的 <code>o</code> 位没有 <code>x</code>，重启表现为 <code>chdir /var/lib/sing-box: permission denied</code>。现在两步都调用 <code>ensure_run_dir</code>，按单元的实际用户设置属主。</div>
+<div class="note"><b>单元与运行目录属主必须一致。</b>旧版本脚本会把单元改回 <code>User=root</code> 而 <code>/var/lib/sing-box</code> 仍属 <code>sing-box</code>：root 的能力集里没有 <code>CAP_DAC_OVERRIDE</code>，<code>750</code> 目录的 <code>o</code> 位没有 <code>x</code>，重启表现为 <code>chdir /var/lib/sing-box: permission denied</code>。现在 <code>install</code> / <code>system</code> / <code>server</code> 三步都调用 <code>ensure_run_dir</code>，按单元的实际用户<b>递归</b>归位，<code>cache.db</code> 这类上一次运行留下的文件也在内。</div>
 
 <h2>重建密钥</h2>
 <p><code>deploy.env</code> 已存在时脚本只打印一行提示并退出，不会覆盖：</p>

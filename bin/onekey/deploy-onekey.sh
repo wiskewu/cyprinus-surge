@@ -74,17 +74,22 @@ ensure_deploy_dir() {
 # 运行目录必须归单元的实际运行用户。两个方向都会失败：以 sing-box 运行时
 # 目录归 root:root；或者单元回到 root、但能力集里没有 CAP_DAC_OVERRIDE 时，
 # root 进不了 sing-box 的 750 目录。两种都是 chdir 失败、服务起不来。
+# 运行目录（含里面的 cache.db）必须归单元的实际运行用户。三个方向都会失败：
+# 以 sing-box 运行时目录归 root:root；单元回到 root、但能力集里没有
+# CAP_DAC_OVERRIDE 时，root 进不了 sing-box 的 750 目录；目录对了但里面的
+# cache.db 还是上一次运行的用户，open 依旧 permission denied。所以 chown 必须递归。
 ensure_run_dir() {
-  local u
+  local u g
   u="$(service_user)"
   install -d "${RUN_DIR}"
   if [[ "${u}" == "root" ]]; then
-    chown root:root "${RUN_DIR}"
+    g=root
     chmod 700 "${RUN_DIR}"
   else
-    chown -R "${u}:${u}" "${RUN_DIR}"
+    g="$(id -gn "${u}" 2>/dev/null || printf 'root')"
     chmod 750 "${RUN_DIR}"
   fi
+  chown -R "${u}:${g}" "${RUN_DIR}"
 }
 
 install_service_file() { # $1=源文件 $2=目标路径
@@ -1013,14 +1018,20 @@ server_run() {
     return 0
   fi
   install_service_file "${T}/server.json" "${DEPLOY_DIR}/config.json"
+  # 重启前把运行目录（含 cache.db）归到单元的实际运行用户：单元被 install 或
+  # harden 改过运行用户时，上一轮的 cache.db 属主就跟不上了，启动直接 open 失败。
+  ensure_run_dir
   systemctl enable sing-box >/dev/null 2>&1 || true
   systemctl restart sing-box
   sleep 1
   systemctl is-active --quiet sing-box || {
     # 只贴本次重启前后的日志：默认 -n 30 会把几小时前的握手噪音一起打出来，
-    # 真因（比如 chdir permission denied）反而被冲掉
+    # 真因（比如 chdir / cache.db permission denied）反而被冲掉
     journalctl -u sing-box -n 30 --no-pager --since "-2 min" || true
-    die "sing-box 没起来"
+    warn "运行目录与配置目录现状（属主必须与单元的运行用户一致）："
+    stat -c '%A %U:%G %n' "${RUN_DIR}" "${DEPLOY_DIR}" 2>&1 | sed 's/^/    /' >&2 || true
+    find "${RUN_DIR}" -maxdepth 1 -printf '%M %u:%g %p\n' 2>/dev/null | head -5 | sed 's/^/    /' >&2 || true
+    die "sing-box 没起来（单元 User=$(service_user)）"
   }
   log "服务已启动"
 }
