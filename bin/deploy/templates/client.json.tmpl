@@ -1,5 +1,6 @@
 {
   "log": { "level": "info", "timestamp": true },
+  "experimental": { "cache_file": { "enabled": true, "path": "${CACHE_FILE}" } },
   "dns": {
     "servers": [
       { "type": "https", "tag": "dns-cn", "server": "${DNS_CN}", "path": "/dns-query", "detour": "direct" },

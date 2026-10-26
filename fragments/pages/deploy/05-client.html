@@ -5,6 +5,20 @@
 <pre><code># 你的电脑上
 scp root@你的服务器IP:/etc/sing-box/client.env ./client.env</code></pre>
 
+<h2>规则集缓存</h2>
+<p>分流依赖三个远程规则集。渲染时写入 <code>experimental.cache_file</code>，下载结果与编译结果落盘，重启不再整份重下；规则集自身的 <code>update_interval</code> 是 3 天，到期由 sing-box 自行刷新。</p>
+<div class="tw">
+<table>
+<thead><tr><th>项</th><th>服务端</th><th>客户端</th></tr></thead>
+<tbody>
+<tr><td>缓存路径</td><td><code>/var/lib/sing-box/cache.db</code></td><td><code>~/.cache/sing-box/cache.db</code></td></tr>
+<tr><td>覆盖方式</td><td><code>SING_BOX_CACHE_FILE</code></td><td><code>SING_BOX_CACHE_FILE</code></td></tr>
+<tr><td>刷新周期</td><td>规则集 <code>update_interval</code> 3 天</td><td>同左</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note"><b>写法有版本要求。</b>1.13 起顶层 <code>cache_file</code> 被移除，必须写在 <code>experimental.cache_file</code> 里且为对象形式 <code>{"enabled": true, "path": "..."}</code>；写成字符串会被 sing-box 拒绝启动。</div>
+
 <h2>没有 CLI 时怎么验收</h2>
 <p>图形客户端把核心装在扩展或 App 里，本机没有 <code>sing-box</code> 可执行文件。这时用免 CLI 子集：</p>
 <pre><code>bash bin/deploy/client/verify.sh --no-cli --proxy socks5h://127.0.0.1:7890</code></pre>

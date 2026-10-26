@@ -2,7 +2,7 @@
 # shellcheck disable=SC2034  # 步骤元数据与跨文件变量由间接展开读取
 # ===========================================================================
 # deploy.sh，一键脚本。自动生成，勿手改。
-#   生成时间：2026-10-26T07:55:40Z
+#   生成时间：2026-10-26T08:00:00Z
 #   来源：bin/deploy/lib.sh + bin/deploy/steps/*.sh + fragments/onekey/deploy-driver.sh
 #   重新生成：bash fragments/build/build-onekey.sh
 # ===========================================================================
@@ -743,22 +743,31 @@ server_run() {
     log "单入口：REALITY:${VLESS_PORT}（$(printf '%s\n' "${rows}" | wc -l) 台设备）"
   fi
 
+  # 规则集缓存：没有 cache_file 时每次重启都要重新下载 .srs，弱网下冷启动直接失败
+  export CACHE_FILE="${SING_BOX_CACHE_FILE:-/var/lib/sing-box/cache.db}"
   render_vars "${TPL_DIR}/server.json.tmpl" "${T}/server.json"
   inject_block "${T}/server.json" "__INBOUNDS__" "${T}/inbounds.json"
-  # clash_api 只读面板：绑回环，配合 SSH 隧道用。关掉时片段留空，experimental 变空对象
-  local exp_frag="${T}/experimental.json"
+  # clash_api 只读面板：绑回环，配合 SSH 隧道用。关掉时只留 cache_file。
+  # cache_file 必须放在 experimental 里：1.13 起顶层写法被移除，写成顶层会直接
+  # 报 unknown field "cache_file" 并拒绝启动。
+  local exp_frag="${T}/experimental.json" exp_parts=()
+  exp_parts+=("    \"cache_file\": { \"enabled\": true, \"path\": \"${CACHE_FILE}\" }")
   if [[ "${ENABLE_CLASH_API:-0}" == "1" ]]; then
     # 面板文件放在运行目录下，不进 /etc 备份；没有就在只读接口模式下工作
     if [[ -d /var/lib/sing-box/ui ]]; then
-      printf '    "clash_api": { "external_controller": "%s", "external_ui": "/var/lib/sing-box/ui" }\n' \
-        "${CLASH_API_LISTEN:-127.0.0.1:9090}" >"${exp_frag}"
+      exp_parts+=("    \"clash_api\": { \"external_controller\": \"${CLASH_API_LISTEN:-127.0.0.1:9090}\", \"external_ui\": \"/var/lib/sing-box/ui\" }")
     else
-      printf '    "clash_api": { "external_controller": "%s" }\n' \
-        "${CLASH_API_LISTEN:-127.0.0.1:9090}" >"${exp_frag}"
+      exp_parts+=("    \"clash_api\": { \"external_controller\": \"${CLASH_API_LISTEN:-127.0.0.1:9090}\" }")
     fi
-  else
-    : >"${exp_frag}"
   fi
+  {
+    local i
+    for i in "${!exp_parts[@]}"; do
+      printf '%s' "${exp_parts[i]}"
+      [[ "${i}" -lt $((${#exp_parts[@]} - 1)) ]] && printf ','
+      printf '\n'
+    done
+  } >"${exp_frag}"
   inject_block "${T}/server.json" "__EXPERIMENTAL__" "${exp_frag}"
   json_valid "${T}/server.json"
   sb_check "${T}/server.json"

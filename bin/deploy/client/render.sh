@@ -127,7 +127,19 @@ validate_common() {
   PROXY_TAG="${NODE_LABEL}"
   if [[ "${ENABLE_HY2:-0}" == "1" ]]; then REALITY_TAG=proxy; else REALITY_TAG="${NODE_LABEL}"; fi
   if [[ "${AI_MODE:-main}" == "dedicated" ]]; then AI_OUT_TAG=ai-out; else AI_OUT_TAG="${PROXY_TAG}"; fi
-  export PROXY_TAG REALITY_TAG NODE_LABEL AI_OUT_TAG AUTO_DETECT_INTERFACE DNS_CN DNS_REMOTE
+  # 规则集缓存：没有 cache_file 时每次启动都要重新下载 .srs，弱网下冷启动直接失败。
+  # 路径优先用 SING_BOX_CACHE_FILE，否则落到用户缓存目录；HOME 也拿不到时放当前目录。
+  CACHE_FILE="${SING_BOX_CACHE_FILE:-}"
+  if [[ -z "${CACHE_FILE}" ]]; then
+    if [[ -n "${HOME:-}" ]]; then
+      CACHE_FILE="${HOME}/.cache/sing-box/cache.db"
+      mkdir -p "$(dirname "${CACHE_FILE}")" 2>/dev/null || true
+    else
+      CACHE_FILE="cache.db"
+    fi
+  fi
+
+  export PROXY_TAG REALITY_TAG NODE_LABEL AI_OUT_TAG AUTO_DETECT_INTERFACE DNS_CN DNS_REMOTE CACHE_FILE
   # auto_detect_interface=false 的代价：TUN 下 direct 出站的连接会按系统默认路由
   # 又走回 tun（环），表现为「连上立刻被断」。要关它就得给直连出站指定网卡。
   resolve_default_interface
