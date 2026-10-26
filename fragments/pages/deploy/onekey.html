@@ -108,6 +108,35 @@ bash deploy.sh --reinstall --yes
 # 怀疑环境被污染，先卸载干净再来
 bash deploy.sh --purge --yes &amp;&amp; bash deploy.sh --yes</code></pre>
 
+<h2>卸载会删什么</h2>
+<ul>
+<li>停用并删除 sing-box 服务、二进制、systemd 单元、<code>/var/lib/sing-box</code></li>
+<li>删除 <code>config.json</code>、证书、Hysteria2 的 iptables 规则</li>
+<li>删除本项目加的 ufw 规则（443、8443-8447）与 <code>sysctl.d</code> 优化文件</li>
+<li><code>--purge</code> 额外删除 <code>deploy.env</code> / <code>client.env</code></li>
+</ul>
+<div class="note"><b>不会动的东西：</b>SSH 端口的 ufw 规则、ufw 的启用状态、swap、<code>/root/backups</code> 里的备份。卸载后仍保持 SSH 可登录。</div>
+
+<h2>改步骤后重新生成</h2>
+<pre><code># 改 steps/*.sh 或 onekey/driver.sh 之后
+bash fragments/build/build-onekey.sh
+# 生成 deploy.sh（会自动做 bash -n 语法检查）</code></pre>
+<p><code>deploy.sh</code> 是生成物，不要手改；单步入口（<code>bin/deploy/one/system.sh</code> 等）也调用同一份 <code>steps/*.sh</code>，所以两条路径的行为永远一致。</p>
+
+<h2>常见用法</h2>
+<pre><code># 只重做服务端配置（改完 REALITY_DEST 之类）
+bash deploy.sh --only server --overwrite --yes
+
+# 有域名后补开 Hysteria2
+DOMAIN=vps.example.com CF_TOKEN=xxx ACME_EMAIL=me@example.com \
+  bash deploy.sh --only hy2,server --overwrite --yes
+
+# 完全重装（连密钥一起换）
+bash deploy.sh --reinstall --yes
+
+# 怀疑环境被污染，先卸载干净再来
+bash deploy.sh --purge --yes &amp;&amp; bash deploy.sh --yes</code></pre>
+
 <h2>跑完之后</h2>
 <p>所有步骤成功时脚本最后会打印下面这几条，命令里的脚本路径已换成本机实际位置。它们做的是同一件事：把凭据按设备发给客户端。</p>
 <pre><code>下一步
@@ -116,12 +145,12 @@ bash deploy.sh --purge --yes &amp;&amp; bash deploy.sh --yes</code></pre>
   导出这一台的配置：sudo bash /root/bin/deploy/device.sh export &lt;名字&gt;
   换凭据：sudo bash /root/bin/deploy/device.sh rotate &lt;名字&gt;　　吊销：sudo bash /root/bin/deploy/device.sh revoke &lt;名字&gt;
   客户端导入后验收：bash bin/deploy/client/verify.sh</code></pre>
-<p><code>export</code> 会把这一台的 JSON 打包成 <code>/etc/sing-box/clients/dist/&lt;名字&gt;-&lt;UTC时间&gt;.tar.gz</code>，并打出填好 SSH 端口、用户与服务器 IP 的 <code>scp</code> 命令：</p>
-<pre><code>[+] 分发（在客户端执行，只取这一台的包）：
-    scp -P 4061 root@203.0.113.9:/etc/sing-box/clients/dist/mac-20261026T123626Z.tar.gz /etc/sing-box/clients/dist/mac-20261026T123626Z.tar.gz.sha256 .
-    sha256sum -c mac-20261026T123626Z.tar.gz.sha256    # macOS 没有 sha256sum，用 shasum -a 256 -c
-[+] 分发（在服务器执行，需客户端开着 sshd）：
-    scp -P &lt;客户端SSH端口&gt; /etc/sing-box/clients/dist/mac-20261026T123626Z.tar.gz ... &lt;客户端用户&gt;@&lt;客户端IP&gt;:~/</code></pre>
-<p>端口与地址取自 <code>deploy.env</code> 的 <code>SSH_PORT</code> / <code>SERVER_IP</code>；服务器远端用户默认 <code>root</code>，用 <code>SSH_LOGIN_USER</code> 覆盖。客户端侧的导入与验收见 <a href="05-client.html">第 5 页</a>。
+<p><code>export</code> 会把这一台的 JSON 打包成 <code>/etc/sing-box/clients/dist/&lt;名字&gt;-&lt;UTC时间&gt;.tar.gz</code>，并打出填好 SSH 端口、用户与服务器 IP 的 <code>scp</code> 命令。传输由客户端发起，源在服务器一侧、目标在本地当前目录：</p>
+<pre><code>[+] 已导出：/etc/sing-box/clients/dist/mac-20261026T123626Z.tar.gz（4.0K）
+[+] 包内校验和：ed1509c7a459c75486e38c7fd1902a443947e57b7465fcde4d9851864876c671
+[+] 分发（在客户端执行；源在服务器，目标在本地当前目录）：
+[+]     scp -P 4061 root@203.0.113.9:/etc/sing-box/clients/dist/mac-20261026T123626Z.tar.gz root@203.0.113.9:/etc/sing-box/clients/dist/mac-20261026T123626Z.tar.gz.sha256 .
+[+] 校验并解包：sha256sum -c mac-20261026T123626Z.tar.gz.sha256 &amp;&amp; tar -xzf mac-20261026T123626Z.tar.gz    # macOS 用 shasum -a 256 -c</code></pre>
+<p>端口与地址取自 <code>deploy.env</code> 的 <code>SSH_PORT</code> / <code>SERVER_IP</code>；服务器登录用户默认 <code>root</code>，用 <code>SSH_LOGIN_USER</code> 覆盖。客户端侧的导入与验收见 <a href="05-client.html">第 5 页</a>。</p>
 
 <p style="margin-top:24px"><a href="index.html">← 总览</a>　·　<a href="troubleshooting.html">排查手册</a></p>

@@ -76,15 +76,15 @@ apply_changes() {
   if [[ -n "${dev}" ]]; then render_client "${dev}"; fi
 }
 
-# 分发命令里的服务器一侧：地址与端口取 deploy.env 的真实值，缺值时保留占位符。
+# 分发命令的服务端参数：端口与 user@host 取自 deploy.env，缺值时保留占位符。
+# 写成两个变量而不是一个拼好的前缀：一条 scp 里有两个远端源，-P 只能出现一次。
 # 客户端默认以 root 登录，用 SSH_LOGIN_USER 覆盖。
-dist_server() {
-  local host port user
+DIST_PORT=22
+DIST_USER_AT_HOST="root@<服务器IP>"
+dist_conf() {
   load_env_optional "${ENVFILE}" || true
-  host="${SERVER_IP:-<服务器IP>}"
-  port="${SSH_PORT:-22}"
-  user="${SSH_LOGIN_USER:-root}"
-  printf -- '-P %s %s@%s' "${port}" "${user}" "${host}"
+  DIST_PORT="${SSH_PORT:-22}"
+  DIST_USER_AT_HOST="${SSH_LOGIN_USER:-root}@${SERVER_IP:-<服务器IP>}"
 }
 
 render_client() {
@@ -103,8 +103,9 @@ render_client() {
   fi
   rm -f "${log_}"
   log "客户端配置：${CLIENT_OUT}/sing-box-client-${dev}-${plat}.json"
-  # 文件在服务器上，实际传输由客户端发起：写全端口、用户与地址，别留 <设备> 这种占位符
-  log "分发（在客户端执行）：scp $(dist_server):${CLIENT_OUT}/sing-box-client-${dev}-${plat}.json ."
+  # 文件在服务器上，实际传输由客户端发起：源在服务器、目标在本地
+  dist_conf
+  log "分发（在客户端执行）：scp -P ${DIST_PORT} ${DIST_USER_AT_HOST}:${CLIENT_OUT}/sing-box-client-${dev}-${plat}.json ."
 }
 
 if [[ $# -eq 0 ]]; then
@@ -224,11 +225,10 @@ case "${CMD}" in
     chmod 600 "${pkg}" "${pkg}.sha256"
     log "已导出：${pkg}（$(du -h "${pkg}" | cut -f1)）"
     log "包内校验和：$(cut -d' ' -f1 "${pkg}.sha256")"
-    log "分发（在客户端执行，只取这一台的包）："
-    log "    scp $(dist_server):${pkg} ${pkg}.sha256 ."
-    log "    sha256sum -c $(basename "${pkg}").sha256    # macOS 没有 sha256sum，用 shasum -a 256 -c"
-    log "分发（在服务器执行，需客户端开着 sshd）："
-    log "    scp -P <客户端SSH端口> ${pkg} ${pkg}.sha256 <客户端用户>@<客户端IP>:~/"
+    dist_conf
+    log "分发（在客户端执行；源在服务器，目标在本地当前目录）："
+    log "    scp -P ${DIST_PORT} ${DIST_USER_AT_HOST}:${pkg} ${DIST_USER_AT_HOST}:${pkg}.sha256 ."
+    log "校验并解包：sha256sum -c $(basename "${pkg}").sha256 && tar -xzf $(basename "${pkg}")    # macOS 用 shasum -a 256 -c"
     ;;
   render)
     [[ $# -ge 1 ]] || {
