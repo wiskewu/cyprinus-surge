@@ -2,7 +2,7 @@
 # shellcheck disable=SC2034  # 步骤元数据与跨文件变量由间接展开读取
 # ===========================================================================
 # deploy.sh，一键脚本。自动生成，勿手改。
-#   生成时间：2026-10-26T08:02:01Z
+#   生成时间：2026-10-26T08:04:00Z
 #   来源：bin/deploy/lib.sh + bin/deploy/steps/*.sh + fragments/onekey/deploy-driver.sh
 #   重新生成：bash fragments/build/build-onekey.sh
 # ===========================================================================
@@ -375,7 +375,12 @@ SSHEOF
         "${CI}" >"${CI}.tmp" && mv "${CI}.tmp" "${CI}"
     fi
     if sshd -t 2>/dev/null; then
-      systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || true
+      # restart 失败必须显式报出来：sshd -T 读的是文件，服务没起来也会显示新值
+      if ! { systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null; }; then
+        warn "    ssh 服务重启失败，运行中的 sshd 可能仍是旧策略"
+      fi
+      systemctl is-active --quiet ssh || systemctl is-active --quiet sshd \
+        || warn "    sshd 不在运行，检查 systemctl status ssh"
       # 有些镜像（含部分云厂商自定义镜像）的 sshd_config 压根没有 Include 行，
       # 那我们写的 99-proxy.conf 就是死文件——drop-in 根本不会被读。
       # 补一条 Include 到文件最顶部（sshd 对同一关键字取第一个出现的值），验证不过就回滚。

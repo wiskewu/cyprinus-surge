@@ -1,6 +1,25 @@
 <h1>排查手册</h1>
 <p class="lede">症状 → 原因 → 动作。这里的示例一律用占位符，不写真实地址。</p>
 
+<h2>返回码与失败行为实测</h2>
+<p>下列结果在 Debian 13 上实测，脚本里依赖这些判定的地方都按此为准。</p>
+<div class="tw">
+<table>
+<thead><tr><th>命令</th><th>不存在的目标</th><th>存在的目标</th><th>脚本里的处理</th></tr></thead>
+<tbody>
+<tr><td><code>ufw --force delete allow</code></td><td>退出码 0，只打印 Could not delete non-existent rule</td><td>退出码 0，规则消失</td><td>必须回读 <code>ufw status</code>，只看退出码会把没删成报成已删</td></tr>
+<tr><td><code>ufw --force delete limit</code></td><td>同上</td><td>同上</td><td>同上</td></tr>
+<tr><td><code>ufw status | grep -c</code></td><td>0</td><td>2，IPv4 与 IPv6 各一行</td><td>不要把计数当规则条数，只看是否命中</td></tr>
+<tr><td><code>iptables -X</code></td><td>1</td><td>0</td><td>链可能不存在，必须 <code>|| true</code></td></tr>
+<tr><td><code>iptables -D</code></td><td>2</td><td>0</td><td>同上</td></tr>
+<tr><td><code>iptables -C</code></td><td>2</td><td>0</td><td>用作「存在则跳过」的判断是对的</td></tr>
+<tr><td><code>sshd -t</code> 配置有错</td><td>255，输出精确到文件与行号</td><td>0</td><td>写盘后先 <code>sshd -t</code>，不过就回滚</td></tr>
+<tr><td><code>systemctl reload ssh</code> 配置有错</td><td>1，服务保持 active，旧配置继续生效</td><td>0</td><td>reload 失败要显式报错：<code>sshd -T</code> 读文件，会误报新值已生效</td></tr>
+</tbody>
+</table>
+</div>
+<div class="bad"><b><code>sshd -T</code> 不是运行态检查。</b>它解析配置文件，服务没重启、甚至没起来，照样返回新值。判断「策略真的生效」只有两条路：看 reload 的退出码，或者新开一个连接实测。</div>
+
 <h2>国内站点全部打不开，境外却正常</h2>
 <p>两种已知原因，看日志区分。</p>
 

@@ -115,7 +115,10 @@ if [[ "${MODE}" == uninstall ]]; then
   set_sshd_key PasswordAuthentication yes || true
   set_sshd_key PermitRootLogin yes || true
   sshd -t || die "还原后 sshd -t 不通过，未 reload"
-  systemctl reload ssh
+  # reload 失败时守护进程仍在用旧配置，而 sshd -T 读的是文件，会误报已生效
+  if ! systemctl reload ssh 2>/dev/null; then
+    warn "reload ssh 失败：配置文件已改，但运行中的 sshd 仍是旧策略"
+  fi
   if command -v ufw >/dev/null 2>&1; then
     ufw --force delete limit "${SSH_P}/tcp" >/dev/null 2>&1 || true
     ufw allow "${SSH_P}/tcp" >/dev/null
@@ -183,7 +186,10 @@ fi
 rm -f /tmp/ssh-hardening.err
 log "sshd -t 通过"
 
-systemctl reload ssh
+systemctl reload ssh || {
+  warn "reload ssh 失败：文件已改、生效值已变，但运行中的 sshd 可能仍是旧策略"
+  warn "用新开一个连接验证；必要时 systemctl restart ssh（会断开新连接）"
+}
 sleep 1
 
 FAIL=""
