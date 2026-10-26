@@ -38,29 +38,67 @@ system_has_authorized_key() {
   return 1
 }
 
-# 探测 SSH 端口：只算真实在监听的端口。
-# 配置文件里的 Port 与 ssh.socket 的 Listen 都可能是「将来才会用」的值，
-# 例如 ssh.socket 处于 inactive 时仍会返回 [::]:22，按它放行等于给未开放端口开门。
-system_detect_ssh_ports() {
-  local listen cand="" p
-  command -v ss >/dev/null 2>&1 || return 1
-  listen="$(ss -tlnH 2>/dev/null | awk '{print $4}' | sed 's/.*://' | grep -E '^[0-9]+$' | sort -un)"
+# 探测 SSH 端口由 lib.sh 的 detect_ssh_ports 提供：30-secrets 也要用同一份规则
+# 把真实端口写进 deploy.env，两处不能各有一套判断。
 
-  # 1) 当前会话用的端口，它必然正在监听
-  [[ -n "${SSH_CONNECTION:-}" ]] && cand="$(printf '%s' "${SSH_CONNECTION}" | awk '{print $4}')"
-  # 2) sshd 进程实际监听
-  cand="${cand} $(ss -tlnpH 2>/dev/null | awk '/users:\(\("sshd"/{print $4}' | sed 's/.*://' | grep -E '^[0-9]+$' | paste -sd' ' -)"
-  # 3) socket 激活：只有 ssh.socket 真在运行时才拿它的 Listen
-  if systemctl is-active --quiet ssh.socket 2>/dev/null; then
-    cand="${cand} $(systemctl show ssh.socket -p Listen --value 2>/dev/null \
-      | awk '{for(i=1;i<=NF;i++) if ($i ~ /:[0-9]+$/) {n=split($i,a,":"); print a[n]}}' \
-      | paste -sd' ' -)"
+# 只留本次要放行的 SSH 规则：旧值（例如历史版本写进 deploy.env 的 22）留在
+# ufw 里就是永久给一个没人监听的端口开门。只处理本脚本加的注释为 ssh 的规则。
+system_prune_ssh_rules() { # $1=本次放行的端口列表
+  local keep="$1" spec port
+  command -v ufw >/dev/null 2>&1 || return 0
+  # 同一条规则在 ufw status 里会以 v4 与 v6 两行出现，spec 相同，去重后只删一次
+  while read -r spec; do
+    [[ -n "${spec}" ]] || continue
+    port="${spec%%/*}"
+    case " ${keep} " in *" ${port} "*) continue ;; esac
+    if ufw delete allow "${spec}" >/dev/null 2>&1; then
+      warn "    已移除冗余 SSH 规则：${spec}（sshd 未监听，且本次未要求放行）"
+    fi
+  done < <(ufw status 2>/dev/null | awk -F'#' '/# *ssh[[:space:]]*$/{print $1}' | awk '{print $1}' | sort -u)
+}
+
+# deploy.env 里的 SSH_PORT 只是记录：留着非监听值会让每次重跑都重新警告一遍，
+# 也会让人误以为旧端口还开着。探测到真实端口后顺手纠正。
+system_sync_ssh_port() { # $1=探测到的端口列表
+  local detected="$1" actual=""
+  [[ -f "${ENVFILE}" ]] || return 0
+  grep -q '^SSH_PORT=' "${ENVFILE}" || return 0
+  [[ -n "${detected}" ]] || return 0
+  if [[ -n "${SSH_CONNECTION:-}" ]]; then
+    actual="$(printf '%s' "${SSH_CONNECTION}" | awk '{print $4}')"
   fi
+  case " ${detected} " in *" ${actual} "*) ;; *) actual="${detected%% *}" ;; esac
+  [[ -n "${actual}" ]] || return 0
+  grep -qx "SSH_PORT=${actual}" "${ENVFILE}" && return 0
+  sed -i.bak "s|^SSH_PORT=.*|SSH_PORT=${actual}|" "${ENVFILE}" && rm -f "${ENVFILE}.bak"
+  log "    deploy.env 的 SSH_PORT 纠正为 ${actual}"
+}
 
-  # 统一用监听表过滤，不在表里的一律丢弃
-  for p in ${cand}; do
-    printf '%s\n' "${listen}" | grep -qx "${p}" && printf '%s\n' "${p}"
-  done | sort -un | paste -sd' ' -
+# 决定 ufw 要放行哪些 SSH 端口，结果写 stdout（空格分隔，升序）。
+# 依据是「真的在监听」：配置文件里的 Port 或 ssh.socket 的 Listen 不代表现在能登录。
+# SSH_PORT 只有用环境变量显式给出、且尚未监听时才额外放行——那是「先开新口、再改
+# sshd」的过渡期。deploy.env 里的旧值（历史版本写死 22）不放行，否则等于永久给一个
+# 没人监听的端口开门。
+system_ssh_ports() { # $1=探测到的端口列表
+  local detected="$1" ports
+  if [[ -z "${detected}" ]]; then
+    case "${SSH_PORT:-}" in
+      '' | *[!0-9]*) printf '22' ;;
+      *) printf '%s' "${SSH_PORT}" ;;
+    esac
+    return 0
+  fi
+  ports="${detected}"
+  if [[ -n "${SSH_PORT:-}" ]] && ! printf '%s\n' "${detected}" | tr ' ' '\n' | grep -qx "${SSH_PORT}"; then
+    if [[ "${SSH_PORT_FROM_ENV:-0}" == "1" ]]; then
+      ports="$(printf '%s\n%s\n' "${detected}" "${SSH_PORT}" | sort -un | paste -sd' ' -)"
+      warn "    SSH_PORT=${SSH_PORT} 尚未监听，本次一并放行（挪端口过渡期）"
+    else
+      warn "    SSH_PORT=${SSH_PORT} 未在监听，本次不放行；实际监听：${detected}"
+      warn "    确实要开通它：ufw allow ${SSH_PORT}/tcp，或 SSH_PORT=${SSH_PORT} 重跑本步"
+    fi
+  fi
+  printf '%s' "${ports}"
 }
 
 system_run() {
@@ -179,17 +217,14 @@ SSHEOF
   fi
 
   log "7/8 防火墙（绝不假设 SSH 是 22）"
-  DETECTED_SSH_PORTS="$(system_detect_ssh_ports)"
-  SSH_PORTS="$(printf '%s\n%s\n' "${SSH_PORT:-}" "${DETECTED_SSH_PORTS}" | grep -E '^[0-9]+$' | sort -un | paste -sd' ' -)"
-  [[ -n "${SSH_PORTS}" ]] || SSH_PORTS=22
+  DETECTED_SSH_PORTS="$(detect_ssh_ports)"
+  SSH_PORTS="$(system_ssh_ports "${DETECTED_SSH_PORTS}")"
   if [[ -z "${DETECTED_SSH_PORTS}" ]]; then
     warn "    探测不到 sshd 监听端口：由 socket 激活或从控制台登录时如此"
-    warn "    下面只按 SSH_PORT='${SSH_PORT:-}' 放行。先确认它就是真实端口，否则这次 ufw 一开，下次就登不进来了："
+    warn "    下面只按端口 ${SSH_PORTS} 放行。先确认它就是真实端口，否则这次 ufw 一开，下次就登不进来了："
     warn "      ss -tlnp | grep -E 'sshd|:22'　或　sshd -T | grep -i '^port'"
-  elif [[ -n "${SSH_PORT:-}" ]] && ! tr ' ' '\n' <<<"${DETECTED_SSH_PORTS}" | grep -qx "${SSH_PORT}"; then
-    warn "    SSH_PORT=${SSH_PORT} 不在本机监听列表里（实际：${DETECTED_SSH_PORTS}），两个都会放行"
-    warn "    非本机监听值也会放行，确认 ${SSH_PORT} 不是笔误"
   fi
+  system_prune_ssh_rules "${SSH_PORTS}"
   log "    SSH 端口：${SSH_PORTS}"
   ufw default deny incoming >/dev/null
   ufw default allow outgoing >/dev/null
@@ -197,6 +232,7 @@ SSHEOF
   ufw allow "${VLESS_PORT}/tcp" comment 'reality' >/dev/null
   ufw allow "${HY2_PORT}:${HY2_HOP_END}/udp" comment 'hysteria2' >/dev/null
   ufw --force enable >/dev/null
+  system_sync_ssh_port "${DETECTED_SSH_PORTS}"
 
   log "8/8 目录与常驻服务"
   ensure_deploy_dir

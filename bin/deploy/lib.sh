@@ -157,6 +157,32 @@ sb_check() {
   fi
 }
 
+# 探测 sshd 真实在监听的端口（空格分隔，升序）。
+# 配置文件里的 Port 与 ssh.socket 的 Listen 都可能是「将来才会用」的值：
+# ssh.socket 处于 inactive 时仍会返回 [::]:22，按它放行等于给未开放的端口开门。
+# 10-system 用它决定 ufw 开哪个口，30-secrets 用它写进 deploy.env。
+detect_ssh_ports() {
+  local listen cand="" p
+  command -v ss >/dev/null 2>&1 || return 1
+  listen="$(ss -tlnH 2>/dev/null | awk '{print $4}' | sed 's/.*://' | grep -E '^[0-9]+$' | sort -un)"
+
+  # 1) 当前会话用的端口，它必然正在监听
+  [[ -n "${SSH_CONNECTION:-}" ]] && cand="$(printf '%s' "${SSH_CONNECTION}" | awk '{print $4}')"
+  # 2) sshd 进程实际监听
+  cand="${cand} $(ss -tlnpH 2>/dev/null | awk '/users:\(\("sshd"/{print $4}' | sed 's/.*://' | grep -E '^[0-9]+$' | paste -sd' ' -)"
+  # 3) socket 激活：只有 ssh.socket 真在运行时才拿它的 Listen
+  if systemctl is-active --quiet ssh.socket 2>/dev/null; then
+    cand="${cand} $(systemctl show ssh.socket -p Listen --value 2>/dev/null \
+      | awk '{for(i=1;i<=NF;i++) if ($i ~ /:[0-9]+$/) {n=split($i,a,":"); print a[n]}}' \
+      | paste -sd' ' -)"
+  fi
+
+  # 统一用监听表过滤，不在表里的一律丢弃
+  for p in ${cand}; do
+    printf '%s\n' "${listen}" | grep -qx "${p}" && printf '%s\n' "${p}"
+  done | sort -un | paste -sd' ' -
+}
+
 rand_pass() { openssl rand -base64 32 | tr -dc 'A-Za-z0-9' | cut -c1-"${1:-20}"; }
 
 # ===== 设备名单 devices.list =====

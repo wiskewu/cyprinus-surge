@@ -11,12 +11,20 @@ scp -r bin root@你的服务器IP:/root/</code></pre>
 <pre><code>cd /root/deploy
 bash bin/deploy/one/system.sh
 
-# SSH 不是 22 端口时：
-SSH_PORT=你的端口 bash bin/deploy/one/system.sh</code></pre>
+# 正在把 sshd 换到新端口：先开新口再改配置
+SSH_PORT=新端口 bash bin/deploy/one/system.sh</code></pre>
 
-<p><code>SSH_PORT</code> 是「额外放行」，不是「只放行」：脚本会自己探测 sshd 的真实端口（当前连接 → <code>ss</code> 监听 → <code>ssh.socket</code> → <code>sshd_config</code>），探测到的一律放行。但<b>从云控制台 / VNC 登录</b>（没有 <code>SSH_CONNECTION</code>）或 socket 激活的 sshd 又拿不到监听信息时，防火墙就<b>只</b>按 <code>SSH_PORT</code> 开，填错就是把自己关在门外。日志里会出现「探测不到 sshd 在听哪个端口」的警告，看到就先核实：</p>
+<p>防火墙按<b>实际在监听的端口</b>放行：脚本从当前会话（<code>SSH_CONNECTION</code>）与 <code>ss</code> 的监听表、以及运行中的 <code>ssh.socket</code> 取端口，只放行这些端口。<code>SSH_PORT</code> 不是必需的，它的两个作用：</p>
+<ul>
+<li><b>挪端口的过渡期</b>：用环境变量显式给出（<code>SSH_PORT=4061 bash bin/deploy/one/system.sh</code>）时，新端口尚未监听也会一并放行，改完 sshd 再关旧端口。</li>
+<li><b>探测不到时作为唯一依据</b>：从云控制台 / VNC 登录（没有 <code>SSH_CONNECTION</code>）且 <code>ss</code> 拿不到 sshd 监听信息时，<b>只</b>按它开，未给则用 22。日志会打出「探测不到 sshd 监听端口」的警告，看到先核实。</li>
+</ul>
+<p>探测到监听端口时，与它不符的 <code>SSH_PORT</code> 不放行：<code>deploy.env</code> 里的历史值（早期版本写死 <code>SSH_PORT=22</code>）就属于这一类，脚本会删掉自己以前加的冗余规则，并把 <code>deploy.env</code> 的该行改写成真实端口。日志示例：</p>
+<pre><code>[!]     SSH_PORT=22 未在监听，本次不放行；实际监听：4061
+[!]     已移除冗余 SSH 规则：22/tcp（sshd 未监听，且本次未要求放行）
+[+]     SSH 端口：4061</code></pre>
 <pre><code>ss -tlnp | grep -E 'sshd|:22'        # 实际监听（socket 激活时看 systemctl cat ssh.socket）
-sshd -T | grep -i '^port'</code></pre>
+sshd -T | grep -i '^port'            # 配置里写了什么（不等于现在在听什么）</code></pre>
 
 <p>它会装依赖、开 BBR、加 1G swap、开时间同步、把 SSH 收成仅公钥登录，并把防火墙收成「只放行 SSH 端口、443/tcp、8443-8447/udp」。幂等，可以重复跑。</p>
 
@@ -54,6 +62,8 @@ chmod 600 ~/.ssh/authorized_keys</code></pre>
 <div class="warn"><b>22 端口本身就可能不通。</b>某些网络对 22 端口做 RST 注入，表现是 TCP 连上、banner 之前就 <code>Connection reset by peer</code>，ufw 放行了也没用。所以别把 22 当作可用的后备通道，挑个高位端口（本手册示例用 4061）并用下面的方式验证：<code>curl --interface en0 -sS telnet://&lt;IP&gt;:22</code> 应 reset，<code>…:4061</code> 应打出 <code>SSH-2.0-…</code>。</div>
 <pre><code># 1) 两层都先放行新端口：ufw + 云厂商安全组
 ufw allow 4061/tcp
+# 已部署过的机器也可以改用：SSH_PORT=4061 bash bin/deploy/one/system.sh
+# 它会同时放行两个端口，以后再跑就只剩实际在听的那个
 
 # 2) 改 sshd（没有 Port 行就追加到末尾）
 sed -i 's/^#*Port .*/Port 4061/' /etc/ssh/sshd_config

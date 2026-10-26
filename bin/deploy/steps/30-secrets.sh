@@ -77,11 +77,16 @@ LIST
   SERVER_HOST="${DOMAIN}"
   [[ -n "${SERVER_HOST}" ]] || SERVER_HOST="${SERVER_IP}"
 
+  # SSH_PORT 只写真实端口。写成 ${SSH_PORT:-22} 这样的占位默认值，会让防火墙步骤
+  # 把 22 当成「用户额外要求放行的端口」，即使 sshd 早已不在 22 上监听。
+  local ssh_port="${SSH_PORT:-}"
+  [[ -n "${ssh_port}" ]] || ssh_port="$(detect_ssh_ports 2>/dev/null | awk '{print $1}')"
+
   umask 077
   cat >"${ENVFILE}" <<ENV
 # ===== 服务器环境（含私钥，勿外传）=====
 SERVER_IP=${SERVER_IP}
-SSH_PORT=${SSH_PORT:-22}
+SSH_PORT=${ssh_port}
 VLESS_PORT=${VLESS_PORT:-443}
 REALITY_DEST=${REALITY_DEST}
 REALITY_PRIVATE_KEY=${REALITY_PRIVATE_KEY}

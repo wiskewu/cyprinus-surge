@@ -255,13 +255,20 @@ do_uninstall() {
 main() {
   trap cleanup_tmp_dirs EXIT
   parse_args "$@"
-  local _d="${DOMAIN:-}" _h="${ENABLE_HY2:-}" _r="${REALITY_DEST:-}" _s="${SERVER_IP:-}"
+  local _d="${DOMAIN:-}" _h="${ENABLE_HY2:-}" _r="${REALITY_DEST:-}" _s="${SERVER_IP:-}" _p="${SSH_PORT:-}"
   # shellcheck disable=SC1090  # 路径来自变量，由调用方保证
   [[ -f "${ENVFILE}" ]] && . "${ENVFILE}" 2>/dev/null || true
   [[ -n "${_d}" ]] && DOMAIN="${_d}"
   [[ -n "${_h}" ]] && ENABLE_HY2="${_h}"
   [[ -n "${_r}" ]] && REALITY_DEST="${_r}"
   [[ -n "${_s}" ]] && SERVER_IP="${_s}"
+  # 命令行给的 SSH_PORT 优先于 deploy.env；同时标记来源，system 步骤据此区分
+  # 「挪端口的过渡放行」与「deploy.env 里的旧值」，后者不放行。
+  if [[ -n "${_p}" ]]; then
+    SSH_PORT="${_p}"
+    SSH_PORT_FROM_ENV=1
+    export SSH_PORT_FROM_ENV
+  fi
 
   if [[ "${OPT_REINSTALL}" == 1 ]]; then
     OPT_UNINSTALL=1
