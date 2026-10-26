@@ -2,7 +2,8 @@
 <p class="lede">主读者：在 macOS、Linux 或 Windows 上准备免密登录的运维者。本页只做一件事：让 <code>ssh 别名</code> 直接进服务器，不再输密码。</p>
 
 <h2>一条命令完成</h2>
-<pre><code>bash bin/harden/client.sh --host 203.0.113.10 --port 4061 --install-server</code></pre>
+<pre><code>bash bin/harden/client.sh --host 203.0.113.10 --port 4061 --alias vps-byte --install-server</code></pre>
+<p><code>--alias</code> 是你给这台服务器起的名字，之后用 <code>ssh vps-byte</code> 登录。名字由你定，本页示例用 <code>vps-byte</code>；不给时脚本先复用已有同地址块的名字，都没有才落到默认的 <code>vps</code>。</p>
 <p>脚本做四件事，每件都幂等：</p>
 <div class="tw">
 <table>
@@ -10,21 +11,45 @@
 <tbody>
 <tr><td>生成或复用密钥</td><td>已有 <code>~/.ssh/id_ed25519</code> 就用它，没有则生成 Ed25519，不设口令</td></tr>
 <tr><td>安装公钥</td><td>先查服务器上是否已存在同一把公钥，避免重复追加；只追加，不改动其他行</td></tr>
-<tr><td>写 <code>~/.ssh/config</code></td><td>已有同名 <code>Host</code> 时保持原样</td></tr>
+<tr><td>写 <code>~/.ssh/config</code></td><td>同地址同端口已有块时复用它；<code>--alias</code> 与块名相同但地址、端口或密钥不同时，就地重写该块并备份为 <code>config.bak</code></td></tr>
 <tr><td>验证</td><td>用 <code>BatchMode=yes</code> 连一次，失败即以非零退出</td></tr>
 </tbody>
 </table>
 </div>
 
 <h2>生成的配置</h2>
-<pre><code>Host vps
+<pre><code>Host vps-byte
   HostName 203.0.113.10
   Port 4061
   User root
-  IdentityFile /root/.ssh/id_ed25519
+  IdentityFile /Users/你/.ssh/id_ed25519
   IdentitiesOnly yes</code></pre>
+<p><code>Host</code> 后面就是你的服务器名字。多台机器建议各起一个能区分用途的名字（<code>vps-byte</code>、<code>vps-hk</code>、<code>test-box</code>），不要都叫 <code>vps</code>：名字重复时后写的块会先被匹配到，改端口时容易改错机器。</p>
 <p><code>IdentityFile</code> 写的是绝对路径，脚本按本机实际 HOME 展开；手工改这段时别换成 <code>~</code>，OpenSSH 展开 <code>~</code> 用的是 passwd 里的家目录，与 <code>HOME</code> 环境变量无关，换用户执行会指向别处。</p>
 <p><code>IdentitiesOnly yes</code> 让客户端只尝试这一把密钥。服务器 <code>MaxAuthTries 3</code> 时，客户端若挨个试代理里的密钥，几次就会耗尽配额。</p>
+
+<h2>已有配置怎么复用</h2>
+<p>之前用 <code>ssh-copy-id</code>、图形客户端或别的手册配过同一台服务器时，<code>~/.ssh/config</code> 里往往已经有一条可用记录。脚本按地址与端口找它，能复用就不新写一份：</p>
+<div class="tw">
+<table>
+<thead><tr><th>现状</th><th>脚本行为</th></tr></thead>
+<tbody>
+<tr><td>已有块指向同一地址与端口</td><td>沿用该块的名字与 <code>IdentityFile</code>，不新建；公钥已在服务器上时也不重复追加</td></tr>
+<tr><td>要改名，地址端口不变</td><td><code>--alias 新名字</code>：写入新名字的块，旧块按 <code>--prune</code> 或提示删除</td></tr>
+<tr><td>地址不变，端口变了</td><td>用旧名字配 <code>--alias 旧名字</code> 重跑，脚本就地改写该块的 <code>Port</code>，并备份 <code>config.bak</code></td></tr>
+<tr><td>指向同一地址的块有多条</td><td>先提示，是否删除由你决定；<code>--prune</code> 直接删掉多余的那几条</td></tr>
+</tbody>
+</table>
+</div>
+<pre><code># 只看不写：报告目标、将沿用的名字与密钥、已有块、能否登录
+bash bin/harden/client.sh --host 203.0.113.10 --port 4061 --check
+
+# 预览要写什么，不改任何文件
+bash bin/harden/client.sh --host 203.0.113.10 --port 4061 --alias vps-byte --dry-run
+
+# 改名并清理指向同一地址的旧块
+bash bin/harden/client.sh --host 203.0.113.10 --port 4061 --alias vps-byte --prune --yes</code></pre>
+<div class="note">脚本只删自己识别得到的重复块（<code>HostName</code> 与 <code>Port</code> 都相同），不同地址的块一律不碰。删除前都会备份 <code>~/.ssh/config.bak</code>。</div>
 
 <h2>分平台说明</h2>
 <div class="tw">
@@ -47,6 +72,7 @@
 </ul>
 
 <h2>手工做法</h2>
+<p>手工做完后同样建议补一条 <code>Host</code> 块，否则每次都要写地址与端口；已经手工配过的，直接 <code>bash bin/harden/client.sh --host 地址 --port 端口 --check</code> 看脚本能不能复用它。</p>
 <pre><code>ssh-keygen -t ed25519 -C "laptop"
 ssh-copy-id -p 4061 root@203.0.113.10      # Windows 无 ssh-copy-id，用下面的写法
 type %USERPROFILE%\.ssh\id_ed25519.pub | ssh -p 4061 root@203.0.113.10 "cat &gt;&gt; ~/.ssh/authorized_keys"
@@ -56,4 +82,4 @@ ssh -o BatchMode=yes -p 4061 root@203.0.113.10 true   # 这一步成功再继续
 <h2>检查本机状态</h2>
 <pre><code>bash bin/harden/client.sh --check</code></pre>
 
-<p style="margin-top:24px"><a href="01-server.html">← 服务端加固</a>　·　<a href="03-verify.html">验收与排障 →</a></p>
+<p style="margin-top:24px"><a href="index.html">← 总览</a>　·　<a href="02-server.html">服务端加固 →</a></p>

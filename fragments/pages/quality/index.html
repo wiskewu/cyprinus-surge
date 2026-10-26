@@ -1,5 +1,5 @@
 <h1>SSH 加固</h1>
-<p class="lede">主读者：维护单台 VPS 的运维者。本页说明为什么采用「仅公钥登录」这条路线，以及它在本环境里换来了什么、代价是什么。操作步骤见 <a href="01-server.html">服务端加固</a> 与 <a href="02-client.html">客户端配置</a>。</p>
+<p class="lede">主读者：维护单台 VPS 的运维者。本页说明为什么采用「仅公钥登录」这条路线，以及它在本环境里换来了什么、代价是什么。操作步骤见 <a href="01-client.html">客户端配置</a> 与 <a href="02-server.html">服务端加固</a>：先让公钥能登录，再关掉密码。</p>
 
 <h2>结论</h2>
 <p>管理入口收敛为一条路径：<b>公钥认证的 SSH</b>。密码登录关闭，root 只接受密钥，端口上加速率限制，失败尝试由 fail2ban 封禁。客户端使用系统自带 OpenSSH，不安装第三方组件，不分发证书。</p>
@@ -48,8 +48,8 @@
 <table>
 <thead><tr><th>页面</th><th>内容</th></tr></thead>
 <tbody>
-<tr><td><a href="01-server.html">服务端加固</a></td><td>四步的服务端部分，脚本参数、回滚方式、生效值核对</td></tr>
-<tr><td><a href="02-client.html">客户端配置</a></td><td>密钥生成、公钥安装、<code>~/.ssh/config</code> 写法、免密验证</td></tr>
+<tr><td><a href="01-client.html">客户端配置</a></td><td>密钥生成、公钥安装、服务器名字与 <code>~/.ssh/config</code> 写法、免密验证</td></tr>
+<tr><td><a href="02-server.html">服务端加固</a></td><td>四步的服务端部分，脚本参数、公钥清点与去重、回滚方式、生效值核对</td></tr>
 <tr><td><a href="03-verify.html">验收与排障</a></td><td>独立验收输出、失败项对照、锁死前的自救顺序</td></tr>
 <tr><td><a href="04-reference.html">参数与取舍</a></td><td>脚本参数默认值、<code>ufw limit</code> 行为、fail2ban 规则、可选的双因子</td></tr>
 </tbody>

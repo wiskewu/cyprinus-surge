@@ -9,8 +9,8 @@ const LAYOUT = fs.readFileSync(path.join(ROOT, 'fragments/pages/quality/_layout.
 
 const pages = [
   { file: 'index.html', title: 'SSH 加固', crumb: '0 · 总览' },
-  { file: '01-server.html', title: '服务端加固', crumb: '1 · 服务端加固' },
-  { file: '02-client.html', title: '客户端配置', crumb: '2 · 客户端配置' },
+  { file: '01-client.html', title: '客户端配置', crumb: '1 · 客户端配置' },
+  { file: '02-server.html', title: '服务端加固', crumb: '2 · 服务端加固' },
   { file: '03-verify.html', title: '验收与排障', crumb: '3 · 验收与排障' },
   { file: '04-reference.html', title: '参数与取舍', crumb: '4 · 参数与取舍' },
 ];

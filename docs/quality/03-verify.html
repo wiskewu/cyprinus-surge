@@ -72,7 +72,7 @@ details .body{padding:4px 14px 14px}
 </head>
 <body>
 <header class="top"><div class="wrap"><a class="home" href="index.html">SSH 加固手册</a><span class="crumb">3 · 验收与排障</span></div></header>
-<nav class="nav"><div class="wrap"><a href="index.html">0 · 总览</a><a href="01-server.html">1 · 服务端加固</a><a href="02-client.html">2 · 客户端配置</a><a href="03-verify.html" aria-current="page">3 · 验收与排障</a><a href="04-reference.html">4 · 参数与取舍</a></div></nav>
+<nav class="nav"><div class="wrap"><a href="index.html">0 · 总览</a><a href="01-client.html">1 · 客户端配置</a><a href="02-server.html">2 · 服务端加固</a><a href="03-verify.html" aria-current="page">3 · 验收与排障</a><a href="04-reference.html">4 · 参数与取舍</a></div></nav>
 <main class="wrap">
 <h1>验收与排障</h1>
 <p class="lede">主读者：加固完成后要独立确认结果的人。本页给出验收脚本的输出含义，以及每个失败项对应的处理顺序。</p>
@@ -135,7 +135,7 @@ fail2ban-client status sshd
 lastb | head -20</code></pre>
 <p><code>lastb</code> 列出失败登录；配合 fail2ban 的封禁记录可以交叉验证，确认没有持续的定向尝试。</p>
 
-<p style="margin-top:24px"><a href="02-client.html">← 客户端配置</a>　·　<a href="04-reference.html">参数与取舍 →</a></p>
+<p style="margin-top:24px"><a href="02-server.html">← 服务端加固</a>　·　<a href="04-reference.html">参数与取舍 →</a></p>
 
 </main>
 <footer class="foot"><div class="wrap">

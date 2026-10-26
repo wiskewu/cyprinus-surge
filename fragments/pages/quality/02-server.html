@@ -3,7 +3,7 @@
 
 <h2>前置条件</h2>
 <ul>
-<li>已按 <a href="02-client.html">客户端配置</a> 装好公钥，并且用密钥成功登录过一次。</li>
+<li>已按 <a href="01-client.html">客户端配置</a> 装好公钥，并且用密钥成功登录过一次。</li>
 <li>当前会话保持打开，另开一个终端用于验证。</li>
 <li>云控制台的 VNC 或串口可用，作为最终兜底。</li>
 </ul>
@@ -18,6 +18,7 @@ root 登录          : yes
 MaxAuthTries       : 6
 MaxStartups        : 10:30:100
 可用公钥数         : 1
+重复公钥           : 0
 本次会话公钥登录   : 是
 加固片段           : 不存在</code></pre>
 <p><code>本次会话公钥登录</code> 为「否」时不要继续。脚本依赖这一项判断是否可以安全关闭密码登录。</p>
@@ -56,9 +57,22 @@ sudo bash bin/harden/harden.sh --whitelist 198.51.100.20   # 顺手把常用出�
 </div>
 <p><code>MaxStartups</code> 与 <code>LoginGraceTime</code> 在小内存机器上收益明确：每个未认证连接都占一个 sshd 进程。空闲会话 10 分钟断开，长任务要用 <code>tmux</code> 或 <code>nohup</code>。</p>
 
+<h2>已装公钥的清点与去重</h2>
+<p>重复执行 <code>ssh-copy-id</code> 或从多台机器追加公钥，会让同一把公钥在 <code>authorized_keys</code> 里出现多次。脚本不会自动删，先看清单再决定：</p>
+<pre><code>sudo bash bin/harden/harden.sh --keys      # 指纹、注释、文件:行号，并给出重复数
+sudo bash bin/harden/harden.sh --dedupe    # 同一把公钥只保留第一次出现，改动前备份为 .bak</code></pre>
+<pre><code>文件  指纹与信息：
+  SHA256:bITvBsN003zJLsvkczTKO5IaIPw3fa3sjZuBqNjWzyk  laptop  /root/.ssh/authorized_keys:2
+  SHA256:rwjRtPuv/eKMqaOiFREHT3+uKj+8VltZvP9P4egDMuI  phone   /root/.ssh/authorized_keys:3
+  SHA256:bITvBsN003zJLsvkczTKO5IaIPw3fa3sjZuBqNjWzyk  laptop  /root/.ssh/authorized_keys:4
+
+重复公钥：1 把（sudo bash bin/harden/harden.sh --dedupe 可删掉多余行）</code></pre>
+<p>应用加固时若检测到重复，脚本会先问一次要不要去重；选不去重也能继续，只是回滚与吊销时容易漏。</p>
+<div class="note">吊销某台设备的登录权：在 <code>--keys</code> 里找到那行的指纹与行号，删掉对应行即可。<code>--dedupe</code> 只删「同一把公钥的重复行」，不会删掉唯一的公钥，因此不会把人关在门外。</div>
+
 <h2>回滚</h2>
 <pre><code>sudo bash bin/harden/harden.sh --uninstall</code></pre>
 <p>删除加固片段，从 <code>/root/ssh-hardening/latest</code> 还原被就地改写的文件，恢复 <code>PasswordAuthentication yes</code> 与 <code>ufw allow</code>，然后 reload。回滚后应立刻用密码登录验证一次，再关闭当前会话。</p>
 <div class="warn"><b>回滚会重新打开密码登录。</b>只在确认能登录的前提下使用，并在处理完问题后再次执行加固。</div>
 
-<p style="margin-top:24px"><a href="index.html">← 总览</a>　·　<a href="02-client.html">客户端配置 →</a></p>
+<p style="margin-top:24px"><a href="01-client.html">← 客户端配置</a>　·　<a href="03-verify.html">验收与排障 →</a></p>
