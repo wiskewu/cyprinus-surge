@@ -5,6 +5,21 @@
 <pre><code># 你的电脑上
 scp root@你的服务器IP:/etc/sing-box/client.env ./client.env</code></pre>
 
+<h2>一条命令复位客户端</h2>
+<pre><code>bash bin/deploy/client/install.sh --keys client.env --device main   --ssh-host 203.0.113.10 --ssh-port 4061</code></pre>
+<div class="tw">
+<table>
+<thead><tr><th>步骤</th><th>做什么</th><th>跳过</th></tr></thead>
+<tbody>
+<tr><td>1 SSH 免密</td><td>沿用 <code>bin/harden/client.sh</code>：生成或复用 Ed25519、装公钥、写 <code>~/.ssh/config</code></td><td><code>--skip-ssh</code> 或不给 <code>--ssh-host</code></td></tr>
+<tr><td>2 渲染配置</td><td>调用 <code>bin/deploy/client/render.sh</code>，产物在 <code>data/</code></td><td>不可跳过</td></tr>
+<tr><td>3 验收</td><td>调用 <code>bin/deploy/client/verify.sh</code>，图形客户端加 <code>--no-cli</code></td><td><code>--skip-verify</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>不需要 root。依赖只有 <code>curl</code> 与 <code>jq</code>，缺 jq 直接停并给出安装命令；<code>--check</code> 只报告本机依赖与文件状态。</p>
+<div class="note"><b>验收失败不等于配置不可用。</b>脚本会停止但不删除已渲染的配置，因为多数失败来自代理没启动或端口不对；按提示先导入客户端再复测。</div>
+
 <h2>规则集缓存</h2>
 <p>分流依赖三个远程规则集。渲染时写入 <code>experimental.cache_file</code>，下载结果与编译结果落盘，重启不再整份重下；规则集自身的 <code>update_interval</code> 是 3 天，到期由 sing-box 自行刷新。</p>
 <div class="tw">
