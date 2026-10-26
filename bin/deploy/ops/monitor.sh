@@ -274,7 +274,7 @@ remove_timer() {
 ALERT_STATE="${STATE_DIR}/alert.state"
 
 # 推送：多个通道可以同时配，任一成功即算送达。
-# 大陆可直连的选项：企业微信/钉钉群机器人、Server酱、Bark、SMTP 邮件；
+# 大陆可直连的选项：企业微信/钉钉群机器人、Server酱、SMTP 邮件；
 # Telegram 需要代理，服务器上通常不可达，保留但不建议作为主通道。
 alert_send() { # $1=正文
   local text="$1" resp ok=0 title
@@ -293,14 +293,6 @@ alert_send() { # $1=正文
       ok=1
     else
       warn "Server酱推送失败：${resp}"
-    fi
-  fi
-  if [[ -n "${ALERT_BARK_URL:-}" ]]; then
-    if resp="$(jq -n --arg t "${title}" --arg b "${text}" '{title: $t, body: $b}' \
-      | curl -fsS -m 10 -H 'Content-Type: application/json' --data-binary @- "${ALERT_BARK_URL}" 2>&1)"; then
-      ok=1
-    else
-      warn "Bark 推送失败：${resp}"
     fi
   fi
   if [[ -n "${ALERT_SMTP_URL:-}" && -n "${ALERT_MAIL_TO:-}" ]]; then
