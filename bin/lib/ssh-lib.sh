@@ -49,6 +49,65 @@ count_authorized_keys() {
   printf '%s' "${n}"
 }
 
+# ---------------------------------------------------------------- authorized_keys
+# 公钥文件位置：root 与被 sudo 调起的用户，去重后输出
+authorized_key_files() {
+  local u home
+  for u in root "${SUDO_USER:-}"; do
+    [[ -n "${u}" ]] || continue
+    home="$(getent passwd "${u}" 2>/dev/null | cut -d: -f6 || true)"
+    [[ -n "${home}" ]] || continue
+    [[ -f "${home}/.ssh/authorized_keys" ]] && printf '%s\n' "${home}/.ssh/authorized_keys"
+  done | sort -u
+}
+
+# 逐把列出：指纹、类型、注释、文件:行号。ssh-copy-id 与各工具追加的行都能看到。
+list_authorized_keys() {
+  local f line n type b64 comment fp
+  while IFS= read -r f; do
+    n=0
+    while IFS= read -r line; do
+      n=$((n + 1))
+      case "${line}" in "" | \#*) continue ;; esac
+      type="$(printf '%s' "${line}" | awk '{print $1}')"
+      b64="$(printf '%s' "${line}" | awk '{print $2}')"
+      comment="$(printf '%s' "${line}" | awk '{print $3}')"
+      [[ -n "${b64}" ]] || continue
+      fp="$(printf '%s %s\n' "${type}" "${b64}" | ssh-keygen -lf - 2>/dev/null | awk '{print $2}')"
+      printf '%s\t%s\t%s\t%s:%s\n' "${fp:-未知}" "${type}" "${comment:--}" "${f}" "${n}"
+    done <"${f}"
+  done < <(authorized_key_files)
+}
+
+# 重复的公钥数量：按密钥材料比较，同一把公钥被追加两次算一条
+duplicate_authorized_keys() {
+  local f
+  while IFS= read -r f; do
+    awk '{ if ($0 ~ /^[[:space:]]*#/ || NF < 2) next; print $2 }' "${f}" | sort | uniq -d
+  done < <(authorized_key_files) | wc -l | tr -d ' '
+}
+
+# 去重：同一把公钥只保留第一次出现，其余行删掉；改动前备份为 .bak
+dedupe_authorized_keys() {
+  local f tmp before after
+  while IFS= read -r f; do
+    before="$(grep -c . "${f}" 2>/dev/null || printf '0')"
+    tmp="${f}.tmp.$$"
+    awk '
+      { if ($0 ~ /^[[:space:]]*#/ || NF < 2) { print; next } if (seen[$2]++) next; print }
+    ' "${f}" >"${tmp}"
+    after="$(grep -c . "${tmp}" || printf '0')"
+    if [[ "${before}" == "${after}" ]]; then
+      rm -f "${tmp}"
+      continue
+    fi
+    cp -a "${f}" "${f}.bak"
+    mv "${tmp}" "${f}"
+    chmod 600 "${f}"
+    log "    ${f}：${before} 行 → ${after} 行（备份 ${f}.bak）"
+  done < <(authorized_key_files)
+}
+
 # sshd 对同一关键字取第一个出现的值，Include 按文件名排序就地展开
 sshd_uses_dropin() { grep -qiE '^[[:space:]]*Include[[:space:]]+.*sshd_config\.d' "${SSHD_MAIN}" 2>/dev/null; }
 

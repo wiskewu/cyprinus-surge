@@ -23,6 +23,7 @@ if [[ $# -eq 0 ]]; then
     actions=(
       "apply|应用加固：关密码登录、限速、fail2ban"
       "check|只看现状"
+      "keys|清点 authorized_keys（指纹、注释、重复项）"
       "uninstall|还原到加固前"
       "client|客户端密钥与免密登录"
       "audit|独立验收"
@@ -31,6 +32,7 @@ if [[ $# -eq 0 ]]; then
     case "${UI_CHOICE}" in
       apply) set -- --apply ;;
       check) set -- --check ;;
+      keys) set -- --keys ;;
       uninstall) set -- --uninstall ;;
       client) exec bash "${SELF_DIR}/client.sh" ;;
       audit) exec bash "${SELF_DIR}/audit.sh" ;;
@@ -43,6 +45,8 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --apply) MODE=apply ;;
     --check | --status) MODE=check ;;
+    --keys) MODE=keys ;;
+    --dedupe) MODE=dedupe ;;
     --uninstall) MODE=uninstall ;;
     --force) FORCE=1 ;;
     --whitelist)
@@ -54,6 +58,8 @@ while [[ $# -gt 0 ]]; do
 用法：sudo bash bin/harden/harden.sh [选项]
 
   --check            只报告现状，不改动任何文件
+  --keys             列出 authorized_keys 里的公钥（指纹、注释、重复项）
+  --dedupe           删掉重复的公钥行，保留第一次出现（改动前备份为 .bak）
   --apply            应用加固（默认）
   --uninstall        还原 sshd 与防火墙到加固前，恢复密码登录
   --whitelist IP     写入 fail2ban 的 ignoreip，可重复用逗号分隔
@@ -80,6 +86,7 @@ check() {
   printf 'MaxStartups        : %s\n' "$(sshd_get maxstartups || printf '未知')"
   printf 'LoginGraceTime     : %s\n' "$(sshd_get logingracetime || printf '未知')"
   printf '可用公钥数         : %s\n' "$(count_authorized_keys)"
+  printf '重复公钥           : %s\n' "$(duplicate_authorized_keys)"
   printf '本次会话公钥登录   : %s\n' "$(session_is_pubkey && printf '是' || printf '否/无法判定')"
   printf '加固片段           : %s\n' "$([[ -f "${DROPIN}" ]] && printf '存在' || printf '不存在')"
   if command -v ufw >/dev/null 2>&1; then
@@ -90,6 +97,27 @@ check() {
     printf 'fail2ban sshd      : %s\n' "$(fail2ban-client status sshd 2>/dev/null | awk -F'\t' '/Currently banned/{print $2}' | paste -sd' ' - || printf '未启用')"
   fi
 }
+
+if [[ "${MODE}" == keys ]]; then
+  printf '文件\t指纹与信息：\n'
+  list_authorized_keys | awk -F'\t' '{ printf "  %-10s %s  %s\n", $1, $3, $4 }'
+  DUP="$(duplicate_authorized_keys)"
+  printf '\n重复公钥：%s 把' "${DUP}"
+  [[ "${DUP}" == 0 ]] && printf '（无需处理）\n' || printf '（sudo bash %s --dedupe 可删掉多余行）\n' "$0"
+  exit 0
+fi
+
+if [[ "${MODE}" == dedupe ]]; then
+  need_root
+  DUP="$(duplicate_authorized_keys)"
+  if [[ "${DUP}" == 0 ]]; then
+    log "没有重复的公钥，未改动"
+    exit 0
+  fi
+  log "去重：删除 ${DUP} 把重复公钥的多余行"
+  dedupe_authorized_keys
+  exit 0
+fi
 
 if [[ "${MODE}" == check ]]; then
   check
@@ -131,6 +159,15 @@ fi
 KEYS="$(count_authorized_keys)"
 [[ "${KEYS}" -ge 1 ]] || die "找不到任何 authorized_keys，先装公钥：ssh-copy-id 或手工追加"
 log "检测到 ${KEYS} 把可用公钥"
+DUPS="$(duplicate_authorized_keys)"
+if [[ "${DUPS}" -gt 0 ]]; then
+  warn "authorized_keys 里有 ${DUPS} 把公钥重复追加（同一把出现多次，通常是重复执行 ssh-copy-id）"
+  if ui_has_tty && ui_confirm "删掉重复行、只保留第一次出现" y; then
+    dedupe_authorized_keys
+  else
+    warn "未处理；随时可用 sudo bash $0 --dedupe 清理，或 --keys 查看明细"
+  fi
+fi
 
 if session_is_pubkey; then
   log "当前会话经公钥认证"
