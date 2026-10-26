@@ -18,6 +18,22 @@ PASS_FILE="${BACKUP_PASSPHRASE_FILE:-/root/.backup-passphrase}"
 INSECURE=0
 install -d -m 700 "${BK_DIR}"
 
+case "${1:-}" in
+  -h | --help)
+    cat <<'EOF'
+用法：sudo bash bin/deploy/ops/backup.sh <动作> [选项]
+
+  backup            新建备份，默认 gpg 加密，缺 gpg 时用 openssl
+  list              列出备份，标注明文还是加密
+  restore <文件>    从备份恢复并重启 sing-box
+  key               查看或生成备份口令文件
+
+  --insecure        backup 时跳过加密，产物为明文 .tgz
+EOF
+    exit 0
+    ;;
+esac
+
 if [[ $# -eq 0 ]]; then
   if ui_has_tty; then
     actions=(

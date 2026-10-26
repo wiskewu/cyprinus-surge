@@ -12,6 +12,11 @@ hy2_check() {
 
 hy2_run() {
   local ACME
+  # 与 port-hop 一致：没启用就直接跳过，不要往下走到交互提问
+  if [[ "${ENABLE_HY2:-0}" != "1" ]]; then
+    warn "ENABLE_HY2=0，跳过 Hysteria2"
+    return 0
+  fi
   : "${DOMAIN:=}"
   : "${CF_TOKEN:=}"
   : "${ACME_EMAIL:=}"
@@ -19,6 +24,10 @@ hy2_run() {
     if [[ -n "${NONINTERACTIVE:-}" ]]; then
       warn "缺少 DOMAIN/CF_TOKEN/ACME_EMAIL，跳过 Hysteria2"
       return 0
+    fi
+    # 没有终端就只能报错：直接 read 会因 stdin 已关闭而静默失败在 set -e 下
+    if [[ ! -t 0 ]]; then
+      die "缺少 DOMAIN/CF_TOKEN/ACME_EMAIL，且当前不是交互终端；补齐后重跑或用 NONINTERACTIVE=1 跳过"
     fi
     [[ -n "${DOMAIN}" ]] || read -r -p "域名（例如 vps.example.com）: " DOMAIN
     [[ -n "${ACME_EMAIL}" ]] || read -r -p "邮箱（证书到期通知）: " ACME_EMAIL

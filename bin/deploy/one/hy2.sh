@@ -6,6 +6,18 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "${SELF_DIR}/../lib.sh"
 # shellcheck source=SCRIPTDIR/../steps/50-hy2.sh
 . "${SELF_DIR}/../steps/50-hy2.sh"
+case "${1:-}" in
+  -h | --help)
+    printf '用法：sudo bash %s
+
+单步入口：%s
+等价于 bash bin/deploy/deploy.sh --only %s
+' "$0" 'Hysteria2 证书，可选' 'hy2'
+    exit 0
+    ;;
+  "") ;;
+  *) usage_error "单步入口不接受参数：$1（部署流程请用 bin/deploy/deploy.sh）" ;;
+esac
 need_root
 load_env_optional "${ENVFILE}" || true
 hy2_run

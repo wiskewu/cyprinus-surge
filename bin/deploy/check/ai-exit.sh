@@ -12,6 +12,16 @@
 #
 # 用法：sudo bash bin/deploy/check/ai-exit.sh [要测试的域名，默认 https://chatgpt.com/cdn-cgi/trace]
 set -euo pipefail
+case "${1:-}" in
+  -h | --help)
+    printf '用法：sudo bash %s [目标URL]
+
+在服务器本机验证 AI 域名走独立出口。临时起本地容器，跑完清理。
+默认目标 https://chatgpt.com/cdn-cgi/trace
+' "$0"
+    exit 0
+    ;;
+esac
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=SCRIPTDIR/../lib.sh
 . "${SELF_DIR}/../lib.sh"
@@ -36,6 +46,14 @@ cleanup() {
 trap cleanup EXIT
 
 log "0/5 前置检查"
+# 部署没启用独立 AI 出口时，测的是「不存在的功能」，先退出并说明
+load_env_optional "${ENVFILE}" || true
+if [[ "${AI_MODE:-main}" != "dedicated" ]]; then
+  warn "当前部署 AI_MODE=${AI_MODE:-main}，没有独立 AI 出口可验"
+  printf '需要先设置 AI_MODE=dedicated 与 AI_SOCKS_SERVER/AI_SOCKS_USER/AI_SOCKS_PASS，再重渲染服务端配置。
+'
+  exit 0
+fi
 [[ -x "${SB_BIN}" ]] || die "找不到 ${SB_BIN}，先跑 bin/deploy/one/install-singbox.sh"
 [[ -s "${CLIENT_ENV}" ]] || die "缺少 ${CLIENT_ENV}，先跑 bin/deploy/one/secrets.sh"
 for p in "${MIXED_PORT}" "${SOCKS_PORT}"; do

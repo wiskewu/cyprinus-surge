@@ -5,6 +5,18 @@ set -uo pipefail # 自检脚本要跑完全部检查项，故不启用 -e
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=SCRIPTDIR/../lib.sh
 . "${SELF_DIR}/../lib.sh"
+case "${1:-}" in
+  -h | --help)
+    printf '用法：sudo bash %s
+
+服务端自检：进程、监听、日志、时间、BBR、伪装站点、IP 一致性。
+只读，不改动任何东西。
+' "$0"
+    exit 0
+    ;;
+  "") ;;
+  *) usage_error "自检不接受参数：$1" ;;
+esac
 load_env "${ENVFILE}"
 
 # 缺变量时给出人话，而不是 "unbound variable"

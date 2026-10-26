@@ -6,6 +6,18 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "${SELF_DIR}/../lib.sh"
 # shellcheck source=SCRIPTDIR/../steps/30-secrets.sh
 . "${SELF_DIR}/../steps/30-secrets.sh"
+case "${1:-}" in
+  -h | --help)
+    printf '用法：sudo bash %s
+
+单步入口：%s
+等价于 bash bin/deploy/deploy.sh --only %s
+' "$0" '生成 deploy.env / client.env / devices.list' 'secrets'
+    exit 0
+    ;;
+  "") ;;
+  *) usage_error "单步入口不接受参数：$1（部署流程请用 bin/deploy/deploy.sh）" ;;
+esac
 need_root
 if [[ -f "${ENVFILE}" ]] && [[ "${FORCE:-0}" != "1" ]]; then
   log "${ENVFILE} 已存在，保留原样（要重建：sudo FORCE=1 bash $0）"
