@@ -224,6 +224,7 @@ bash deploy.sh --purge --yes &amp;&amp; bash deploy.sh --yes</code></pre>
 [+]     scp -P 4061 root@203.0.113.9:/etc/sing-box/clients/dist/mac-20261026T123626Z.tar.gz root@203.0.113.9:/etc/sing-box/clients/dist/mac-20261026T123626Z.tar.gz.sha256 .
 [+] 校验并解包：sha256sum -c mac-20261026T123626Z.tar.gz.sha256 &amp;&amp; tar -xzf mac-20261026T123626Z.tar.gz    # macOS 用 shasum -a 256 -c</code></pre>
 <p>端口与地址取自 <code>deploy.env</code> 的 <code>SSH_PORT</code> / <code>SERVER_IP</code>；服务器登录用户默认 <code>root</code>，用 <code>SSH_LOGIN_USER</code> 覆盖。客户端侧的导入与验收见 <a href="05-client.html">第 5 页</a>。</p>
+<div class="warn"><b>收尾会检查已导出的客户端配置是否还对得上服务器。</b>脚本比对 <code>clients/*.json</code> 里的 <code>tls.reality.public_key</code>、<code>short_id</code> 与 Hysteria2 混淆密码，与 <code>deploy.env</code> 不一致的设备会被点名并要求重新 <code>export</code>：这类配置连不上，客户端只报 <code>reality verification failed</code>。重跑 <code>secrets</code> 默认不再轮换这些密钥（见 <a href="02-install.html">第 2 页</a>的重跑与换密钥），只有显式给 <code>FORCE_ROTATE_REALITY=1</code> 才会变。</div>
 
 <p style="margin-top:24px"><a href="index.html">← 总览</a>　·　<a href="troubleshooting.html">排查手册</a></p>
 

@@ -703,12 +703,34 @@ secrets_run() {
   fi
   valid_device_name "${FIRST_DEVICE}" || die "设备名不合法：${FIRST_DEVICE}（只允许字母数字 . _ -）"
 
-  KP="$("${SB_BIN}" generate reality-keypair)"
-  REALITY_PRIVATE_KEY="$(printf '%s\n' "${KP}" | awk -F': *' '/PrivateKey/{print $2}')"
-  REALITY_PUBLIC_KEY="$(printf '%s\n' "${KP}" | awk -F': *' '/PublicKey/{print $2}')"
-  SHORT_ID="$(openssl rand -hex 4)"
-  OBFS_PASSWORD="$(rand_pass 20)"
-  [[ -n "${REALITY_PRIVATE_KEY}" ]] && [[ -n "${REALITY_PUBLIC_KEY}" ]] || die "REALITY 密钥生成失败"
+  # REALITY 公钥、short_id 与 HY2 混淆密码都嵌在已经导出的客户端配置里。重跑
+  # secrets 若把它们换掉，所有客户端当场失效，而错误只在客户端表现为 REALITY
+  # 校验失败或 QUIC 握手失败，很难联想到部署动作。所以默认沿用 deploy.env 里
+  # 的旧值，与 devices.list 的处理一致；要换必须显式给 FORCE_ROTATE_REALITY=1。
+  local old_priv="" old_pub="" old_sid="" old_obfs=""
+  if [[ "${FORCE_ROTATE_REALITY:-0}" != "1" ]] && [[ -f "${ENVFILE}" ]]; then
+    old_priv="$(sed -n 's/^REALITY_PRIVATE_KEY=//p' "${ENVFILE}" | head -1)"
+    old_pub="$(sed -n 's/^REALITY_PUBLIC_KEY=//p' "${ENVFILE}" | head -1)"
+    old_sid="$(sed -n 's/^SHORT_ID=//p' "${ENVFILE}" | head -1)"
+    old_obfs="$(sed -n 's/^OBFS_PASSWORD=//p' "${ENVFILE}" | head -1)"
+  fi
+  if [[ -n "${old_priv}" ]] && [[ -n "${old_pub}" ]] && [[ -n "${old_sid}" ]]; then
+    REALITY_PRIVATE_KEY="${old_priv}"
+    REALITY_PUBLIC_KEY="${old_pub}"
+    SHORT_ID="${old_sid}"
+    log "沿用已有 REALITY 密钥对与 short_id（换新：FORCE_ROTATE_REALITY=1，之后所有设备需重新 export）"
+  else
+    KP="$("${SB_BIN}" generate reality-keypair)"
+    REALITY_PRIVATE_KEY="$(printf '%s\n' "${KP}" | awk -F': *' '/PrivateKey/{print $2}')"
+    REALITY_PUBLIC_KEY="$(printf '%s\n' "${KP}" | awk -F': *' '/PublicKey/{print $2}')"
+    SHORT_ID="$(openssl rand -hex 4)"
+    [[ -n "${REALITY_PRIVATE_KEY}" ]] && [[ -n "${REALITY_PUBLIC_KEY}" ]] || die "REALITY 密钥生成失败"
+  fi
+  if [[ -n "${old_obfs}" ]]; then
+    OBFS_PASSWORD="${old_obfs}"
+  else
+    OBFS_PASSWORD="$(rand_pass 20)"
+  fi
 
   # 设备名单已存在就原样保留：凭据不该因为重跑 secrets 而全变一遍。
   # 现有实例里的 devices.list 优先，Force 重跑也不覆盖。
@@ -1579,11 +1601,40 @@ device_script_path() {
   printf 'device.sh'
 }
 
+# 已导出的客户端配置是否还对得上服务器的 REALITY 密钥与 HY2 混淆密码。
+# 对不上时客户端只会报 reality verification failed，服务端日志是
+# REALITY: processed invalid connection，现场很难联想到是 secrets 轮换过密钥。
+# 这里在部署结束时主动点出来，而不是等人到客户端上排查。
+warn_stale_clients() {
+  local dir="${DEPLOY_DIR}/clients" f pub sid obfs stale=()
+  command -v jq >/dev/null 2>&1 || return 0
+  [[ -d "${dir}" ]] || return 0
+  [[ -n "${REALITY_PUBLIC_KEY:-}" ]] || return 0
+  for f in "${dir}"/sing-box-client-*.json; do
+    [[ -f "${f}" ]] || continue
+    read -r pub sid obfs <<<"$(jq -r '[
+        ([.outbounds[]? | select(.tls.reality.public_key) | .tls.reality.public_key][0] // ""),
+        ([.outbounds[]? | select(.tls.reality.short_id) | .tls.reality.short_id][0] // ""),
+        ([.outbounds[]? | select(.type == "hysteria2") | .obfs.password][0] // "")
+      ] | @tsv' "${f}" 2>/dev/null | tr '\t' ' ')"
+    [[ -n "${pub}" ]] || continue
+    if [[ "${pub}" != "${REALITY_PUBLIC_KEY}" || "${sid}" != "${SHORT_ID:-}" ]] \
+      || [[ -n "${obfs}" && -n "${OBFS_PASSWORD:-}" && "${obfs}" != "${OBFS_PASSWORD}" ]]; then
+      stale+=("$(basename "${f}" .json | sed -E 's/^sing-box-client-//; s/-(desktop|android|ios)$//')")
+    fi
+  done
+  [[ "${#stale[@]}" -gt 0 ]] || return 0
+  warn "以下设备的客户端配置与服务器当前密钥不一致，连不上（客户端报 reality verification failed）："
+  warn "    $(printf '%s\n' "${stale[@]}" | sort -u | paste -sd' ' -)"
+  warn "    重新导出：sudo bash $(device_script_path) export <设备名>"
+}
+
 print_next_steps() {
   local dev
   [[ -f "${ENVFILE}" ]] || return 0
   load_env_optional "${ENVFILE}" || true
   dev="$(device_script_path)"
+  warn_stale_clients
   printf '\n下一步\n'
   printf '  当前设备：%s\n' "$(device_rows | awk '{print $1}' | paste -sd' ' -)"
   printf '  新增设备：sudo bash %s add <名字> [desktop|android|ios]\n' "${dev}"

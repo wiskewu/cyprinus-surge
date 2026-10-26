@@ -158,11 +158,40 @@ device_script_path() {
   printf 'device.sh'
 }
 
+# 已导出的客户端配置是否还对得上服务器的 REALITY 密钥与 HY2 混淆密码。
+# 对不上时客户端只会报 reality verification failed，服务端日志是
+# REALITY: processed invalid connection，现场很难联想到是 secrets 轮换过密钥。
+# 这里在部署结束时主动点出来，而不是等人到客户端上排查。
+warn_stale_clients() {
+  local dir="${DEPLOY_DIR}/clients" f pub sid obfs stale=()
+  command -v jq >/dev/null 2>&1 || return 0
+  [[ -d "${dir}" ]] || return 0
+  [[ -n "${REALITY_PUBLIC_KEY:-}" ]] || return 0
+  for f in "${dir}"/sing-box-client-*.json; do
+    [[ -f "${f}" ]] || continue
+    read -r pub sid obfs <<<"$(jq -r '[
+        ([.outbounds[]? | select(.tls.reality.public_key) | .tls.reality.public_key][0] // ""),
+        ([.outbounds[]? | select(.tls.reality.short_id) | .tls.reality.short_id][0] // ""),
+        ([.outbounds[]? | select(.type == "hysteria2") | .obfs.password][0] // "")
+      ] | @tsv' "${f}" 2>/dev/null | tr '\t' ' ')"
+    [[ -n "${pub}" ]] || continue
+    if [[ "${pub}" != "${REALITY_PUBLIC_KEY}" || "${sid}" != "${SHORT_ID:-}" ]] \
+      || [[ -n "${obfs}" && -n "${OBFS_PASSWORD:-}" && "${obfs}" != "${OBFS_PASSWORD}" ]]; then
+      stale+=("$(basename "${f}" .json | sed -E 's/^sing-box-client-//; s/-(desktop|android|ios)$//')")
+    fi
+  done
+  [[ "${#stale[@]}" -gt 0 ]] || return 0
+  warn "以下设备的客户端配置与服务器当前密钥不一致，连不上（客户端报 reality verification failed）："
+  warn "    $(printf '%s\n' "${stale[@]}" | sort -u | paste -sd' ' -)"
+  warn "    重新导出：sudo bash $(device_script_path) export <设备名>"
+}
+
 print_next_steps() {
   local dev
   [[ -f "${ENVFILE}" ]] || return 0
   load_env_optional "${ENVFILE}" || true
   dev="$(device_script_path)"
+  warn_stale_clients
   printf '\n下一步\n'
   printf '  当前设备：%s\n' "$(device_rows | awk '{print $1}' | paste -sd' ' -)"
   printf '  新增设备：sudo bash %s add <名字> [desktop|android|ios]\n' "${dev}"
