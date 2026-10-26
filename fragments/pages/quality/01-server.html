@@ -1,5 +1,5 @@
 <h1>服务端加固</h1>
-<p class="lede">主读者：在服务器上执行加固的运维者。本页只做一件事：把 <code>ssh-server.sh</code> 跑对，并能随时回滚。</p>
+<p class="lede">主读者：在服务器上执行加固的运维者。本页只做一件事：把 <code>bin/harden/harden.sh</code> 跑对，并能随时回滚。</p>
 
 <h2>前置条件</h2>
 <ul>
@@ -9,7 +9,7 @@
 </ul>
 
 <h2>先看现状</h2>
-<pre><code>sudo bash ssh-server.sh --check</code></pre>
+<pre><code>sudo bash bin/harden/harden.sh --check</code></pre>
 <p>输出示例，端口取自 <code>sshd -T</code>，不假设是 22：</p>
 <pre><code>sshd 端口          : 4061
 密码登录           : yes
@@ -23,8 +23,8 @@ MaxStartups        : 10:30:100
 <p><code>本次会话公钥登录</code> 为「否」时不要继续。脚本依赖这一项判断是否可以安全关闭密码登录。</p>
 
 <h2>应用</h2>
-<pre><code>sudo bash ssh-server.sh
-sudo bash ssh-server.sh --whitelist 198.51.100.20   # 顺手把常用出口加入 fail2ban 白名单</code></pre>
+<pre><code>sudo bash bin/harden/harden.sh
+sudo bash bin/harden/harden.sh --whitelist 198.51.100.20   # 顺手把常用出口加入 fail2ban 白名单</code></pre>
 <p>脚本按下列顺序执行，任何一步失败都不会让 SSH 不可用：</p>
 <ol class="steps">
 <li>检查 <code>authorized_keys</code> 至少有可用公钥，并确认当前会话经公钥认证。</li>
@@ -54,10 +54,10 @@ sudo bash ssh-server.sh --whitelist 198.51.100.20   # 顺手把常用出口加�
 </tbody>
 </table>
 </div>
-<p><code>MaxStartups</code> 与 <code>LoginGraceTime</code> 在小内存机器上是实收益：每个未认证连接都占一个 sshd 进程。空闲会话 10 分钟断开意味着长任务要用 <code>tmux</code> 或 <code>nohup</code>。</p>
+<p><code>MaxStartups</code> 与 <code>LoginGraceTime</code> 在小内存机器上收益明确：每个未认证连接都占一个 sshd 进程。空闲会话 10 分钟断开，长任务要用 <code>tmux</code> 或 <code>nohup</code>。</p>
 
 <h2>回滚</h2>
-<pre><code>sudo bash ssh-server.sh --uninstall</code></pre>
+<pre><code>sudo bash bin/harden/harden.sh --uninstall</code></pre>
 <p>删除加固片段，从 <code>/root/ssh-hardening/latest</code> 还原被就地改写的文件，恢复 <code>PasswordAuthentication yes</code> 与 <code>ufw allow</code>，然后 reload。回滚后应立刻用密码登录验证一次，再关闭当前会话。</p>
 <div class="warn"><b>回滚会重新打开密码登录。</b>只在确认能登录的前提下使用，并在处理完问题后再次执行加固。</div>
 

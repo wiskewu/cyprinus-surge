@@ -6,20 +6,20 @@
 <table>
 <thead><tr><th>脚本</th><th>参数</th><th>默认</th><th>副作用</th></tr></thead>
 <tbody>
-<tr><td rowspan="4"><code>ssh-server.sh</code></td><td><code>--check</code></td><td>不加则为应用</td><td>无，只读</td></tr>
+<tr><td rowspan="4"><code>bin/harden/harden.sh</code></td><td><code>--check</code></td><td>不加则为应用</td><td>无，只读</td></tr>
 <tr><td><code>--uninstall</code></td><td>否</td><td>恢复密码登录与 <code>ufw allow</code></td></tr>
 <tr><td><code>--whitelist IP[,IP]</code></td><td>仅 127.0.0.1 与 ::1</td><td>写入 fail2ban 的 <code>ignoreip</code></td></tr>
 <tr><td><code>--force</code></td><td>否</td><td>跳过「当前会话必须公钥登录」的检查</td></tr>
-<tr><td rowspan="5"><code>ssh-client.sh</code></td><td><code>--host</code></td><td>必填</td><td>无</td></tr>
+<tr><td rowspan="5"><code>bin/harden/client.sh</code></td><td><code>--host</code></td><td>必填</td><td>无</td></tr>
 <tr><td><code>--port</code></td><td>读取 <code>~/.ssh/config</code> 同名 Host，否则 22</td><td>无</td></tr>
 <tr><td><code>--user</code></td><td><code>root</code></td><td>无</td></tr>
 <tr><td><code>--alias</code></td><td><code>vps</code></td><td>写入 <code>~/.ssh/config</code></td></tr>
 <tr><td><code>--install-server</code></td><td>否</td><td>向服务器 <code>authorized_keys</code> 追加一行</td></tr>
-<tr><td><code>ssh-audit.sh</code></td><td><code>--alias</code> 或 <code>--host</code></td><td><code>vps</code></td><td>无，只读</td></tr>
+<tr><td><code>bin/harden/audit.sh</code></td><td><code>--alias</code> 或 <code>--host</code></td><td><code>vps</code></td><td>无，只读</td></tr>
 </tbody>
 </table>
 </div>
-<p>三个脚本都幂等，重复执行只补齐缺失部分。</p>
+<p>三个脚本都幂等，重复执行只补齐缺失的部分。</p>
 
 <h2>ufw limit 的行为</h2>
 <div class="tw">
@@ -29,7 +29,7 @@
 <tr><td>限制粒度</td><td>按来源 IP，对新建连接计数</td></tr>
 <tr><td>阈值</td><td>30 秒内 6 次，超出即丢弃新连接</td></tr>
 <tr><td>恢复方式</td><td>等待窗口滑过后自动恢复，不需要人工干预</td></tr>
-<tr><td>副作用</td><td>批量脚本、并发终端、验收脚本都可能触发；<code>ssh-audit.sh</code> 因此把远程检查合并为一次连接</td></tr>
+<tr><td>副作用</td><td>批量脚本、并发终端、验收脚本都可能触发；<code>bin/harden/audit.sh</code> 因此把远程检查合并为一次连接</td></tr>
 </tbody>
 </table>
 </div>
@@ -55,7 +55,7 @@ enabled = true</code></pre>
 </tbody>
 </table>
 </div>
-<p>出口 IP 会变化的网络不要写 <code>ignoreip</code>，否则规则失效；改用密钥登录本来也不会产生失败尝试。</p>
+<p>出口 IP 会变化的网络，写进 <code>ignoreip</code> 的那条很快失效，等于没写；改用密钥登录本来也不产生失败尝试。</p>
 
 <h2>可选：双因子</h2>
 <p>TOTP 能在密钥泄露后仍然拦住登录，代价是必须打开 <code>KbdInteractiveAuthentication</code>，而本方案刻意关闭了它。</p>

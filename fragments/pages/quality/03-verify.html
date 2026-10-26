@@ -2,12 +2,12 @@
 <p class="lede">主读者：加固完成后要独立确认结果的人。本页给出验收脚本的输出含义，以及每个失败项对应的处理顺序。</p>
 
 <h2>验收</h2>
-<pre><code>bash ssh-audit.sh --alias vps
-bash ssh-audit.sh --host 203.0.113.10 --port 4061</code></pre>
+<pre><code>bash bin/harden/audit.sh --alias vps
+bash bin/harden/audit.sh --host 203.0.113.10 --port 4061</code></pre>
 <p>脚本在客户端运行，只读，不改动任何一端。全部检查合并为一次远程连接，因为 <code>ufw limit</code> 对同一来源有速率限制，多次连接会把验收自己限住。</p>
 <pre><code>== 1. 本机准备 ==
   ✓ 本机存在 Ed25519 私钥：256 SHA256:…
-  ✓ ~/.ssh/config 有 Host vps
+  ✓ /root/.ssh/config 有 Host vps
 == 2. 密钥登录 ==
   ✓ 公钥登录成功
 == 3. 密码登录应被拒 ==
@@ -23,10 +23,10 @@ bash ssh-audit.sh --host 203.0.113.10 --port 4061</code></pre>
   ✓ 存在 LIMIT 速率限制规则
   ✓ 同端口没有全局 ALLOW 规则覆盖
   ✓ fail2ban sshd jail 已启用
-  ✓ 服务端可用公钥数：2
+  ✓ 服务端可用公钥数：3
 
-通过 12 项，失败 0 项</code></pre>
-<p><code>permitrootlogin</code> 显示 <code>without-password</code> 是 <code>prohibit-password</code> 的别名，含义相同。</p>
+通过 13 项，失败 0 项</code></pre>
+<p><code>permitrootlogin</code> 显示 <code>without-password</code> 是 <code>prohibit-password</code> 的别名，含义相同。通过项数随服务端 sshd 的关键字与公钥数量变化，示例是 13 项；只看失败项。</p>
 
 <h2>失败项对照</h2>
 <div class="tw">
@@ -38,7 +38,7 @@ bash ssh-audit.sh --host 203.0.113.10 --port 4061</code></pre>
 <tr><td>第 4 项读不到 <code>sshd -T</code></td><td>登录用户不是 root，且没有免密 sudo</td><td>用 root 密钥登录，或给该用户配置 <code>NOPASSWD</code> 的只读命令</td></tr>
 <tr><td>第 5 项提示「全局 ALLOW 规则覆盖」</td><td>同端口还有一条不限来源的 <code>ufw allow</code></td><td><code>ufw --force delete allow &lt;端口&gt;/tcp</code>，保留 <code>LIMIT</code> 那一条</td></tr>
 <tr><td>连接超时，ssh 无响应</td><td>短时间内新连接过多，触发 <code>ufw limit</code></td><td>等 30 秒重试。规则按来源限制 6 次/30 秒</td></tr>
-<tr><td>与服务器完全失联</td><td>密码已关闭且密钥不可用</td><td>走云控制台 VNC，执行 <code>sudo bash ssh-server.sh --uninstall</code></td></tr>
+<tr><td>与服务器完全失联</td><td>密码已关闭且密钥不可用</td><td>走云控制台 VNC，执行 <code>sudo bash bin/harden/harden.sh --uninstall</code></td></tr>
 </tbody>
 </table>
 </div>
@@ -47,7 +47,7 @@ bash ssh-audit.sh --host 203.0.113.10 --port 4061</code></pre>
 <ol class="steps">
 <li>不要关闭当前已经登录的会话。当前会话不受新配置影响，可以继续修。</li>
 <li>在另一个终端验证密钥登录：<code>ssh -o BatchMode=yes &lt;别名&gt; true</code>。</li>
-<li>失败时在当前会话里执行 <code>sudo bash ssh-server.sh --uninstall</code>，恢复密码登录。</li>
+<li>失败时在当前会话里执行 <code>sudo bash bin/harden/harden.sh --uninstall</code>，恢复密码登录。</li>
 <li>修好公钥问题后重新执行加固，并再次用另一个终端验证。</li>
 </ol>
 <div class="note"><b>会话断开策略。</b><code>ClientAliveInterval 300</code> 配 <code>ClientAliveCountMax 2</code>，空闲约 10 分钟断开。批量操作请放进 <code>tmux</code>，否则会在中途掉线。</div>

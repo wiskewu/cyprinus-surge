@@ -18,33 +18,33 @@ HTML 版：[docs/quality/index.html](index.html)
 
 | 脚本 | 在哪跑 | 作用 |
 | --- | --- | --- |
-| `ssh-client.sh` | 客户端 | 生成或复用 Ed25519 密钥、装公钥、写 `~/.ssh/config`、验证免密 |
-| `ssh-server.sh` | 服务器 | 关密码登录、root 仅密钥、限并发、`ufw limit`、fail2ban |
-| `ssh-audit.sh` | 客户端 | 只读验收，全部检查合并为一次远程连接 |
-| `ssh-lib.sh` | 被上面三个 source | 端口探测、会话认证判定、sshd 关键字就地改写 |
+| `bin/harden/client.sh` | 客户端 | 生成或复用 Ed25519 密钥、装公钥、写 `~/.ssh/config`、验证免密 |
+| `bin/harden/harden.sh` | 服务器 | 关密码登录、root 仅密钥、限并发、`ufw limit`、fail2ban |
+| `bin/harden/audit.sh` | 客户端 | 只读验收，全部检查合并为一次远程连接 |
+| `bin/lib/ssh-lib.sh` | 被上面三个 source | 端口探测、会话认证判定、sshd 关键字就地改写 |
 
 ## 四步
 
 ```bash
 # 1. 客户端：生成密钥、装公钥、写别名
-bash ssh-client.sh --host 203.0.113.10 --port 4061 --install-server
+bash bin/harden/client.sh --host 203.0.113.10 --port 4061 --install-server
 
 # 2. 客户端：确认密钥能登录
 ssh -o BatchMode=yes vps true
 
 # 3. 服务器：应用加固
-sudo bash ssh-server.sh --whitelist 198.51.100.20
+sudo bash bin/harden/harden.sh --whitelist 198.51.100.20
 
 # 4. 客户端：独立验收
-bash ssh-audit.sh --alias vps
+bash bin/harden/audit.sh --alias vps
 ```
 
-第 3 步之前必须完成第 2 步。`ssh-server.sh` 会从 journal 里确认当前会话经公钥认证，读不到证据就拒绝执行。
+第 3 步之前必须完成第 2 步。`bin/harden/harden.sh` 会从 journal 里确认当前会话经公钥认证，读不到证据就拒绝执行。
 
 ## 回滚
 
 ```bash
-sudo bash ssh-server.sh --uninstall
+sudo bash bin/harden/harden.sh --uninstall
 ```
 
 删除加固片段，从 `/root/ssh-hardening/latest` 还原被就地改写的文件，恢复 `PasswordAuthentication yes` 与 `ufw allow`。
@@ -53,4 +53,4 @@ sudo bash ssh-server.sh --uninstall
 
 脚本不假设端口是 22，一律从 `sshd -T` 读取。只 `reload` 不 `restart`，因此执行期间现有会话不受影响。
 
-`ufw limit` 对同一来源限制 6 次/30 秒，批量脚本与并发终端可能触发，等窗口滑过即恢复。`ssh-audit.sh` 为此把远程检查合并成一次连接。
+`ufw limit` 对同一来源限制 6 次/30 秒，批量脚本与并发终端可能触发，等窗口滑过即恢复。`bin/harden/audit.sh` 为此把远程检查合并成一次连接。

@@ -1,8 +1,8 @@
 <h1>SSH 加固</h1>
-<p class="lede">主读者：维护单台 VPS 的运维者。本页说明为什么采用「仅公钥登录」这条路线，以及它在本环境里解决了什么问题、放弃了什么。操作步骤见 <a href="01-server.html">服务端加固</a> 与 <a href="02-client.html">客户端配置</a>。</p>
+<p class="lede">主读者：维护单台 VPS 的运维者。本页说明为什么采用「仅公钥登录」这条路线，以及它在本环境里换来了什么、代价是什么。操作步骤见 <a href="01-server.html">服务端加固</a> 与 <a href="02-client.html">客户端配置</a>。</p>
 
 <h2>结论</h2>
-<p>管理入口收敛为一条路径：<b>公钥认证的 SSH</b>。密码登录关闭，root 只接受密钥，端口加速率限制，失败尝试由 fail2ban 封禁。客户端使用系统自带 OpenSSH，不安装任何第三方组件，不分发证书。</p>
+<p>管理入口收敛为一条路径：<b>公钥认证的 SSH</b>。密码登录关闭，root 只接受密钥，端口上加速率限制，失败尝试由 fail2ban 封禁。客户端使用系统自带 OpenSSH，不安装第三方组件，不分发证书。</p>
 
 <h2>为什么不用 SPA</h2>
 <p>单包授权（SPA）能把端口从扫描结果里藏起来，代价是每台客户端都要跑一个专用程序。实测两条都走不通：</p>
@@ -17,26 +17,31 @@
 </div>
 <p>两条路线的共同前提是「客户端能主动发包到服务器的某个非 TCP 端口」。当这个前提不成立时，再精巧的授权协议也无法落地。相比之下，SSH 走 TCP，而 TCP 在该环境下正常。</p>
 
-<h2>放弃了什么</h2>
-<ul>
-<li>端口对扫描器可见。代价用三层补偿：仅公钥、速率限制、失败封禁。</li>
-<li>不需要分发证书或密钥文件。客户端只做一次 <code>ssh-keygen</code> 与一次公钥安装。</li>
-<li>不引入常驻守护进程与内核模块，10 亿字节级内存的机器上零额外负担。</li>
-</ul>
+<h2>代价与收益</h2>
+<div class="tw">
+<table>
+<thead><tr><th>取舍</th><th>项</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>代价</td><td>端口对扫描器可见</td><td>用三层补偿：仅公钥、速率限制、失败封禁</td></tr>
+<tr><td>收益</td><td>不分发证书与密钥文件</td><td>客户端只做一次 <code>ssh-keygen</code> 与一次公钥安装</td></tr>
+<tr><td>收益</td><td>无守护进程、无内核模块</td><td>1 GB 内存的机器上不增加常驻负担</td></tr>
+</tbody>
+</table>
+</div>
 
 <h2>四步</h2>
 <div class="tw">
 <table>
 <thead><tr><th>#</th><th>在哪台机器</th><th>做什么</th><th>命令</th></tr></thead>
 <tbody>
-<tr><td>1</td><td>客户端</td><td>生成或复用 Ed25519 密钥</td><td><code>bash ssh-client.sh --host &lt;地址&gt; --port &lt;端口&gt; --install-server</code></td></tr>
+<tr><td>1</td><td>客户端</td><td>生成或复用 Ed25519 密钥</td><td><code>bash bin/harden/client.sh --host &lt;地址&gt; --port &lt;端口&gt; --install-server</code></td></tr>
 <tr><td>2</td><td>客户端</td><td>验证密钥能登录</td><td><code>ssh -o BatchMode=yes &lt;别名&gt; true</code></td></tr>
-<tr><td>3</td><td>服务器</td><td>关密码登录、加速率限制与封禁</td><td><code>sudo bash ssh-server.sh</code></td></tr>
-<tr><td>4</td><td>客户端</td><td>独立验收</td><td><code>bash ssh-audit.sh --alias &lt;别名&gt;</code></td></tr>
+<tr><td>3</td><td>服务器</td><td>关密码登录、加速率限制与封禁</td><td><code>sudo bash bin/harden/harden.sh</code></td></tr>
+<tr><td>4</td><td>客户端</td><td>独立验收</td><td><code>bash bin/harden/audit.sh --alias &lt;别名&gt;</code></td></tr>
 </tbody>
 </table>
 </div>
-<div class="bad"><b>第 3 步之前必须完成第 2 步。</b>脚本会检查当前会话是否经公钥认证，读不到证据就拒绝执行。这是为了防止把「密钥不可用」和「密码已关闭」同时成立。</div>
+<div class="bad"><b>第 3 步之前必须完成第 2 步。</b>脚本会检查当前会话是否经公钥认证，读不到证据就拒绝执行。顺序颠倒会让「密钥不可用」与「密码已关闭」同时成立。</div>
 
 <h2>页面</h2>
 <div class="tw">

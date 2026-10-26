@@ -75,10 +75,10 @@ details .body{padding:4px 14px 14px}
 <nav class="nav"><div class="wrap"><a href="index.html">0 · 总览</a><a href="01-server.html">1 · 服务端加固</a><a href="02-client.html" aria-current="page">2 · 客户端配置</a><a href="03-verify.html">3 · 验收与排障</a><a href="04-reference.html">4 · 参数与取舍</a></div></nav>
 <main class="wrap">
 <h1>客户端配置</h1>
-<p class="lede">主读者：在 macOS、Linux 或 Windows 上准备免密登录的运维者。本页只做一件事：让 <code>ssh &lt;别名&gt;</code> 一条命令进服务器。</p>
+<p class="lede">主读者：在 macOS、Linux 或 Windows 上准备免密登录的运维者。本页只做一件事：让 <code>ssh 别名</code> 直接进服务器，不再输密码。</p>
 
 <h2>一条命令完成</h2>
-<pre><code>bash ssh-client.sh --host 203.0.113.10 --port 4061 --install-server</code></pre>
+<pre><code>bash bin/harden/client.sh --host 203.0.113.10 --port 4061 --install-server</code></pre>
 <p>脚本做四件事，每件都幂等：</p>
 <div class="tw">
 <table>
@@ -97,8 +97,9 @@ details .body{padding:4px 14px 14px}
   HostName 203.0.113.10
   Port 4061
   User root
-  IdentityFile ~/.ssh/id_ed25519
+  IdentityFile /root/.ssh/id_ed25519
   IdentitiesOnly yes</code></pre>
+<p><code>IdentityFile</code> 写的是绝对路径，脚本按本机实际 HOME 展开；手工改这段时别换成 <code>~</code>，OpenSSH 展开 <code>~</code> 用的是 passwd 里的家目录，与 <code>HOME</code> 环境变量无关，换用户执行会指向别处。</p>
 <p><code>IdentitiesOnly yes</code> 让客户端只尝试这一把密钥。服务器 <code>MaxAuthTries 3</code> 时，客户端若挨个试代理里的密钥，几次就会耗尽配额。</p>
 
 <h2>分平台说明</h2>
@@ -112,7 +113,7 @@ details .body{padding:4px 14px 14px}
 </tbody>
 </table>
 </div>
-<p>不安装任何第三方客户端，也不使用图形工具。图形化 SSH 客户端如 WinSCP 读取同一份 <code>~/.ssh/config</code> 与同一把密钥即可。</p>
+<p>不安装第三方 SSH 客户端，也不用图形工具。WinSCP 这类图形客户端读取同一份 <code>~/.ssh/config</code> 与同一把密钥即可。</p>
 
 <h2>密钥的几个决定</h2>
 <ul>
@@ -129,7 +130,7 @@ ssh -o BatchMode=yes -p 4061 root@203.0.113.10 true   # 这一步成功再继续
 <div class="bad"><b>不要在密钥登录验证通过之前关闭密码登录。</b>顺序颠倒会同时失去两种登录方式，此时只能走云控制台。</div>
 
 <h2>检查本机状态</h2>
-<pre><code>bash ssh-client.sh --check</code></pre>
+<pre><code>bash bin/harden/client.sh --check</code></pre>
 
 <p style="margin-top:24px"><a href="01-server.html">← 服务端加固</a>　·　<a href="03-verify.html">验收与排障 →</a></p>
 
