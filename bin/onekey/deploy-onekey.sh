@@ -1651,6 +1651,8 @@ do_install() {
     if execute "${id}"; then run_ok=$((run_ok + 1)); else
       run_fail=$((run_fail + 1))
       warn "步骤 ${id} 失败"
+      # 失败后直接给单步重试的命令：改完环境或重传脚本后不用再把 7 步跑一遍
+      warn "    单步重试（该步会自动修好目录属主等前置状态）：bash $0 --only ${id} --overwrite --yes"
       if [[ "${INTERACTIVE}" == 1 ]]; then
         printf '继续后面的步骤？[y/N] '
         local a
