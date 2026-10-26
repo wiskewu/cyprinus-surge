@@ -1,9 +1,0 @@
-[project]
-name = "cyprinus-surge-tools"
-version = "0.0.0"
-description = "仓库内的 Python 检查工具，由 uv 管理"
-requires-python = ">=3.11"
-dependencies = []
-
-[tool.uv]
-package = false

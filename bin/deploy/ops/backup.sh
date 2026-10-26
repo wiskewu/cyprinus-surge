@@ -13,7 +13,12 @@ install -d -m 700 "${BK_DIR}"
 
 if [[ $# -eq 0 ]]; then
   if ui_has_tty; then
-    ui_menu "备份与恢复"       "backup|新建备份"       "list|列出已有备份"       "restore|从指定备份恢复"
+    actions=(
+      "backup|新建备份"
+      "list|列出已有备份"
+      "restore|从指定备份恢复"
+    )
+    ui_menu "备份与恢复" "${actions[@]}"
     set -- "${UI_CHOICE}"
     if [[ "${UI_CHOICE}" == "restore" ]]; then
       ui_ask "备份文件路径"

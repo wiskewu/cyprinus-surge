@@ -26,10 +26,22 @@ if [[ $# -eq 0 ]]; then
 fi
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --host) shift; HOST="${1:?--host 需要地址}" ;;
-    --port) shift; PORT="${1:?--port 需要端口}" ;;
-    --alias) shift; ALIAS="${1:?--alias 需要别名}" ;;
-    --user) shift; PROBE_USER="${1:?--user 需要用户名}" ;;
+    --host)
+      shift
+      HOST="${1:?--host 需要地址}"
+      ;;
+    --port)
+      shift
+      PORT="${1:?--port 需要端口}"
+      ;;
+    --alias)
+      shift
+      ALIAS="${1:?--alias 需要别名}"
+      ;;
+    --user)
+      shift
+      PROBE_USER="${1:?--user 需要用户名}"
+      ;;
     -h | --help)
       cat <<'EOF'
 用法：bash bin/harden/audit.sh [选项]
@@ -101,7 +113,8 @@ fi
 
 printf '== 4. 服务端 sshd 生效值 ==\n'
 # ufw limit 对同一来源限制 6 次/30 秒，验收必须复用同一条连接，否则会限住自己
-REMOTE="$(ssh "${SSH_OPTS[@]}" "${TARGET}" 'bash -s' <<'REMOTE_EOF' 2>/dev/null || true
+REMOTE="$(
+  ssh "${SSH_OPTS[@]}" "${TARGET}" 'bash -s' <<'REMOTE_EOF' 2>/dev/null || true
 sshd -T 2>/dev/null | sed 's/^/SSHD /'
 ufw status numbered 2>/dev/null | grep -E "/tcp" | sed 's/^/UFW /'
 fail2ban-client status sshd 2>/dev/null | sed 's/^/F2B /'

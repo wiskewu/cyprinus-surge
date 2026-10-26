@@ -20,7 +20,14 @@ WHITELIST="${WHITELIST:-}"
 
 if [[ $# -eq 0 ]]; then
   if ui_has_tty; then
-    ui_menu "SSH 加固"       "apply|应用加固：关密码登录、限速、fail2ban"       "check|只看现状"       "uninstall|还原到加固前"       "client|客户端密钥与免密登录"       "audit|独立验收"
+    actions=(
+      "apply|应用加固：关密码登录、限速、fail2ban"
+      "check|只看现状"
+      "uninstall|还原到加固前"
+      "client|客户端密钥与免密登录"
+      "audit|独立验收"
+    )
+    ui_menu "SSH 加固" "${actions[@]}"
     case "${UI_CHOICE}" in
       apply) set -- --apply ;;
       check) set -- --check ;;
@@ -38,7 +45,10 @@ while [[ $# -gt 0 ]]; do
     --check | --status) MODE=check ;;
     --uninstall) MODE=uninstall ;;
     --force) FORCE=1 ;;
-    --whitelist) shift; WHITELIST="${1:?--whitelist 需要地址或网段}" ;;
+    --whitelist)
+      shift
+      WHITELIST="${1:?--whitelist 需要地址或网段}"
+      ;;
     -h | --help)
       cat <<'EOF'
 用法：sudo bash bin/harden/harden.sh [选项]

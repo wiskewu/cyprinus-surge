@@ -36,10 +36,22 @@ if [[ $# -eq 0 ]]; then
 fi
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --host) shift; HOST="${1:?--host 需要地址}" ;;
-    --port) shift; PORT="${1:?--port 需要端口}" ;;
-    --user) shift; USER_NAME="${1:?--user 需要用户名}" ;;
-    --alias) shift; ALIAS="${1:?--alias 需要别名}" ;;
+    --host)
+      shift
+      HOST="${1:?--host 需要地址}"
+      ;;
+    --port)
+      shift
+      PORT="${1:?--port 需要端口}"
+      ;;
+    --user)
+      shift
+      USER_NAME="${1:?--user 需要用户名}"
+      ;;
+    --alias)
+      shift
+      ALIAS="${1:?--alias 需要别名}"
+      ;;
     --install-server) INSTALL=1 ;;
     --check) MODE=check ;;
     -h | --help)

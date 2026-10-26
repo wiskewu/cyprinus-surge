@@ -15,5 +15,3 @@ data/
 # 60-verify-client.sh HY2_ONLY=emit 的默认输出
 /hy2-only.json
 
-# uv 管理的 Python 虚拟环境
-/.venv/

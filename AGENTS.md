@@ -135,3 +135,10 @@ BREAKING CHANGE: --password 不再接受 keep，非交互运行必须显式给�
 - `docs/` 只放文档产物，不出现 `.sh`；
 - 脚本必须同时支持交互与参数两种调用：无参数且为终端时给出菜单，非终端时必须显式给参数，缺参数退出码 2；
 - 改动脚本后必须跑 `npm run build` 与 `npm run lint`，并在真实服务器上跑通部署、加固、卸载三条主链路。
+
+## 工具链
+
+- `npm run lint` 串四段检查：shellcheck、shfmt（WASM 版，不装原生二进制）、变量边界、页面措辞；
+- 四个检查都用 Node 实现，不引入 Python；
+- `npm run format <文件>` 用同一份 shfmt 规则就地格式化；
+- `npm run build` 生成三套文档与 `bin/onekey/deploy-onekey.sh`。

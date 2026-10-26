@@ -5,7 +5,11 @@
   "scripts": {
     "build": "node fragments/build/build-deploy-docs.mjs && node fragments/build/build-quality-docs.mjs && bash fragments/build/build-onekey.sh",
     "lint": "bash fragments/build/lint.sh",
+    "format": "node fragments/build/format-sh.mjs",
     "preview": "npx live-server docs --port=8080 --open=index.html",
     "build:issue": "node fragments/build/build-issue-docs.mjs"
+  },
+  "devDependencies": {
+    "@wasm-fmt/shfmt": "^0.2.7"
   }
 }

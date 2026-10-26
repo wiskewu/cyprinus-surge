@@ -92,7 +92,14 @@ render_client() {
 
 if [[ $# -eq 0 ]]; then
   if ui_has_tty; then
-    ui_menu "设备凭据"       "list|列出设备名单"       "add|新增设备并生成凭据"       "rotate|轮换凭据，旧配置立刻失效"       "revoke|删除设备"       "render|只重新渲染该设备的客户端配置"
+    actions=(
+      "list|列出设备名单"
+      "add|新增设备并生成凭据"
+      "rotate|轮换凭据，旧配置立刻失效"
+      "revoke|删除设备"
+      "render|只重新渲染该设备的客户端配置"
+    )
+    ui_menu "设备凭据" "${actions[@]}"
     case "${UI_CHOICE}" in
       list) set -- list ;;
       *)
