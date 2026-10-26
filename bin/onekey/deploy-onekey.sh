@@ -2,7 +2,7 @@
 # shellcheck disable=SC2034  # 步骤元数据与跨文件变量由间接展开读取
 # ===========================================================================
 # deploy.sh，一键脚本。自动生成，勿手改。
-#   生成时间：2026-10-26T08:39:19Z
+#   生成时间：2026-10-26T08:45:17Z
 #   来源：bin/deploy/lib.sh + bin/deploy/steps/*.sh + fragments/onekey/deploy-driver.sh
 #   重新生成：bash fragments/build/build-onekey.sh
 # ===========================================================================
@@ -275,6 +275,17 @@ probe_mark() {
 system_TITLE="系统初始化（依赖 / BBR / swap / 时间同步 / SSH 加固 / 防火墙）"
 system_OPTIONAL=0
 
+# 读 sshd 生效值。判定与诊断走同一条路径：`sshd -T | grep -q` 会在 pipefail 下
+# 因 SIGPIPE 误判，也可能在 sshd -T 瞬时失败时给出空结果；两者不一致时就会出现
+# 「判定说没生效、诊断却打出正确的值」。
+system_sshd_value() {
+  local out
+  out="$(sshd -T 2>/dev/null || true)"
+  [[ -n "${out}" ]] || return 1
+  printf '%s\n' "${out}" \
+    | awk -v k="${1,,}" 'tolower($1) == k { print $2; exit }'
+}
+
 system_check() {
   [[ -f /etc/sysctl.d/99-proxy.conf ]] || return 1
   command -v ufw >/dev/null 2>&1 || return 1
@@ -282,7 +293,7 @@ system_check() {
   [[ "$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null)" == "bbr" ]] || return 1
   # 有可用公钥时，密码登录必须已经关掉；没有公钥则跳过不算未配置
   # （00-bootstrap 会提示先 ssh-copy-id，不该让 --status 一直报红）
-  if ! sshd -T 2>/dev/null | grep -qx 'passwordauthentication no'; then
+  if [[ "$(system_sshd_value passwordauthentication)" != "no" ]]; then
     system_has_authorized_key && return 1
   fi
   return 0
@@ -418,11 +429,12 @@ SSHEOF
           cp -a "${SC}.before-include" "${SC}"
         fi
       fi
-      if sshd -T 2>/dev/null | grep -qx 'passwordauthentication no'; then
+      if [[ "$(system_sshd_value passwordauthentication)" == "no" ]]; then
         log "    已生效：passwordauthentication no"
       else
+        _pwauth="$(system_sshd_value passwordauthentication || printf '读不到')"
         # 说不清楚就给人看证据：现在到底是多少、谁把它设回去的（第一个出现的值赢）
-        warn "    未生效，当前生效值：$(sshd -T 2>/dev/null | grep -i '^passwordauthentication' || printf '读不到')，文件 ${SC}"
+        warn "    未生效，当前生效值：${_pwauth:-读不到}，文件 ${SC}"
         warn "    设置该关键字的位置，drop-in 按文件名排序，靠前的生效："
         grep -rniE --exclude='*.orig' '^[[:space:]]*(PasswordAuthentication|KbdInteractiveAuthentication)' \
           "${SC}" /etc/ssh/sshd_config.d 2>/dev/null | while IFS= read -r l; do warn "      ${l}"; done

@@ -70,14 +70,15 @@
 </div>
 <p>注意：GUI.for.SingBox 生成的 <code>config.json</code> 是<b>生成物</b>，手改会被覆盖；要改就改订阅文件或 GUI 设置。GUI 的「订阅」只接受 <b>outbounds 数组</b>，不接受整份配置。</p>
 
-<h2>40-check-server.sh 输出怎么读</h2>
+<h2>服务端自检输出怎么读</h2>
+<p class="lede"><code>bin/deploy/check/server.sh</code>，只读，不改动任何东西。</p>
 <div class="tw">
 <table>
 <thead><tr><th>项</th><th>不通过意味着</th><th>动作</th></tr></thead>
 <tbody>
 <tr><td>sing-box 运行中 / 端口在监听</td><td>进程没起来，或端口被占</td><td><code>ss -tlnp | grep 443</code>、<code>journalctl -u sing-box -n 50</code></td></tr>
 <tr><td>配置已落盘</td><td><code>30</code> 没跑成功</td><td>重跑 <code>bash bin/deploy/one/server.sh</code></td></tr>
-<tr><td>日志无 error</td><td>配置被拒 / 证书读不到 / 端口绑定失败</td><td>看 error 那几行，对照下方「起不来的原因」</td></tr>
+<tr><td>日志无 error</td><td>配置被拒 / 证书读不到 / 端口绑定失败</td><td>只看本次启动之后的日志，上一轮的 FATAL 不算；对照下方「起不来的原因」</td></tr>
 <tr><td>拥塞控制 / NTP</td><td>内核模块没加载 / 时间漂移</td><td><code>modprobe tcp_bbr &amp;&amp; sysctl --system</code>；<code>systemctl restart systemd-timesyncd</code></td></tr>
 <tr><td>出站 IPv4 = SERVER_IP</td><td>多出口或走 NAT</td><td>确认 <code>deploy.env</code> 里的 IP 是对外的那个</td></tr>
 <tr><td>伪装站点 TLS1.3 / H2 / 证书可信</td><td>伪装站点选错，客户端会连不上</td><td>换 <code>REALITY_DEST</code>（<code>www.microsoft.com</code> 等）</td></tr>
@@ -97,7 +98,8 @@
 <p><b>不是故障。</b>REALITY 对任何拿不到正确凭据的 TLS 连接都会记这一行，并把它转发给伪装站点。扫描器、浏览器直接访问服务器 IP、参数写错的客户端，都会产生它。</p>
 <p>判断：看来源。不是自己的宽带地址 → 忽略；是自己的地址且客户端连不上 → 参数不匹配，对比这 6 项：服务器地址、端口、SNI、UUID、REALITY 公钥、short_id（外加 <code>flow</code> 必须一致）。</p>
 
-<h2>60-verify-client.sh 输出怎么读</h2>
+<h2>客户端验收输出怎么读</h2>
+<p class="lede"><code>bin/deploy/client/verify.sh</code>，七项按编号输出，退出码 0 全过 / 1 有失败项 / 2 代理没起来。</p>
 <div class="tw">
 <table>
 <thead><tr><th>项</th><th>期望</th><th>不通过说明</th></tr></thead>
@@ -105,7 +107,8 @@
 <tr><td>0 代理可用</td><td>出口 = <code>SERVER_IP</code></td><td>客户端没起来 / 端口不对 / 配置报错</td></tr>
 <tr><td>1 国内站点直连</td><td>绕过代理与走代理的 <b>ttfb</b> 接近</td><td>差很多 = 被绕进隧道；直接失败 = 直连 DNS 解析有问题（见本页第一节）</td></tr>
 <tr><td>2 延迟分解</td><td>复用 ttfb &lt; 0.5s，冷启动 &lt; 1.2s</td><td><code>TLS 完成</code> 偏大 = 丢包重传或晚高峰；<code>首包再 X</code> 偏大 = 目标站点或出口问题</td></tr>
-<tr><td>4 AI 站点</td><td>chatgpt 200/301/302</td><td>401/403/429 = 连上了但被风控，换 AI 出口</td></tr>
+<tr><td>3 DNS 接管</td><td>不自动判定</td><td>mixed 模式下命令行测不准，用浏览器开 dnsleaktest.com 复验；同时开两个客户端会抢 DNS</td></tr>
+<tr><td>4 AI 站点</td><td>chatgpt 200/301/302</td><td>401/403/429 = 连上了但被风控，标为提示而非失败；<code>000</code> 才是连不上</td></tr>
 <tr><td>5 握手质量</td><td>RTT 与丢包</td><td>没有 mtr/ping 时会被跳过，不算失败</td></tr>
 <tr><td>6 出口稳定</td><td>5 次同一地址</td><td>少于 3 次成功或多地址 = 不稳定</td></tr>
 </tbody>

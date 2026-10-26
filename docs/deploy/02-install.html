@@ -99,10 +99,23 @@ sudo bash bin/deploy/one/secrets.sh</code></pre>
 
 <h2>成功的样子</h2>
 <pre><code>[+] 已安装：sing-box version 1.14.3
-[+] 已生成：/etc/sing-box/deploy.env / /etc/sing-box/client.env / /etc/sing-box/devices.list</code></pre>
+[+] 已生成：/etc/sing-box/deploy.env / /etc/sing-box/client.env / /etc/sing-box/devices.list
+[+] 完成：22 4061 / 443/tcp / 8443-8447/udp 已放行
+
+完成：1 个步骤成功，0 个失败</code></pre>
 <p>版本号随 <code>SING_BOX_VERSION</code> 变。核对文件：</p>
 <pre><code>ls -l /etc/sing-box</code></pre>
-<p>应看到 <code>deploy.env</code>、<code>client.env</code>、<code>devices.list</code> 三个文件，目录 700、文件 600。</p>
+<p>应看到 <code>deploy.env</code>、<code>client.env</code>、<code>devices.list</code> 三个文件。权限随后续步骤变化，属正常：</p>
+<div class="tw">
+<table>
+<thead><tr><th>阶段</th><th>目录</th><th>文件</th><th>原因</th></tr></thead>
+<tbody>
+<tr><td>刚生成密钥</td><td><code>700 root:root</code></td><td><code>600</code></td><td>只有 root 需要读</td></tr>
+<tr><td>降权后</td><td><code>750 root:sing-box</code></td><td><code>config.json</code> 组内可读</td><td>进程以 <code>sing-box</code> 身份跑，要能读到配置</td></tr>
+</tbody>
+</table>
+</div>
+<p>用 <code>stat -c '%a %U:%G %n' /etc/sing-box /etc/sing-box/*.env</code> 核对，比记住数字可靠。</p>
 
 <h2>产物</h2>
 <div class="tw">

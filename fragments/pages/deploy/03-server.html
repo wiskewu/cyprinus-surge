@@ -60,7 +60,7 @@ sudo bash bin/deploy/one/harden.sh --revert  # 用备份的 .orig 覆盖回去�
 <tr><td><code>226/NAMESPACE</code></td><td>某项命名空间或文件系统隔离加不上</td><td>先去掉 <code>ProtectSystem=strict</code>、<code>ProtectHome</code>、<code>PrivateTmp</code>，逐条加回</td></tr>
 <tr><td><code>203/EXEC</code></td><td>执行阶段就被拒：二进制路径、权限或能力不够</td><td>先跑 <code>--minimal</code>，确认没有 <code>User=</code> 与能力集的问题</td></tr>
 <tr><td>降权后 <code>chdir … permission denied</code></td><td><code>/var/lib/sing-box</code> 还是 <code>root:root 700</code>，<code>sing-box</code> 用户进不去</td><td><code>ls -ld /var/lib/sing-box</code> 应显示 <code>sing-box sing-box</code>；脚本已显式 <code>chown</code>，并用 <code>StateDirectory</code> 让 systemd 兜底</td></tr>
-<tr><td>回滚后仍 <code>chdir … permission denied</code></td><td>原单元以 root 运行，但能力集里没有 <code>CAP_DAC_OVERRIDE</code>，root 不绕过文件权限；目录属主是 <code>sing-box</code>，root 成了「其他人」，<code>750</code> 的 <code>o</code> 位没有 <code>x</code></td><td><code>chown -R root:root /var/lib/sing-box &amp;&amp; chmod 700 /var/lib/sing-box</code>；<code>09-harden.sh --revert</code> 与自动回滚都已包含这一步</td></tr>
+<tr><td>回滚后仍 <code>chdir … permission denied</code></td><td>原单元以 root 运行，但能力集里没有 <code>CAP_DAC_OVERRIDE</code>，root 不绕过文件权限；目录属主是 <code>sing-box</code>，root 成了「其他人」，<code>750</code> 的 <code>o</code> 位没有 <code>x</code></td><td><code>chown -R root:root /var/lib/sing-box &amp;&amp; chmod 700 /var/lib/sing-box</code>；<code>bin/harden/harden.sh --uninstall</code> 与自动回滚都已包含这一步</td></tr>
 <tr><td><code>1</code> 且日志有 <code>permission denied</code></td><td>配置、证书或运行目录读不到</td><td><code>ls -l /etc/sing-box</code> 看是否 <code>root:sing-box</code>、目录 750、文件 640</td></tr>
 <tr><td><code>1</code> 且日志有 <code>operation not permitted</code></td><td>系统调用被 <code>SystemCallFilter</code> 拦下</td><td>去掉 <code>SystemCallFilter</code> 与 <code>SystemCallErrorNumber</code></td></tr>
 </tbody>
@@ -78,7 +78,8 @@ sudo bash bin/deploy/one/harden.sh --revert  # 用备份的 .orig 覆盖回去�
 sudo bash bin/deploy/device.sh add laptop [desktop|android|ios]   # 默认 desktop
 sudo bash bin/deploy/device.sh rotate laptop                       # 换凭据，旧配置立刻失效
 sudo bash bin/deploy/device.sh revoke laptop                       # 删掉，两条入口同时失效
-sudo bash bin/deploy/device.sh render laptop                       # 只重渲染客户端配置</code></pre>
+sudo bash bin/deploy/device.sh render laptop                       # 只重渲染客户端配置
+sudo bash bin/deploy/device.sh export laptop                       # 渲染并打包，附校验和</code></pre>
 <p>产物在 <code>/etc/sing-box/clients/sing-box-client-&lt;名字&gt;-&lt;平台&gt;.json</code>：</p>
 <pre><code>scp root@服务器:/etc/sing-box/clients/sing-box-client-laptop-desktop.json laptop@机器:~/</code></pre>
 <div class="warn"><b>每台设备只发它自己那一份。</b>整个 <code>devices.list</code> 落到任何一台机器上，就等于把所有设备的凭据都给了它。名单本身也要进 <code>.gitignore</code> 或单独加密存放。</div>

@@ -51,11 +51,20 @@ printf '== 2. 配置与日志 ==\n'
 chk "配置已落盘" "$(test -s "${DEPLOY_DIR}/config.json" && printf yes)" "yes"
 
 # 日志判定：把 REALITY 的认证噪声单独统计，不算故障。
-# 稳健性设计：只取最近 N 行（不做全量时间范围扫描，避免大日志卡住）；
+# 稳健性设计：只取本次启动之后的日志，上一轮失败的 FATAL 不该算在现在头上；
 # 每一步都能失败而不影响主流程，避免整个自检静默退出。
+log_since() {
+  local since
+  since="$(systemctl show -p ActiveEnterTimestamp --value sing-box 2>/dev/null || printf '')"
+  if [[ -n "${since}" ]]; then
+    journalctl -u sing-box --since "${since}" --no-pager 2>/dev/null || true
+  else
+    journalctl -u sing-box -n "${1:-2000}" --no-pager 2>/dev/null || true
+  fi
+}
 log_tail() { journalctl -u sing-box -n "${1:-2000}" --no-pager 2>/dev/null || true; }
 
-errs="$(log_tail 300 | grep -Ei 'error|fatal' \
+errs="$(log_since | grep -Ei 'error|fatal' \
   | grep -v 'REALITY: processed invalid connection' | tail -3 || true)"
 if [[ -n "${errs}" ]]; then
   printf '  \033[33m!\033[0m 日志里有错误：\n%s\n' "${errs}"
