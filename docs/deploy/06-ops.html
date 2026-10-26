@@ -106,13 +106,11 @@ bash bin/deploy/ops/backup.sh restore /root/backups/sing-box-日期.tgz</code></
 journalctl -u sing-box -n 50 --no-pager
 bash bin/deploy/check/server.sh</code></pre>
 
-<h2 id="monitor">观测：clash_api 与定时探针 <span class="tag">可选</span></h2>
+<h2 id="monitor">观测：定时探针 <span class="tag">可选</span></h2>
 <p>节点出问题时的两类问题（「服务还在不在」与「出口有没有被风控」）靠猜不准，用 <code>bin/deploy/ops/monitor.sh</code> 记成时序。</p>
-<pre><code>sudo bash bin/deploy/ops/monitor.sh              # 一键：打开 clash_api + 装 5 分钟探针 + 立刻跑一次
+<pre><code>sudo bash bin/deploy/ops/monitor.sh              # 一键：装 5 分钟探针并立刻跑一次
 sudo bash bin/deploy/ops/monitor.sh --probe      # 只跑一次探针
-sudo bash bin/deploy/ops/monitor.sh --status     # 看最近 20 条记录与 clash_api 概览
-sudo bash bin/deploy/ops/monitor.sh --connections # 按来源 IP 汇总当前连接（看所有设备）
-sudo bash bin/deploy/ops/monitor.sh --clash-api on|off
+sudo bash bin/deploy/ops/monitor.sh --status     # 看最近 20 条记录与端口状态
 sudo bash bin/deploy/ops/monitor.sh --uninstall</code></pre>
 
 <h3>探针记了什么</h3>
@@ -129,57 +127,6 @@ sudo bash bin/deploy/ops/monitor.sh --uninstall</code></pre>
 </table>
 </div>
 <p>记录落在 <code>/var/lib/sing-box-monitor/probe.log</code>，只保留最近 5000 行。定时器是 <code>sing-box-probe.timer</code>，每 5 分钟一次。</p>
-
-<h3>clash_api 面板</h3>
-<p>开关由 <code>deploy.env</code> 的 <code>ENABLE_CLASH_API</code> 控制，开启后重渲染配置并写进 <code>experimental.clash_api</code>，只绑 <code>127.0.0.1:9090</code>。远程看要开 SSH 隧道：</p>
-<pre><code>ssh -N -L 9090:127.0.0.1:9090 root@你的服务器IP
-# 浏览器打开 http://127.0.0.1:9090/ui</code></pre>
-<div class="warn"><b><code>/ui</code> 需要面板文件。</b>clash_api 只提供 REST 接口，不自带前端，没装面板时访问 <code>/ui</code> 是 404。装一次即可：<code>sudo bash bin/deploy/ops/monitor.sh --ui</code>，它下载 metacubexd 到 <code>/var/lib/sing-box/ui</code> 并重渲染配置写入 <code>external_ui</code>。面板文件放在运行目录而不是 <code>/etc/sing-box</code>，避免被 <code>bin/deploy/ops/backup.sh</code> 打进每次备份。</div>
-<div class="bad"><b>不要把它绑到 0.0.0.0。</b>面板能看到全部连接与规则命中，暴露公网等于把控制面交出去；本脚本固定写回环地址。</div>
-<h4>面板读的是哪个配置</h4>
-<p>面板只跟<b>正在运行的那个 sing-box 实例</b>对话，数据来自它的运行状态，与 <code>/etc/sing-box/clients/*.json</code> 无关：</p>
-<ul>
-<li>通过 <code>ssh -L 9090:127.0.0.1:9090</code> 转发后访问 <code>/ui</code>，看的是服务器实例，也就是 <code>/etc/sing-box/config.json</code> 渲染出来的那份；</li>
-<li><code>clients/</code> 下那几份 JSON 是发给客户端机器导入的，服务器上的这个实例一份也不读，有多少份都不影响面板显示；</li>
-<li>要看代理组、延迟测试与规则命中，得让面板连到<b>客户端侧</b>运行的 sing-box：那份进程加载的是 client JSON，代理组与 rules 都在它里面。</li>
-</ul>
-<h4>看所有设备的流量</h4>
-<p>面板是<b>单个 sing-box 进程</b>的观测面，不是多设备管理台。服务端这个进程是所有设备流量的出口，所以它能看到「谁连进来了、用了多少」，但区分手段只有连接的来源 IP：<code>clash_api</code> 不暴露 VLESS 用户名。</p>
-<pre><code>sudo bash bin/deploy/ops/monitor.sh --connections</code></pre>
-<pre><code>  来源 IP            连接  上传    下载    入口
-  198.51.100.7         2      3K        6M        vless-in
-  203.0.113.9          1      40K       2M        hy2-in
-  合计               3      43K       8M        -</code></pre>
-<p>这份输出是三件事的合计：每台设备的活跃连接数、上下行字节数、走的是 VLESS 还是 Hysteria2。限制与适用边界：</p>
-<ul>
-<li><b>同一 NAT 后的多台设备会合并成一行</b>，源 IP 相同就分不开；</li>
-<li>连接关掉就消失，<code>--connections</code> 只反映当前活跃连接，历史用量看 <code>vnstat</code>（<code>--status</code> 里的月流量）；</li>
-<li>每台设备自己的代理组选择、规则命中、单连接明细，都在那台设备的 sing-box 进程里，服务端看不到也管不了。</li>
-</ul>
-<p>要看单台设备的这些细节，在该设备的 client JSON 里加一段，然后用同一套面板连本机：</p>
-<pre><code>"experimental": { "clash_api": { "external_controller": "127.0.0.1:9090" } }</code></pre>
-<p>服务端配置只有 <code>direct</code> 出站、没有 <code>route.rules</code>，是因为分流在客户端做：服务端只负责把收到的流量发出去。只有当你想让服务端按目的地改走别的出口（例如 AI 流量走第二个落地）时，才需要在服务端加 outbound 与规则，那时「代理」「规则」两栏才会有内容。</p>
-<h4>面板里为什么大多是空的</h4>
-<p>这套服务端配置只有一个 <code>direct</code> 出站、没有 <code>route.rules</code>、<code>log.level=warn</code>，所以面板大部分栏目<strong>本来就没有数据</strong>。各栏的数据源与预期形态：</p>
-<div class="tw">
-<table>
-<thead><tr><th>模块</th><th>端点</th><th>这套配置下的形态</th></tr></thead>
-<tbody>
-<tr><td>概览</td><td>聚合下面各栏</td><td>下面几栏都空时它也是空的</td></tr>
-<tr><td>代理</td><td><code>/proxies</code></td><td>只有 <code>direct</code>；服务端没有 selector / urltest，没有可切换、可测延迟的对象</td></tr>
-<tr><td>规则</td><td><code>/rules</code></td><td>服务端没有 <code>route.rules</code>，分流规则写在客户端 JSON 里，服务端看不到</td></tr>
-<tr><td>连接</td><td><code>/connections</code></td><td>只列活跃连接；无人连接或刚重启过就是 0 条</td></tr>
-<tr><td>用量</td><td><code>/traffic</code></td><td>流式端点。实测 sing-box 1.14.3 在服务端角色下这一路恒为 <code>{"up":0,"down":0}</code>，即使 <code>/connections</code> 的 <code>downloadTotal</code> 在增长；同一版本作为客户端运行时能出数据。要看待用量请把面板开在客户端</td></tr>
-<tr><td>日志</td><td><code>/logs</code></td><td><code>log.level=warn</code> 时只有 warn 以上事件；正常运行时长期为空</td></tr>
-</tbody>
-</table>
-</div>
-<p>先确认 API 活着，再看哪一栏该有数据：</p>
-<pre><code>systemctl is-active sing-box
-curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:9090/version     # 200 说明 API 在
-sudo bash bin/deploy/ops/monitor.sh --status                                # 逐端点打印状态码与字节数</code></pre>
-<div class="warn"><b>服务挂掉时标签页不会自己变空页。</b>页面文件已被浏览器缓存，标签页仍会渲染出各栏布局，但所有请求都失败，看起来就是「全部空白」。先跑上面那两行确认 <code>sing-box</code> 在跑、<code>/version</code> 返回 200。</div>
-<div class="note">要按出口看连接数：<code>curl -s http://127.0.0.1:9090/connections | jq '[.connections[].chains[-1]] | group_by(.) | map({(.[0]): length}) | add'</code>。<code>--status</code> 已经做了这一步，没装 <code>jq</code> 时退回原始输出。</div>
 
 <h2>导出与回滚</h2>
 <p>分发一次不只发一个 JSON：包里带上校验和，收端先校验再导入，避免传输截断。</p>
@@ -207,7 +154,7 @@ sudo bash bin/deploy/ops/backup.sh backup --insecure   # 明确要明文时才�
 <tbody>
 <tr><td>口令文件</td><td><code>/root/.backup-passphrase</code></td><td>权限 600，可用 <code>BACKUP_PASSPHRASE_FILE</code> 改</td></tr>
 <tr><td>产物</td><td><code>sing-box-&lt;时间&gt;.tgz.gpg</code> 或 <code>.enc</code></td><td>扩展名区分加密方式，恢复时自动识别</td></tr>
-<tr><td>备份范围</td><td><code>/etc/sing-box</code> 与 systemd 单元</td><td>面板文件在运行目录，不进备份</td></tr>
+<tr><td>备份范围</td><td><code>/etc/sing-box</code> 与 systemd 单元</td><td>客户端配置在 <code>/etc/sing-box/clients</code>，随目录一起备份</td></tr>
 </tbody>
 </table>
 </div>

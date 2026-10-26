@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bin/deploy/ops/monitor.sh —— 服务端观测：只读 clash_api + 定时探针。
+# bin/deploy/ops/monitor.sh —— 服务端观测：定时探针（端口 / 出口 IP / AI 可达 / 丢包延迟）。
 #   探针记四件事：服务与端口、服务器出口 IP、AI 站点可达性、到 1.1.1.1 的丢包与延迟。
 #   结果按 CSV 追加到 /var/lib/sing-box-monitor/probe.log，定时器每 5 分钟跑一次。
 set -euo pipefail
@@ -12,7 +12,6 @@ PROBE_LOG="${STATE_DIR}/probe.log"
 PROBE_KEEP="${PROBE_KEEP:-5000}"
 SERVICE_UNIT="/etc/systemd/system/sing-box-probe.service"
 TIMER_UNIT="/etc/systemd/system/sing-box-probe.timer"
-CLASH_API_LISTEN="${CLASH_API_LISTEN:-127.0.0.1:9090}"
 
 MODE=setup
 
@@ -20,41 +19,24 @@ usage() {
   cat <<'EOF'
 用法：sudo bash bin/deploy/ops/monitor.sh [选项]
 
-  （不带选项）        安装：打开 clash_api（重新渲染并重启 sing-box）+ 装 5 分钟探针定时器
-  --clash-api on|off  只切换 clash_api；on 会重渲染服务端配置
-  --ui                下载面板（metacubexd）到运行目录，之后 /ui 可用
+  （不带选项）        安装：装 5 分钟探针定时器并立刻跑一次
   --probe             走一次探针并评估告警
   --alert-check       只评估告警
   --alert-test        发一条测试告警
-  --status            看最近 20 条探针与 clash_api 概览
-  --connections       按来源 IP 汇总当前活跃连接（所有设备共用服务器实例）
-  --uninstall         停并删定时器，关掉 clash_api
+  --status            看最近 20 条探针与当前端口状态
+  --uninstall         停并删探针定时器
   -h, --help          显示帮助
 
-clash_api 只绑 127.0.0.1。远程看面板走 SSH 隧道：
-  ssh -N -L 9090:127.0.0.1:9090 <服务器>
-然后在浏览器打开 http://127.0.0.1:9090/ui
+探针每次记四项：服务与端口、服务器出口 IP、AI 站点可达性、到 1.1.1.1 的丢包与延迟。
 EOF
 }
 
-CLASH_ARG=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --clash-api)
-      shift
-      CLASH_ARG="${1:?--clash-api 需要 on|off}"
-      MODE=clash
-      ;;
-    --clash-api=*)
-      CLASH_ARG="${1#*=}"
-      MODE=clash
-      ;;
-    --ui) MODE=ui ;;
     --probe) MODE=probe ;;
     --alert-check) MODE=alertcheck ;;
     --alert-test) MODE=alerttest ;;
     --status) MODE=status ;;
-    --connections) MODE=connections ;;
     --uninstall) MODE=uninstall ;;
     -h | --help)
       usage
@@ -151,141 +133,6 @@ run_probe() {
   probe_once >>"${PROBE_LOG}"
   trim_log
   alert_check || true
-}
-
-# ---------------------------------------------------------------- 面板
-# 面板各栏对应的端点。空不等于故障：服务端配置只有一个 direct 出站、没有
-# route.rules，代理与规则两栏本来就该是空的；log.level=warn 时日志栏也长期为空。
-panel_status() {
-  local base="http://${CLASH_API_LISTEN}" path out
-  printf '\n== 面板端点（浏览器里空白的那几栏对应下面几行）==\n'
-  for path in /version /configs /proxies /rules /connections /traffic /logs; do
-    out="$(curl -s -m 2 -o /dev/null -w '%{http_code} %{size_download}' "${base}${path}" 2>/dev/null || true)"
-    [[ -n "${out}" ]] || out='000 0'
-    printf '  %-12s HTTP %s  %6s 字节\n' "${path}" "${out%% *}" "${out##* }"
-  done
-  printf '  proxies 只有 direct、rules 为空、logs 为空（log.level=warn）是这套服务端配置的正常形态；\n'
-  printf '  connections 与 traffic 只在有活跃连接时才有数据，traffic 与 logs 是流式端点，按 2 秒采样。\n'
-}
-
-# ---------------------------------------------------------------- 状态
-show_status() {
-  need_root
-  printf '== 服务 ==\n'
-  printf '%s\t%s\n' 'sing-box' "$(systemctl is-active sing-box 2>/dev/null || printf '未知')"
-  printf '%s\t%s\n' 'VLESS 端口' "$(port_listening tcp "${VLESS_PORT}" && printf '%s/tcp 在监听' "${VLESS_PORT}" || printf '%s/tcp 未监听' "${VLESS_PORT}")"
-  if [[ "${ENABLE_HY2}" == "1" ]]; then
-    printf '%s\t%s\n' 'Hysteria2' "$(port_listening udp "${HY2_PORT}" && printf '%s/udp 在监听' "${HY2_PORT}" || printf '%s/udp 未监听' "${HY2_PORT}")"
-  fi
-  printf '%s\t%s\n' '探针定时器' "$(systemctl is-active sing-box-probe.timer 2>/dev/null || printf '未安装')"
-
-  printf '\n== 最近探针 ==\n'
-  if [[ -f "${PROBE_LOG}" ]]; then
-    head -n1 "${PROBE_LOG}" | tr ',' '\t' | awk '{printf "%-20s %-8s %-5s %-5s %-16s %-8s %-4s %-8s %s\n", $1,$2,$3,$4,$5,$6,$7,$8,$9}'
-    tail -n 20 "${PROBE_LOG}" | tail -n +2 | tr ',' '\t' | awk '{printf "%-20s %-8s %-5s %-5s %-16s %-8s %-4s %-8s %s\n", $1,$2,$3,$4,$5,$6,$7,$8,$9}'
-  else
-    printf '还没有记录，跑一次：sudo bash %s --probe\n' "$0"
-  fi
-
-  printf '\n== clash_api ==\n'
-  if ! curl -fsS -m 3 "http://${CLASH_API_LISTEN}/version" >/dev/null 2>&1; then
-    printf '未开启（sudo bash %s --clash-api on）\n' "$0"
-    return 0
-  fi
-  panel_status
-  if command -v jq >/dev/null 2>&1; then
-    curl -fsS -m 3 "http://${CLASH_API_LISTEN}/connections" \
-      | jq -r '"连接数 \(.connections | length)  下载 \(.downloadTotal / 1048576 | floor) MiB  上传 \(.uploadTotal / 1048576 | floor) MiB",
-             (.connections | group_by(.chains | last) | map("  \(.[0].chains | last): \(length) 条") | .[])' 2>/dev/null \
-      || printf '解析失败，直接看原始输出：curl -s http://%s/connections\n' "${CLASH_API_LISTEN}"
-  else
-    printf '未装 jq，原始输出：curl -s http://%s/connections\n' "${CLASH_API_LISTEN}"
-  fi
-}
-
-# 按来源 IP 汇总当前活跃连接：服务端实例能看到所有设备进来的连接，但只在
-# metadata.sourceIP 上有区分，clash_api 不暴露 VLESS 用户名。同一出口 NAT 后
-# 的多台设备会合并成一行。
-show_connections() {
-  need_root
-  if ! curl -fsS -m 3 "http://${CLASH_API_LISTEN}/version" >/dev/null 2>&1; then
-    die "clash_api 未开启（sudo bash $0 --clash-api on）"
-  fi
-  command -v jq >/dev/null 2>&1 || die "需要 jq：sudo apt-get install -y jq"
-  local out
-  out="$(curl -fsS -m 5 "http://${CLASH_API_LISTEN}/connections" | jq -r '
-    def human:
-      if . >= 1048576 then ((. / 1048576 * 10 | floor) / 10 | tostring) + "M"
-      elif . >= 1024 then ((. / 1024 * 10 | floor) / 10 | tostring) + "K"
-      else (. | tostring) + "B" end;
-    .connections as $c
-    | if ($c | length) == 0 then empty
-      else
-        (["来源 IP", "连接", "上传", "下载", "入口"] | @tsv),
-        ($c
-          | group_by(.metadata.sourceIP)
-          | map({ip: .[0].metadata.sourceIP, n: length,
-                 up: (map(.upload) | add), down: (map(.download) | add),
-                 kinds: (map(.metadata.type) | map(split("/") | last) | unique | join(","))})
-          | sort_by(-(.up + .down))
-          | .[] | [.ip, (.n | tostring), (.up | human), (.down | human), .kinds] | @tsv),
-        (["合计", (($c | length) | tostring),
-          (($c | map(.upload) | add) | human),
-          (($c | map(.download) | add) | human), "-"] | @tsv)
-      end')" || die "读取 /connections 失败"
-  if [[ -z "${out}" ]]; then
-    printf '  当前没有活跃连接（设备空闲，或刚重启过）\n'
-    return 0
-  fi
-  printf '%s\n' "${out}" | awk -F'\t' '{ printf "  %-20s %-6s %-9s %-9s %s\n", $1, $2, $3, $4, $5 }'
-  printf '\n来源 IP 是设备的出口地址；同一 NAT 后的多台设备会合并成一行。\n'
-  printf '要看单台设备的代理组与规则命中，得连那台设备上运行实例的 clash_api。\n'
-}
-
-# ---------------------------------------------------------------- clash_api
-set_clash_api() {
-  local want="$1"
-  need_root
-  case "${want}" in on | off) ;; *) die "--clash-api 只接受 on / off" ;; esac
-  if [[ "${want}" == on ]]; then
-    env_set ENABLE_CLASH_API 1
-    env_set CLASH_API_LISTEN "${CLASH_API_LISTEN}"
-    log "重新渲染服务端配置并重启 sing-box"
-    bash "${SELF_DIR}/../one/server.sh"
-    curl -fsS -m 3 "http://${CLASH_API_LISTEN}/version" >/dev/null 2>&1 \
-      || die "clash_api 没起来：检查 config.json 的 experimental.clash_api，以及 ${ENVFILE} 里的 ENABLE_CLASH_API"
-    log "clash_api 已开启：${CLASH_API_LISTEN}（SSH 隧道：ssh -N -L 9090:127.0.0.1:9090 <服务器>）"
-  else
-    env_set ENABLE_CLASH_API 0
-    log "关闭 clash_api 并重启 sing-box"
-    bash "${SELF_DIR}/../one/server.sh"
-  fi
-}
-
-# ---------------------------------------------------------------- 面板
-UI_DIR="/var/lib/sing-box/ui"
-
-install_ui() {
-  need_root
-  local url="https://github.com/MetaCubeX/metacubexd/releases/latest/download/compressed-dist.tgz"
-  command -v curl >/dev/null 2>&1 || die "缺少 curl"
-  local pkg
-  mktemp_dir pkg
-  log "下载面板到 ${UI_DIR}"
-  curl -fsSL -m 120 -o "${pkg}/ui.tgz" "${url}" \
-    || die "下载失败；可手工把 metacubexd 的 dist 解到 ${UI_DIR}"
-  install -d -m 750 "${UI_DIR}"
-  tar xzf "${pkg}/ui.tgz" -C "${UI_DIR}" || die "解包失败"
-  local owner
-  owner="$(systemctl show -p User --value sing-box 2>/dev/null || true)"
-  [[ -n "${owner}" ]] || owner=root
-  chown -R "${owner}:$(id -gn "${owner}")" "${UI_DIR}"
-  find "${UI_DIR}" -type d -exec chmod 750 {} +
-  find "${UI_DIR}" -type f -exec chmod 640 {} +
-  log "面板就位：$(du -sh "${UI_DIR}" | cut -f1)"
-  printf '  打开方式：ssh -N -L 9090:127.0.0.1:9090 <服务器>，然后访问 http://127.0.0.1:9090/ui\n'
-  # 让配置带上 external_ui
-  bash "${SELF_DIR}/../one/server.sh"
 }
 
 # ---------------------------------------------------------------- 定时器
@@ -465,31 +312,16 @@ case "${MODE}" in
     show_status
     exit 0
     ;;
-  connections)
-    show_connections
-    exit 0
-    ;;
-  clash)
-    set_clash_api "${CLASH_ARG}"
-    exit 0
-    ;;
-  ui)
-    install_ui
-    exit 0
-    ;;
   uninstall)
     need_root
     remove_timer
-    set_clash_api off || true
-    log "已卸载观测：定时器与 clash_api 都关了"
+    log "已卸载观测：探针定时器已移除（探针记录保留）"
     exit 0
     ;;
 esac
 
 need_root
-log "1/2 打开 clash_api"
-set_clash_api on
-log "2/2 安装探针定时器"
+log "安装探针定时器"
 install_timer
 run_probe
 show_status
