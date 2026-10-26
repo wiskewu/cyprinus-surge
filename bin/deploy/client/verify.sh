@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # bin/deploy/client/verify.sh —— 在【客户端机器】做验收测试（用本地 mixed 入站，不需要 TUN）。
-# 用法： SERVER_IP=1.2.3.4 VLESS_PORT=443 bash bin/deploy/client/verify.sh             # device.sh 流程：只有 JSON，没有 client.env
+# 用法： SERVER_IP=1.2.3.4 VLESS_PORT=443 bash bin/deploy/client/verify.sh             # 客户端只有 JSON，没有 client.env
 #       SERVER_IP=1.2.3.4 PROXY=socks5h://127.0.0.1:20122 bash bin/deploy/client/verify.sh  # GUI 的端口
 #       HY2_ONLY=1 CONFIG=client.json SERVER_IP=1.2.3.4 bash bin/deploy/client/verify.sh   # 只测 Hysteria2 出站
 #       HY2_ONLY=emit CONFIG=client.json HY2_OUT=hy2.json bash bin/deploy/client/verify.sh  # 只生成配置给图形客户端导入
@@ -12,8 +12,6 @@
 #   4) 走 SOCKS 时 time_connect 只是到本地代理的几毫秒，不能当路径指标
 #   5) HY2_ONLY=1：只拿 Hysteria2 出站跑一遍，用来证明第二入口真的能用
 set -uo pipefail # 验收脚本要跑完全部检查项，故不启用 -e
-CLIENT_ENV_FILE="./client.env"
-ENVFILE="${CLIENT_ENV_FILE}"
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=SCRIPTDIR/../lib.sh
 . "${SELF_DIR}/../lib.sh"
@@ -31,7 +29,7 @@ while [[ $# -gt 0 ]]; do
     --proxy=*) PROXY="${1#*=}" ;;
     -h | --help)
       cat <<'EOF'
-用法：bash bin/deploy/client/verify.sh [client.env] [选项]
+用法：bash bin/deploy/client/verify.sh [选项]
 
   --no-cli          免 CLI 子集：只查代理可用、分流、AI 可达、出口稳定
   --proxy URL       本地代理地址，例如 socks5h://127.0.0.1:7890
@@ -43,8 +41,7 @@ EOF
       ;;
     -*) usage_error "未知参数：$1" ;;
     *)
-      CLIENT_ENV_FILE="$1"
-      ENVFILE="$1"
+      usage_error "不接受位置参数：$1（服务器地址走 SERVER_IP，配置文件走 CONFIG）"
       ;;
   esac
   shift
@@ -64,21 +61,8 @@ HY2_PROBE_PORT="${HY2_PROBE_PORT:-2081}"
 SING_BOX_BIN="${SING_BOX_BIN:-sing-box}"
 # HY2_ONLY=emit 时写出的文件；留空则落在当前目录 hy2-only.json
 HY2_OUT="${HY2_OUT:-}"
-# 环境文件可有可无：脚本真正用到的只有 SERVER_IP / VLESS_PORT。
-# 用 device.sh 发设备配置时，客户端手上只有一份 JSON，不该把 client.env 发过去，
-# 免 CLI 子集与 emit 模式同样不需要它。
-if [[ "${NO_CLI}" == 1 ]]; then
-  :
-elif [[ "${HY2_ONLY}" == "emit" ]] && [[ ! -f "${ENVFILE}" ]] && [[ -z "${SERVER_IP:-}" ]]; then
-  # 只生成配置、不联网，SERVER_IP / client.env 都用不到
-  printf '\033[33m[!]\033[0m HY2_ONLY=emit 只写文件、不联网，跳过 %s\n' "${ENVFILE}" >&2
-elif [[ -f "${ENVFILE}" ]]; then
-  load_env "${ENVFILE}"
-elif [[ -n "${SERVER_IP:-}" ]]; then
-  printf '\033[33m[!]\033[0m 没有 %s，按命令行给的 SERVER_IP / VLESS_PORT 继续\n' "${ENVFILE}" >&2
-else
-  die "缺少 SERVER_IP：按 device.sh 流程直接给变量 SERVER_IP=你的服务器IP VLESS_PORT=443；旧流程的 ${ENVFILE} 也认"
-fi
+# 客户端手上只有服务器发来的 JSON，服务器地址与端口一律由变量给（见 05-client.html）。
+# 免 CLI 子集与 emit 模式都不联网，SERVER_IP 可以不填。
 SERVER_IP="${SERVER_IP:-}"
 VLESS_PORT="${VLESS_PORT:-443}"
 
@@ -267,7 +251,7 @@ if [[ -z "${first}" ]]; then
     2) 端口对吗？GUI.for.SingBox 默认 20122，我们自己生成的配置是 2080
     3) 配置里有 mixed 入站吗？手机配置（CLIENT_MIXED=0）只有 TUN，没有本地端口
     4) 换端口跑：PROXY=socks5h://127.0.0.1:端口 SERVER_IP=你的服务器IP bash bin/deploy/client/verify.sh
-    5) 记得带上服务器地址：SERVER_IP=服务器IP VLESS_PORT=443（device.sh 流程没有 client.env，全靠这两个变量）
+    5) 记得带上服务器地址：SERVER_IP=服务器IP VLESS_PORT=443，客户端没有 client.env 可读
 EOF
   exit 2
 fi

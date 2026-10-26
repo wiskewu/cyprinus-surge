@@ -1,19 +1,13 @@
 #!/usr/bin/env bash
-# bin/deploy/client/render.sh —— 在【客户端机器】生成 sing-box 配置。
+# bin/deploy/client/render.sh —— 渲染 sing-box 客户端配置。
 #
 # 用法：
-#   bash bin/deploy/client/render.sh client.env                    # 单份（完全按 client.env + 命令行变量）
-#   bash bin/deploy/client/render.sh client.env --all              # 一次生成 desktop / android / ios 三份
-#   bash bin/deploy/client/render.sh client.env desktop android    # 只生成指定端
-#   bash bin/deploy/client/render.sh deploy.env --device laptop    # 服务端专用：拿该设备的凭据渲染
-#   OUTDIR=./data bash bin/deploy/client/render.sh client.env --all   # 默认就是 data/
+#   bash bin/deploy/client/render.sh client.env --device laptop    # 按设备凭据渲染，平台取自 devices.list
+#   bash bin/deploy/client/render.sh client.env                    # 单份，所有变量由命令行与 client.env 决定
 #
-# --device 从 devices.list 取该设备的凭据并覆盖 UUID / HY2_PASSWORD，
-# 输出文件名带设备名。应在【服务器】上跑（devices.list 在那边），生成好的 JSON 再分发。
-#
-# 单份模式（不带端名）语义不变：OUT=... 或默认 ./sing-box-client.json，所有变量由你决定。
-# 多端模式会用内置预设覆盖「平台相关」的两项（CLIENT_MIXED / AUTO_DETECT_INTERFACE），
-# 其余仍来自 client.env；需要特殊组合时用单份模式自己指定。
+# --device 在【服务器】上跑：从 devices.list 取该设备的凭据覆盖 UUID / HY2_PASSWORD，
+# 平台预设覆盖「平台相关」的两项（CLIENT_MIXED / AUTO_DETECT_INTERFACE），输出文件名带设备名。
+# 单份模式给内部测试用，例如 bin/deploy/check/ai-exit.sh 会临时渲染一份来验路由。
 set -euo pipefail
 
 # 第一个参数如果不是 - 开头，就当成环境文件
@@ -29,27 +23,21 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 usage() {
   cat <<'USAGE'
 用法：
-  bash bin/deploy/client/render.sh client.env                   # 单份（完全按 client.env + 命令行变量）
-  bash bin/deploy/client/render.sh client.env --all             # 一次生成 desktop / android / ios
-  bash bin/deploy/client/render.sh client.env desktop android   # 只生成指定端
-  bash bin/deploy/client/render.sh deploy.env --device laptop   # 按设备凭据渲染（需在服务器上跑）
-  OUTDIR=./data bash bin/deploy/client/render.sh client.env --all
+  bash bin/deploy/client/render.sh client.env --device laptop   # 按设备凭据渲染（在服务器上跑）
+  bash bin/deploy/client/render.sh client.env                   # 单份，变量全由命令行与 client.env 决定
 
-单份模式：OUT=... 或默认 data/sing-box-client.json，所有变量由你决定。
-多端模式：内置预设覆盖平台相关项（CLIENT_MIXED / AUTO_DETECT_INTERFACE），其余来自 client.env。
-          桌面若报 not valid in its context，在前面加 AUTO_DETECT_INTERFACE=false。
-产物一律落在 OUTDIR（默认 ./data，已在 .gitignore 里），不要往脚本目录写。
---device ：从 devices.list 取该设备凭据覆盖 UUID/HY2_PASSWORD，文件名带设备名。
+--device：从 devices.list 取该设备凭据覆盖 UUID/HY2_PASSWORD，平台取自名单，文件名带设备名。
+          输出 /etc/sing-box/clients/sing-box-client-<名字>-<平台>.json。
+单份模式：给内部测试用，OUT=... 或默认 data/sing-box-client.json。
+平台预设会覆盖 CLIENT_MIXED 与 AUTO_DETECT_INTERFACE；桌面报 not valid in its context 时
+在渲染前加 AUTO_DETECT_INTERFACE=false 与 DEFAULT_INTERFACE=<网卡名>。
 USAGE
 }
 
 # ---------- 解析参数 ----------
-TARGETS=()
-ALL=0
 DEVICE=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --all) ALL=1 ;;
     --device)
       shift
       [[ $# -gt 0 ]] || die "--device 后面要跟设备名"
@@ -60,13 +48,11 @@ while [[ $# -gt 0 ]]; do
       usage
       exit 0
       ;;
-    desktop | android | ios) TARGETS+=("$1") ;;
-    *) die "未知参数：$1（可选：--all / --device NAME / desktop / android / ios）" ;;
+    *) die "未知参数：$1（可选：--device NAME）" ;;
   esac
   shift
 done
 [[ -n "${DEVICE}" ]] || DEVICE="" # 避免后面 ${DEVICE:-} 之外的引用踩到 unset
-if [[ "${ALL}" == 1 ]]; then TARGETS=(desktop android ios); fi
 
 [[ -f "${ENVFILE}" ]] || die "找不到 ${ENVFILE}，从服务器 /etc/sing-box/client.env 复制一份"
 
@@ -102,8 +88,6 @@ if [[ -n "${DEVICE}" ]]; then
   DEVICE_PLATFORM="${_row#* }"
   export UUID="${_cred}" HY2_PASSWORD="${_cred}"
   unset _row _cred
-  # 名单里记的平台就是默认目标端，除非命令行显式指定了别的
-  if [[ "${#TARGETS[@]}" -eq 0 ]]; then TARGETS=("${DEVICE_PLATFORM}"); fi
 fi
 
 # ---------- 校验与派生 ----------
@@ -169,21 +153,17 @@ derive_self_direct() {
 }
 
 # 端预设：只覆盖平台相关的两项，其余沿用 client.env
-apply_target() {
-  local pre=""
-  [[ -n "${DEVICE}" ]] && pre="-${DEVICE}"
-  case "$1" in
-    desktop) TARGET_OUT="${OUTDIR}/sing-box-client${pre}-$1.json" ;;
-    android)
-      TARGET_OUT="${OUTDIR}/sing-box-client${pre}-$1.json"
+# 平台相关的两项由预设决定，其余变量仍来自 client.env 与命令行
+apply_platform() {
+  local platform="$1"
+  TARGET_OUT="${OUTDIR}/sing-box-client-${DEVICE}-${platform}.json"
+  case "${platform}" in
+    desktop) ;;
+    android | ios)
       CLIENT_MIXED=0
       AUTO_DETECT_INTERFACE=true
       ;;
-    ios)
-      TARGET_OUT="${OUTDIR}/sing-box-client${pre}-$1.json"
-      CLIENT_MIXED=0
-      AUTO_DETECT_INTERFACE=true
-      ;;
+    *) die "平台只能是 desktop / android / ios，实际是 ${platform}" ;;
   esac
 }
 
@@ -303,8 +283,8 @@ render_one() {
 # ---------- 主流程 ----------
 validate_common
 
-if [[ "${#TARGETS[@]}" -eq 0 ]]; then
-  # 单份模式：完全按环境变量（保持旧行为）
+if [[ -z "${DEVICE}" ]]; then
+  # 单份模式：完全按环境变量
   render_one "${OUT:-${OUTDIR}/sing-box-client.json}"
   cat <<EOF
 
@@ -317,9 +297,5 @@ EOF
   exit 0
 fi
 
-log "生成 ${#TARGETS[@]} 份：${TARGETS[*]}$([[ -n "${DEVICE}" ]] && printf '，设备 %s' "${DEVICE}")"
-for t in "${TARGETS[@]}"; do
-  apply_target "${t}"
-  render_one "${TARGET_OUT}"
-done
-printf '\n共 %d 份，输出目录：%s\n' "${#TARGETS[@]}" "${OUTDIR}"
+apply_platform "${DEVICE_PLATFORM}"
+render_one "${TARGET_OUT}"

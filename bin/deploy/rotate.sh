@@ -182,7 +182,7 @@ esac
 cat <<EOF
 
 轮换完成。仍有三步收尾：
-  1) 重新渲染并分发客户端：bash ${SELF_DIR}/device.sh render <名字>（或 --all 平台）
+  1) 重新渲染并分发客户端：bash ${SELF_DIR}/device.sh export <名字>
   2) 旧客户端配置已失效，让对方删除后重新导入
   3) 若目标是应对泄露，确认旧凭据所在的备份与聊天记录一并清理
 EOF
