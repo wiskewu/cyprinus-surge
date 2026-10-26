@@ -96,17 +96,17 @@ sshd -T | grep -i '^port'</code></pre>
 <p>脚本会写 <code>/etc/ssh/sshd_config.d/99-proxy.conf</code> 关闭密码登录，但 <b>sshd 对每个关键字只取「第一个出现的值」</b>，所以 drop-in 不一定算数：</p>
 <ul>
 <li><b>Ubuntu 镜像自带 <code>50-cloud-init.conf</code> 里写着 <code>PasswordAuthentication yes</code></b>，<code>50</code> 排在 <code>99</code> 前面 → 它赢。脚本会就地改掉这个文件（原文件备份为 <code>.orig</code>）。</li>
-<li><b>有些镜像（含部分云厂商自定义镜像）的 <code>sshd_config</code> 根本没有 <code>Include sshd_config.d</code></b>，那 drop-in 就是一整个死文件，密码登录字面没变。脚本会补一条 <code>Include /etc/ssh/sshd_config.d/*.conf</code> 到文件最顶部（备份 <code>sshd_config.before-include</code>），<code>sshd -t</code> 不过就回滚。</li>
+<li><b>有些镜像的 <code>sshd_config</code> 没有 <code>Include sshd_config.d</code> 一行，部分云厂商自定义镜像即如此</b>，那 drop-in 就是一整个死文件，密码登录字面没变。脚本会补一条 <code>Include /etc/ssh/sshd_config.d/*.conf</code> 到文件最顶部（备份 <code>sshd_config.before-include</code>），<code>sshd -t</code> 不过就回滚。</li>
 <li>两种都处理完还不行，脚本不再一句「请手工确认」了之，而是把<b>当前生效值</b>和<b>谁设的这个关键字</b>列出来（排除自己的 <code>.orig</code> 备份），照着改靠前那个。</li>
 </ul>
-<p>上一轮报过 <code>[!]     未生效：/etc/ssh/sshd_config 里可能没有 Include sshd_config.d</code> 的，就是上面第二条，把脚本重新 <code>scp</code> 上去重跑即可；想手工补也就一行：</p>
+<p>上一轮报过 <code>[!]     未生效：/etc/ssh/sshd_config 里可能没有 Include sshd_config.d</code> 的，属于上面第二条。把脚本重新 <code>scp</code> 上去重跑，或手工补一行：</p>
 <pre><code>grep -qiE '^[[:space:]]*Include[[:space:]]' /etc/ssh/sshd_config || \
   sed -i '1i Include /etc/ssh/sshd_config.d/*.conf' /etc/ssh/sshd_config
 sshd -t &amp;&amp; systemctl restart ssh &amp;&amp; sshd -T | grep -i '^passwordauthentication'</code></pre>
-<div class="warn"><b>没有公钥就不会关密码。</b>脚本先检查 <code>authorized_keys</code>，没有就跳过加固并提示你，先 <code>ssh-copy-id</code> 装好公钥，再重跑这一步。否则一台还没配过密钥的机器会被直接锁死。</div>
+<div class="warn"><b>没有公钥就不会关密码。</b>脚本先检查 <code>authorized_keys</code>，为空就跳过加固并提示。先用 <code>ssh-copy-id</code> 装好公钥，再重跑这一步；否则一台还没配过密钥的机器会被直接锁死。</div>
 
-<h3>被跳过 SSH 加固了？三步补上（不是死循环）</h3>
-<p>跳过的含意就是<b>密码登录还开着</b>，所以你现在进得来，装公钥也进得来。整套动作从<b>你自己的电脑</b>开始：</p>
+<h3>加固被跳过时的补做顺序</h3>
+<p>加固被跳过的含意是<b>密码登录还开着</b>，所以你现在进得来，装公钥也进得来。整套动作从<b>你自己的电脑</b>开始：</p>
 <pre><code># 1) 把本机公钥装到服务器（端口换成你的实际端口）
 ssh-copy-id -p 你的SSH端口 root@服务器IP
 
@@ -166,7 +166,7 @@ ufw status                          # 里面有你的 SSH 端口和 443，端口
 </div>
 <p>以后再改端口（比如给 REALITY 换高位端口），<b>两层都要改</b>，否则就是上面那个症状。</p>
 
-<div class="note"><b>或者干脆让 SSH 走 fwknop。</b>把公网 22 端口彻底关掉、靠单包授权敲门进来，<a href="../quality/index.html">SSH 加固手册</a>覆盖了整套做法。那之后安全组里就不用留 SSH 端口了。</div>
+<div class="note"><b>要把公网 SSH 端口彻底关掉</b>，做法见 <a href="../quality/index.html">SSH 加固手册</a>；本手册不在安全组里额外开入口。</div>
 
 <p style="margin-top:24px"><a href="index.html">← 总览</a>　·　<a href="02-install.html">下一步 →</a></p>
 

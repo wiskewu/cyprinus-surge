@@ -25,7 +25,7 @@ MaxStartups        : 10:30:100
 <h2>应用</h2>
 <pre><code>sudo bash ssh-server.sh
 sudo bash ssh-server.sh --whitelist 198.51.100.20   # 顺手把常用出口加入 fail2ban 白名单</code></pre>
-<p>脚本按下面的顺序执行，任何一步失败都不会让 SSH 不可用：</p>
+<p>脚本按下列顺序执行，任何一步失败都不会让 SSH 不可用：</p>
 <ol class="steps">
 <li>检查 <code>authorized_keys</code> 至少有可用公钥，并确认当前会话经公钥认证。</li>
 <li>备份 <code>sshd_config</code>、drop-in 目录与 <code>ufw status</code> 到 <code>/root/ssh-hardening/&lt;时间戳&gt;</code>。</li>

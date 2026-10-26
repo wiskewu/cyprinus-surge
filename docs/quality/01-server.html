@@ -101,7 +101,7 @@ MaxStartups        : 10:30:100
 <h2>应用</h2>
 <pre><code>sudo bash ssh-server.sh
 sudo bash ssh-server.sh --whitelist 198.51.100.20   # 顺手把常用出口加入 fail2ban 白名单</code></pre>
-<p>脚本按下面的顺序执行，任何一步失败都不会让 SSH 不可用：</p>
+<p>脚本按下列顺序执行，任何一步失败都不会让 SSH 不可用：</p>
 <ol class="steps">
 <li>检查 <code>authorized_keys</code> 至少有可用公钥，并确认当前会话经公钥认证。</li>
 <li>备份 <code>sshd_config</code>、drop-in 目录与 <code>ufw status</code> 到 <code>/root/ssh-hardening/&lt;时间戳&gt;</code>。</li>
@@ -141,7 +141,7 @@ sudo bash ssh-server.sh --whitelist 198.51.100.20   # 顺手把常用出口加�
 
 </main>
 <footer class="foot"><div class="wrap">
-本手册与 <a href="../deploy/index.html">节点部署手册</a> · <a href="../index.html">方案总览</a> 配套。服务端命令在 Debian 12/13、Ubuntu 22.04/24.04 上验证；<code>fwknop-server</code> 与 <code>fwknop-client</code> 均来自 Debian 官方源。仅限本人自用科研学习，遵守所在地法律法规与服务条款。
+本手册与 <a href="../deploy/index.html">节点部署手册</a> · <a href="../index.html">方案总览</a> 配套。服务端命令在 Debian 12/13、Ubuntu 22.04/24.04 上验证；脚本只调用系统自带的 OpenSSH、ufw 与 fail2ban。仅限本人自用科研学习，遵守所在地法律法规与服务条款。
 </div></footer>
 <script>
 document.querySelectorAll('pre').forEach(function(pre){

@@ -5,11 +5,11 @@
 bash bin/deploy/one/server.sh
 bash bin/deploy/check/server.sh</code></pre>
 
-<p><code>30</code> 用 <code>deploy.env</code> 渲染配置 → <code>sing-box check</code> 校验 → 重启服务。校验不通过就不会覆盖旧配置。</p>
-<p><code>40</code> 有 9 项，全绿再往下走。某几项的含义见 <a href="troubleshooting.html">排查手册</a>。</p>
+<p><code>bin/deploy/one/server.sh</code> 用 <code>deploy.env</code> 渲染配置 → <code>sing-box check</code> 校验 → 重启服务。校验不通过就不会覆盖旧配置。</p>
+<p><code>bin/deploy/check/server.sh</code> 输出 10 项检查，全绿再往下走。各项含义见 <a href="troubleshooting.html">排查手册</a>。</p>
 
 <h2>设备名单</h2>
-<p><code>bin/deploy/one/secrets.sh</code> 顺便建了 <code>/etc/sing-box/devices.list</code>，第一台叫 <code>main</code>。服务端的 <code>users</code> 数组就是从它渲染的，所以<b>改名单 → 重跑 <code>30</code></b> 就生效。</p>
+<p><code>bin/deploy/one/secrets.sh</code> 顺便建了 <code>/etc/sing-box/devices.list</code>，第一台叫 <code>main</code>。服务端的 <code>users</code> 数组就是从它渲染的，所以<b>改名单 → 重跑 <code>bin/deploy/one/server.sh</code></b> 就生效。</p>
 <pre><code># 名字 凭据 平台：一台设备一行
 main   af2358a4-df32-419c-9774-63a44c540970  desktop
 phone  9b2c1d70-3e44-4a1b-8c02-7e5d9f10a333  android</code></pre>
@@ -48,7 +48,7 @@ sudo bash bin/deploy/one/harden.sh --revert  # 用备份的 .orig 覆盖回去�
 <p>关键三行：<code>生效 User</code> 应为 <code>sing-box</code>、<code>StateDirectory</code> 应为 <code>sing-box</code>、<code>沙箱</code> 应为 <code>完整</code>。另有两行用来排除干扰：<code>FragmentPath</code> 与 <code>DropInPaths</code>，后者不为空说明有 drop-in 覆盖了单元。</p>
 <div class="warn"><b>重渲染会把配置权限改回 <code>600 root:root</code>。</b>降权后 sing-box 读不到，表现为 <code>read config at …: permission denied</code>。渲染脚本已改用 <code>install_service_file</code>，按单元里的 <code>User=</code> 自动落成 <code>640 root:&lt;该用户的组&gt;</code>；手工 <code>install -m 600</code> 覆盖过配置的，补 <code>chgrp</code> 后重启即可。</div>
 
-<div class="note"><b>排障时先对齐时间。</b><code>journalctl -u sing-box -n 30</code> 会把历史失败一起打出来，容易把几小时前的 <code>FATAL chdir</code> 当成这次的错误。用 <code>journalctl -u sing-box --since "10 min ago" --no-pager</code>，或者按脚本打印的调试信息为准。</div>
+<div class="note"><b>排障时先对齐时间。</b>按行数取日志会把历史失败一起打出来，几小时前的 <code>FATAL</code> 看起来像刚发生的。做法见<a href="troubleshooting.html">排查手册</a>的「重启竞态」。</div>
 
 <h3 id="harden-fail">沙箱下起不来时怎么定位</h3>
 <p>脚本会在重启后自检，失败自动回滚到 <code>.orig</code>，原服务照旧运行。原因看 <code>journal</code> 里的 <code>status=</code>：</p>
@@ -84,7 +84,7 @@ sudo bash bin/deploy/device.sh export laptop                       # 渲染并�
 <pre><code>scp root@服务器:/etc/sing-box/clients/sing-box-client-laptop-desktop.json laptop@机器:~/</code></pre>
 <div class="warn"><b>每台设备只发它自己那一份。</b>整个 <code>devices.list</code> 落到任何一台机器上，就等于把所有设备的凭据都给了它。名单本身也要进 <code>.gitignore</code> 或单独加密存放。</div>
 <div class="bad"><b>add / rotate / revoke 都会重启 sing-box。</b>当前活跃会话不会断（连接已建立），但新连接会短暂受影响。</div>
-<div class="note">这里的名字只属于<b>代理凭据</b>。SSH 敲门（fwknop SPA）是另一套凭据、另一套吊销（删一个 <code>access.conf</code> stanza），与 <code>devices.list</code> 无关，见 <a href="../quality/index.html">SSH 加固手册</a>。</div>
+<div class="note">这里的名字只属于<b>代理凭据</b>。SSH 的密钥与吊销走另一套机制，与 <code>devices.list</code> 无关，见 <a href="../quality/index.html">SSH 加固手册</a>。</div>
 
 <h3>跑完之后做什么</h3>
 <ol>

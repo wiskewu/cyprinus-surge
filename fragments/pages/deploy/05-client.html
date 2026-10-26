@@ -72,7 +72,7 @@ scp root@你的服务器IP:/etc/sing-box/client.env ./client.env</code></pre>
 </table>
 </div>
 <p>多端模式只覆盖这两项「平台相关」的值，其余（节点、DNS、AI 出口、规则）都来自 <code>client.env</code>，所以三份配置的规则完全一致。</p>
-<div class="note"><b>规则第一条是「服务器自己的 IP 直连」。</b>这是必须的：开着 TUN 时，<i>连服务器的流量</i>（包括 SSH、SPA 敲门包）也会被送进隧道，从隧道出口又绕回这台 VPS（hairpin），表现为「<code>nc</code> 能通但 <code>ssh</code> 立刻被关」。脚本会读 <code>client.env</code> 里的 <code>SERVER_IP</code> 自动生成这条规则；拿不到 IP 就只警告不写。</div>
+<div class="note"><b>规则第一条是「服务器自己的 IP 直连」。</b>这是必须的：开着 TUN 时，<i>连服务器的流量</i>，包括 SSH也会被送进隧道，从隧道出口又绕回这台 VPS（hairpin），表现为「<code>nc</code> 能通但 <code>ssh</code> 立刻被关」。脚本会读 <code>client.env</code> 里的 <code>SERVER_IP</code> 自动生成这条规则；拿不到 IP 就只警告不写。</div>
 
 <div class="warn"><b>桌面报 <code>not valid in its context</code></b>（多网卡 / 虚拟网卡的 Windows 常见）：用两个变量一起关掉自动探测、并显式指定物理网卡：<br>
 <code>AUTO_DETECT_INTERFACE=false DEFAULT_INTERFACE=en0 bash bin/deploy/client/render.sh ./client.env desktop</code><br>

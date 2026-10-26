@@ -147,7 +147,7 @@ vps · 3.6G/1T ⚠       最近一次探针发现服务、端口、AI 出口或�
 </div>
 <pre><code>sudo bash bin/deploy/ops/monitor.sh --alert-test     # 验证推送凭据
 sudo bash bin/deploy/ops/monitor.sh --alert-check    # 只评估，不发探针</code></pre>
-<p>两种推送都没配时，异常只写进 <code>probe.log</code>，不影响探针本身。</p>
+<p>一个通道都没配时，异常只写进 <code>probe.log</code>，不影响探针本身。</p>
 <div class="warn"><b>探针停摆时不会误报。</b>定时器没跑、文件停在几小时前，最后一行不会自己消失。异常标记与告警检查都只认 <code>PROBE_MAX_AGE_MIN</code> 分钟内的记录，超龄就当没有数据。要调整窗口：<code>PROBE_MAX_AGE_MIN=30 bash bin/deploy/client/render.sh ./client.env</code>。</div>
 
 <h2>推送通道</h2>
@@ -164,7 +164,7 @@ sudo bash bin/deploy/ops/monitor.sh --alert-check    # 只评估，不发探针<
 </tbody>
 </table>
 </div>
-<p>告警量小，任选其一即可；建议至少配两个通道，避免单通道故障时告警变成聋子。</p>
+<p>告警量小，配一个通道即可；怕单通道故障时再补一个。</p>
 
 <h2>改走标准订阅的代价</h2>
 <p>要显示实时用量与到期，需要独立的 HTTP 服务：读取 <code>vnstat</code> 与配额，生成配置正文并附上响应头。代价是三处新增：</p>
