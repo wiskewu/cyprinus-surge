@@ -145,7 +145,7 @@ sudo bash deploy.sh --only secrets --overwrite --yes
 sudo bash bin/deploy/one/secrets.sh --rotate-secrets
 sudo bash deploy.sh --only secrets --rotate-secrets --yes
 sudo bash bin/deploy/device.sh export 每台设备名      # 逐台重新导出并分发</code></pre>
-<div class="note"><b>动作走参数，取值走环境变量。</b><code>--overwrite</code> 与 <code>--rotate-secrets</code> 是动作，写在命令行；端口、域名、Token 这些取值用环境变量或交互输入。交互模式下 <code>secrets</code> 每次都会问一句密钥是否沿用，回答 <code>n</code> 等同于 <code>--rotate-secrets</code>。</div>
+<div class="note"><b>动作走参数，取值走环境变量。</b><code>--overwrite</code> 与 <code>--rotate-secrets</code> 是动作，写在命令行；端口、域名、Token 这些取值用环境变量或交互输入。交互模式下 <code>secrets</code> 每次都会问一句密钥是否沿用，回答 <code>n</code> 后还要再确认一次「确认换新？」，两次都答对才换；回车或误敲都按沿用处理。</div>
 <div class="bad"><b>换新之后，没重新导出的客户端全部连不上。</b>现象是客户端 REALITY 校验失败，服务端日志为 <code>REALITY: processed invalid connection</code>。只想换单台设备的凭据用 <code>device.sh rotate</code>，不动 REALITY 密钥。</div>
 
 <p style="margin-top:24px"><a href="01-init.html">← 上一步</a>　·　<a href="03-server.html">下一步 →</a></p>

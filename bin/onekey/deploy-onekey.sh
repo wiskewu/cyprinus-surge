@@ -675,11 +675,19 @@ secrets_decide_rotate() {
   [[ "${OPT_ROTATE_SECRETS:-0}" == "1" ]] && return 0
   [[ -z "${NONINTERACTIVE:-}" ]] || return 1
   [[ -t 0 ]] || return 1
-  local ans=""
+  local ans="" ans2=""
   printf '\n%s 里已有 REALITY 密钥对与 HY2 混淆密码。\n' "${ENVFILE}" >&2
-  read -r -p "沿用（已导出的客户端配置继续有效）？[Y/n，n = 全部换新并作废所有客户端配置]: " ans || true
+  read -r -p "沿用（已导出的客户端配置继续有效）？[Y/n]: " ans || true
   case "${ans:-y}" in
-    n | N) return 0 ;;
+    n | N) ;;
+    *) return 1 ;;
+  esac
+  # 换新会作废所有已分发配置，二次确认：回车、误敲都不至于把客户端全废掉
+  printf '换新会更换 REALITY 密钥对、short_id 与 HY2 混淆密码，\n' >&2
+  printf '已导出的客户端会全部连不上，需要逐台重新 export。\n' >&2
+  read -r -p "确认换新？[y/N]: " ans2 || true
+  case "${ans2:-n}" in
+    y | Y) return 0 ;;
     *) return 1 ;;
   esac
 }

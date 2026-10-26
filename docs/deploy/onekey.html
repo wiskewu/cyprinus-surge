@@ -108,7 +108,10 @@ porthop    未配置 yes    可选：Hysteria2 端口跳跃（iptables 重定向
 <p>清单里的值既可以提前用环境变量给，也可以在执行中按提示输入。<code>--yes</code> 下不再提问，缺料会直接退出 2 并列出缺哪几项。</p>
 <p>已有 <code>deploy.env</code> 时，<code>secrets</code> 会在重建前问一句密钥是否沿用：</p>
 <pre><code>/etc/sing-box/deploy.env 里已有 REALITY 密钥对与 HY2 混淆密码。
-沿用（已导出的客户端配置继续有效）？[Y/n，n = 全部换新并作废所有客户端配置]:</code></pre>
+沿用（已导出的客户端配置继续有效）？[Y/n]:
+换新会更换 REALITY 密钥对、short_id 与 HY2 混淆密码，
+已导出的客户端会全部连不上，需要逐台重新 export。
+确认换新？[y/N]:</code></pre>
 <p>已配置的步骤默认「复用」，只有你选 <code>o</code> 才会重跑并覆盖。</p>
 
 <h2>参数</h2>
