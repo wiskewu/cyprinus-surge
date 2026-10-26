@@ -18,7 +18,7 @@ BAD = re.compile(r"\$[A-Za-z_][A-Za-z0-9_]*[^\x00-\x7f]")
 def main(paths: list[str]) -> int:
     hits: list[str] = []
     for name in paths:
-        for lineno, line in enumerate(pathlib.Path(name).read_text().splitlines(), 1):
+        for lineno, line in enumerate(pathlib.Path(name).read_text(encoding="utf-8").splitlines(), 1):
             for m in BAD.finditer(line):
                 var = m.group(0)[1:-1]
                 hits.append(f"{name}:{lineno}  {m.group(0)}  → 改成 ${{{var}}}")

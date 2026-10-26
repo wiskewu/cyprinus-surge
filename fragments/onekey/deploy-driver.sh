@@ -201,7 +201,7 @@ do_install() {
 
 do_uninstall() {
   local id
-  load_env "${ENVFILE}" 2>/dev/null || true
+  load_env_optional "${ENVFILE}" || true
   if [[ "${OPT_DRY}" == 1 ]]; then
     log "DRY_RUN：将卸载 ${STEPS[*]}"
     return 0

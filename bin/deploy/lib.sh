@@ -81,6 +81,17 @@ mktemp_dir() {
 }
 
 # 读取 KEY=VALUE 环境文件（不执行其中的命令）
+# 文件不存在时返回 1 而不是退出：卸载与只读路径必须用非致命版本，
+# 否则在未部署的机器上执行会静默退出。
+load_env_optional() {
+  local f="$1"
+  [[ -f "${f}" ]] || return 1
+  set -a
+  # shellcheck disable=SC1090
+  . "${f}"
+  set +a
+}
+
 load_env() {
   local f="$1"
   [[ -f "${f}" ]] || die "找不到 ${f}"

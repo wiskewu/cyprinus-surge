@@ -25,12 +25,14 @@ sshd_get() { sshd -T 2>/dev/null | awk -v k="$1" 'tolower($1) == k { print $2; e
 
 # 当前会话是否用公钥登录：靠 journal 里与本次连接源端口匹配的 Accepted publickey 记录
 session_is_pubkey() {
-  local cip cport
+  local cip cport out
   [[ -n "${SSH_CONNECTION:-}" ]] || return 1
   # SSH_CONNECTION 的字段顺序是「客户端 IP 客户端端口 服务端 IP 服务端端口」
   read -r cip cport _ _ <<<"${SSH_CONNECTION}"
-  journalctl -u ssh --since "-30 min" --no-pager 2>/dev/null |
-    grep -q "Accepted publickey for .* from ${cip} port ${cport}"
+  # 先取全文再匹配：journalctl 接 grep -q 会因 SIGPIPE 返回非 0，
+  # 在 pipefail 下会被当成「找不到记录」。
+  out="$(journalctl -u ssh --since "-30 min" --no-pager 2>/dev/null || true)"
+  grep -q "Accepted publickey for .* from ${cip} port ${cport}" <<<"${out}"
 }
 
 # 统计可用于登录的公钥数（root 与 sudo 用户的 authorized_keys）

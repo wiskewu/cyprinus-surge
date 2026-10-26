@@ -2,7 +2,7 @@
 # shellcheck disable=SC2034  # 步骤元数据与跨文件变量由间接展开读取
 # ===========================================================================
 # deploy.sh，一键脚本。自动生成，勿手改。
-#   生成时间：2026-10-26T03:14:55Z
+#   生成时间：2026-10-26T03:32:19Z
 #   来源：bin/deploy/lib.sh + bin/deploy/steps/*.sh + fragments/onekey/deploy-driver.sh
 #   重新生成：bash fragments/build/build-onekey.sh
 # ===========================================================================
@@ -91,6 +91,17 @@ mktemp_dir() {
 }
 
 # 读取 KEY=VALUE 环境文件（不执行其中的命令）
+# 文件不存在时返回 1 而不是退出：卸载与只读路径必须用非致命版本，
+# 否则在未部署的机器上执行会静默退出。
+load_env_optional() {
+  local f="$1"
+  [[ -f "${f}" ]] || return 1
+  set -a
+  # shellcheck disable=SC1090
+  . "${f}"
+  set +a
+}
+
 load_env() {
   local f="$1"
   [[ -f "${f}" ]] || die "找不到 ${f}"
@@ -204,24 +215,29 @@ system_has_authorized_key() {
   return 1
 }
 
-# 探测 SSH 端口：当前连接 → sshd 监听 → sshd_config → 22
+# 探测 SSH 端口：只算真实在监听的端口。
+# 配置文件里的 Port 与 ssh.socket 的 Listen 都可能是「将来才会用」的值，
+# 例如 ssh.socket 处于 inactive 时仍会返回 [::]:22，按它放行等于给未开放端口开门。
 system_detect_ssh_ports() {
-  local p=""
-  [[ -n "${SSH_CONNECTION:-}" ]] && p="$(printf '%s' "${SSH_CONNECTION}" | awk '{print $4}')"
-  if command -v ss >/dev/null 2>&1; then
-    p="${p} $(ss -tlnpH 2>/dev/null | awk '/sshd/ {print $4}' | sed 's/.*://' | grep -E '^[0-9]+$' | sort -u | paste -sd' ' -)"
-  fi
-  # sshd 由 socket 激活时（ssh.socket），监听套接字是 systemd 的、进程名不叫 sshd，
-  # 上面那条按进程名 grep 会整个拿不到，只能问 systemd 要 ListenStream
-  if command -v systemctl >/dev/null 2>&1; then
-    p="${p} $(systemctl show ssh.socket -p Listen --value 2>/dev/null \
+  local listen cand="" p
+  command -v ss >/dev/null 2>&1 || return 1
+  listen="$(ss -tlnH 2>/dev/null | awk '{print $4}' | sed 's/.*://' | grep -E '^[0-9]+$' | sort -un)"
+
+  # 1) 当前会话用的端口，它必然正在监听
+  [[ -n "${SSH_CONNECTION:-}" ]] && cand="$(printf '%s' "${SSH_CONNECTION}" | awk '{print $4}')"
+  # 2) sshd 进程实际监听
+  cand="${cand} $(ss -tlnpH 2>/dev/null | awk '/users:\(\("sshd"/{print $4}' | sed 's/.*://' | grep -E '^[0-9]+$' | paste -sd' ' -)"
+  # 3) socket 激活：只有 ssh.socket 真在运行时才拿它的 Listen
+  if systemctl is-active --quiet ssh.socket 2>/dev/null; then
+    cand="${cand} $(systemctl show ssh.socket -p Listen --value 2>/dev/null \
       | awk '{for(i=1;i<=NF;i++) if ($i ~ /:[0-9]+$/) {n=split($i,a,":"); print a[n]}}' \
-      | sort -u | paste -sd' ' -)"
+      | paste -sd' ' -)"
   fi
-  if [[ -r /etc/ssh/sshd_config ]]; then
-    p="${p} $(awk 'tolower($1)=="port"{print $2}' /etc/ssh/sshd_config 2>/dev/null | sort -u | paste -sd' ' -)"
-  fi
-  tr ' ' '\n' <<<"${p}" | grep -E '^[0-9]+$' | sort -un | paste -sd' ' -
+
+  # 统一用监听表过滤，不在表里的一律丢弃
+  for p in ${cand}; do
+    printf '%s\n' "${listen}" | grep -qx "${p}" && printf '%s\n' "${p}"
+  done | sort -un | paste -sd' ' -
 }
 
 system_run() {
@@ -786,7 +802,7 @@ SB_USER="${SB_USER:-sing-box}"
 HARDEN_PROFILE="${HARDEN_PROFILE:-full}"
 
 harden_env() {
-  load_env "${ENVFILE}" 2>/dev/null || true
+  load_env_optional "${ENVFILE}" || true
   VLESS_PORT="${VLESS_PORT:-443}"
   HY2_PORT="${HY2_PORT:-8443}"
   ENABLE_HY2="${ENABLE_HY2:-0}"
@@ -1120,7 +1136,7 @@ porthop_warn_conflict() {
 }
 
 porthop_run() {
-  load_env "${ENVFILE}" 2>/dev/null || true
+  load_env_optional "${ENVFILE}" || true
   [[ "${ENABLE_HY2:-0}" == "1" ]] || {
     warn "ENABLE_HY2=0，跳过端口跳跃"
     return 0
@@ -1352,7 +1368,7 @@ do_install() {
 
 do_uninstall() {
   local id
-  load_env "${ENVFILE}" 2>/dev/null || true
+  load_env_optional "${ENVFILE}" || true
   if [[ "${OPT_DRY}" == 1 ]]; then
     log "DRY_RUN：将卸载 ${STEPS[*]}"
     return 0

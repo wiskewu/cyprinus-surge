@@ -33,7 +33,7 @@ IGNORE = "<!-- docs-style:ignore -->"
 
 def targets() -> list[pathlib.Path]:
     root = pathlib.Path(".")
-    files = sorted(root.glob(".build/*/pages/*.html"))
+    files = sorted(root.glob("fragments/pages/*/*.html"))
     files += [p for p in (root / "docs").glob("*.html")]
     return files
 

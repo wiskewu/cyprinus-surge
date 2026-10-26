@@ -7,5 +7,5 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=SCRIPTDIR/../steps/40-server.sh
 . "${SELF_DIR}/../steps/40-server.sh"
 need_root
-load_env "${ENVFILE}" 2>/dev/null || true
+load_env_optional "${ENVFILE}" || true
 server_run

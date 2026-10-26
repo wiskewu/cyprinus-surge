@@ -7,5 +7,5 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=SCRIPTDIR/../steps/50-hy2.sh
 . "${SELF_DIR}/../steps/50-hy2.sh"
 need_root
-load_env "${ENVFILE}" 2>/dev/null || true
+load_env_optional "${ENVFILE}" || true
 hy2_run

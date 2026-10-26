@@ -13,7 +13,7 @@ SB_USER="${SB_USER:-sing-box}"
 HARDEN_PROFILE="${HARDEN_PROFILE:-full}"
 
 harden_env() {
-  load_env "${ENVFILE}" 2>/dev/null || true
+  load_env_optional "${ENVFILE}" || true
   VLESS_PORT="${VLESS_PORT:-443}"
   HY2_PORT="${HY2_PORT:-8443}"
   ENABLE_HY2="${ENABLE_HY2:-0}"

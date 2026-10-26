@@ -81,7 +81,7 @@ porthop_warn_conflict() {
 }
 
 porthop_run() {
-  load_env "${ENVFILE}" 2>/dev/null || true
+  load_env_optional "${ENVFILE}" || true
   [[ "${ENABLE_HY2:-0}" == "1" ]] || {
     warn "ENABLE_HY2=0，跳过端口跳跃"
     return 0

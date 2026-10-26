@@ -33,11 +33,18 @@ else
   printf '未找到 shfmt，跳过格式检查（brew install shfmt）\n'
 fi
 
-# bash 3.2 按字节扫变量名："$code，" 会被当成变量 code\357。
-if command -v python3 >/dev/null 2>&1; then
-  python3 fragments/build/check-var-braces.py "${files[@]}"
+# bash 3.2 按字节扫变量名：变量后紧跟中文标点时会被并入变量名。
+# Python 侧统一用 uv 管理：有 uv 就用 uv 跑，没有则退回 python3。
+PY=()
+if command -v uv >/dev/null 2>&1; then
+  PY=(uv run --quiet python)
+elif command -v python3 >/dev/null 2>&1; then
+  PY=(python3)
+fi
+if [[ "${#PY[@]}" -gt 0 ]]; then
+  "${PY[@]}" fragments/build/check-var-braces.py "${files[@]}"
   # 页面措辞：不写营销词、破折号、总结铺垫句、第一人称与感叹号
-  python3 fragments/build/check-docs-style.py
+  "${PY[@]}" fragments/build/check-docs-style.py
 else
-  printf '未找到 python3，跳过变量边界与页面措辞检查\n'
+  printf '未找到 uv 或 python3，跳过变量边界与页面措辞检查\n'
 fi
