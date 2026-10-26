@@ -1,0 +1,57 @@
+<h1>2 · 安装与密钥</h1>
+<p class="lede">目标：装好固定版本的 sing-box，生成本节点的参数与设备名单。执行者是有服务器 root 权限的人；做完后 <code>/etc/sing-box</code> 下应出现三个文件。</p>
+
+<h2>前提</h2>
+<ul>
+<li>已跑完<a href="01-init.html">第 1 步</a>：密码登录已关，公钥能登录</li>
+<li>服务器能访问 <code>github.com</code> 下载 sing-box；不能访问就先把二进制传到服务器，见下文「离线安装」</li>
+<li>两条命令都需要 root</li>
+</ul>
+
+<h2>执行</h2>
+<pre><code>cd /root/deploy
+sudo bash bin/deploy/one/install-singbox.sh
+sudo bash bin/deploy/one/secrets.sh</code></pre>
+<p><code>bin/deploy/one/secrets.sh</code> 逐项提问，回车取方括号里的默认值：</p>
+<div class="tw">
+<table>
+<thead><tr><th>提问</th><th>默认</th><th>怎么填</th></tr></thead>
+<tbody>
+<tr><td><code>伪装站点 REALITY_DEST</code></td><td><code>www.apple.com</code></td><td>必须支持 TLS 1.3 与 HTTP/2。它同时是 REALITY 的回源目标，选错会让客户端握手失败</td></tr>
+<tr><td><code>入口域名 DOMAIN</code></td><td>留空</td><td>只有要用 Hysteria2 才填。留空时客户端连公网 IP，证书流程整段跳过</td></tr>
+<tr><td><code>启用 Hysteria2？</code></td><td><code>Y</code></td><td>仅在填了域名时出现。选 <code>n</code> 就只开 REALITY 单入口</td></tr>
+<tr><td><code>第一台设备的名字</code></td><td><code>main</code></td><td>写进 <code>devices.list</code>。只允许字母、数字与 <code>. _ -</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>成功的样子</h2>
+<pre><code>[+] 已安装：sing-box version 1.14.3
+[+] 已生成：/etc/sing-box/deploy.env / /etc/sing-box/client.env / /etc/sing-box/devices.list</code></pre>
+<p>版本号随 <code>SING_BOX_VERSION</code> 变。核对文件：</p>
+<pre><code>ls -l /etc/sing-box</code></pre>
+<p>应看到 <code>deploy.env</code>、<code>client.env</code>、<code>devices.list</code> 三个文件，目录 700、文件 600。</p>
+
+<h2>产物</h2>
+<div class="tw">
+<table>
+<thead><tr><th>文件</th><th>内容</th><th>去向</th></tr></thead>
+<tbody>
+<tr><td><code>/etc/sing-box/deploy.env</code></td><td>服务端参数，含 REALITY 私钥</td><td>只留服务器，不进仓库、不进备份的明文包</td></tr>
+<tr><td><code>/etc/sing-box/client.env</code></td><td>渲染客户端配置要用的参数</td><td>第 5 步在客户端机器上用</td></tr>
+<tr><td><code>/etc/sing-box/devices.list</code></td><td>设备名、凭据、平台，一台一行</td><td>只留服务器。加设备用 <code>bin/deploy/device.sh</code>，见<a href="03-server.html#devices">第 3 页</a></td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>换版本与离线安装</h2>
+<pre><code>sudo SING_BOX_VERSION=1.15.0 bash bin/deploy/one/install-singbox.sh
+sudo SING_BOX_PKG=/root/sing-box.tar.gz bash bin/deploy/one/install-singbox.sh</code></pre>
+<div class="warn"><b>重装会覆盖 systemd 单元。</b>用 <code>deploy.sh</code> 升级时 <code>harden</code> 步骤在后面自动补回；单独跑 <code>bin/deploy/one/install-singbox.sh</code> 升级的，补一次 <code>--only harden</code>，否则服务回到 root 全权限运行。</div>
+
+<h2>重建密钥</h2>
+<p><code>deploy.env</code> 已存在时脚本只打印一行提示并退出，不会覆盖：</p>
+<pre><code>[+] /etc/sing-box/deploy.env 已存在，保留原样（要重建：sudo FORCE=1 bash bin/deploy/one/secrets.sh）</code></pre>
+<div class="bad"><b><code>FORCE=1</code> 会换掉全部凭据。</b>旧配置立刻失效，已分发的客户端要全部重渲染重发。只想改单个设备的凭据用 <code>device.sh rotate</code>。</div>
+
+<p style="margin-top:24px"><a href="01-init.html">← 上一步</a>　·　<a href="03-server.html">下一步 →</a></p>

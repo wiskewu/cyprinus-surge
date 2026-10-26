@@ -1,0 +1,58 @@
+<h1>5 · 客户端</h1>
+<p class="lede">目标：在客户端机器上拿到一份可导入的配置，并让它以 TUN 或本地端口工作。读者是自己设备的用户；需要的东西只有服务器发来的那一份 JSON。</p>
+
+<h2>取参数并渲染</h2>
+<pre><code># 你的电脑上
+scp root@你的服务器IP:/etc/sing-box/client.env ./client.env</code></pre>
+
+<div class="note"><b>多台设备用 <code>bin/deploy/device.sh</code>，不要用本页的方式。</b>本页的 <code>client.env</code> 里只有一台设备的凭据（<code>bin/deploy/one/secrets.sh</code> 写的 <code>main</code>），多台共用同一个 uuid 就没法单独吊销。服务端跑 <code>sudo bash bin/deploy/device.sh add laptop</code> 会直接生成那台的配置，你只管 scp 过去。见 <a href="03-server.html#devices">第 3 页</a>。验收那一步同样不需要 <code>client.env</code>：<code>SERVER_IP=... bash bin/deploy/client/verify.sh</code>（见 <a href="06-ops.html">第 6 页</a>）。</div>
+
+<h3>一次生成三端</h3>
+<pre><code>bash bin/deploy/client/render.sh ./client.env --all   # 默认输出到 ./data</code></pre>
+<div class="tw">
+<table>
+<thead><tr><th>产出（在 <code>data/</code>）</th><th>入站</th><th>预设覆盖</th></tr></thead>
+<tbody>
+<tr><td><code>sing-box-client-desktop.json</code></td><td>tun + mixed:2080</td><td>无（沿用 client.env）</td></tr>
+<tr><td><code>sing-box-client-android.json</code></td><td>tun</td><td><code>CLIENT_MIXED=0</code>、<code>auto_detect_interface=true</code></td></tr>
+<tr><td><code>sing-box-client-ios.json</code></td><td>tun</td><td>同上</td></tr>
+</tbody>
+</table>
+</div>
+<p>多端模式只覆盖这两项「平台相关」的值，其余（节点、DNS、AI 出口、规则）都来自 <code>client.env</code>，所以三份配置的规则完全一致。</p>
+<div class="note"><b>规则第一条是「服务器自己的 IP 直连」。</b>这是必须的：开着 TUN 时，<i>连服务器的流量</i>（包括 SSH、SPA 敲门包）也会被送进隧道，从隧道出口又绕回这台 VPS（hairpin），表现为「<code>nc</code> 能通但 <code>ssh</code> 立刻被关」。脚本会读 <code>client.env</code> 里的 <code>SERVER_IP</code> 自动生成这条规则；拿不到 IP 就只警告不写。</div>
+
+<div class="warn"><b>桌面报 <code>not valid in its context</code></b>（多网卡 / 虚拟网卡的 Windows 常见）：用两个变量一起关掉自动探测、并显式指定物理网卡：<br>
+<code>AUTO_DETECT_INTERFACE=false DEFAULT_INTERFACE=en0 bash bin/deploy/client/render.sh ./client.env desktop</code><br>
+<b>只关不绑 = 直连会打环</b>：<code>auto_detect_interface=false</code> 之后出站不再绑物理网卡，<code>direct</code> 出站会按默认路由又走回 tun，表现为“能连上、立刻被断”。脚本会渲染成 <code>route.default_interface</code>，并在你忘了给网卡名时把本机物理网卡打印出来提醒。默认值是 <code>true</code>，TUN 下它顺手把环也挡掉了。</div>
+<div class="note"><b>GUI 客户端（SFM / Clash Verge / GUI.for.SingBox）导入的是副本。</b>重新渲染后必须<b>重新导入</b>，或者手动把新 JSON 贴进去，直接改仓库里那份或改 <code>data/</code> 下的文件对已经导入的配置无效。SFM 的导入副本在 <code>~/Library/Group Containers/P8XK3KHB48.io.nekohasekai.sfamt/configs/</code>。</div>
+
+<h3>只生成某一份 / 完全自定义</h3>
+<pre><code># 只生成安卓
+bash bin/deploy/client/render.sh ./client.env android
+
+# 单份模式：完全按 client.env 与命令行变量
+OUT=./me.json bash bin/deploy/client/render.sh ./client.env
+
+# 换输出目录
+OUTDIR=/tmp/x bash bin/deploy/client/render.sh ./client.env --all</code></pre>
+<p>产物一律落在 <code>OUTDIR</code>（默认 <code>./data</code>，已在 <code>.gitignore</code> 里），不会往脚本目录写。改完 <code>client.env</code> 后重跑即可覆盖同名文件。</p>
+
+<h2 id="import">导入</h2>
+<div class="tw">
+<table>
+<thead><tr><th>平台</th><th>客户端</th><th>注意</th></tr></thead>
+<tbody>
+<tr><td>Windows</td><td>GUI.for.SingBox / sing-box 命令行</td><td>开 TUN 需要管理员</td></tr>
+<tr><td>macOS</td><td>sing-box 系 GUI</td><td>首次要授权系统扩展</td></tr>
+<tr><td>Android</td><td>sing-box 官方 App</td><td>用 <code>--all</code> 生成的 <code>-android.json</code></td></tr>
+<tr><td>Windows（多网卡/虚拟网卡）</td><td>同上</td><td>日志出现 <code>not valid in its context</code> 时，渲染加 <code>AUTO_DETECT_INTERFACE=false</code>（见上方）</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>本脚本生成的配置本地测试端口是 <code>127.0.0.1:2080</code>。如果用 GUI.for.SingBox 自己的配置，端口以它的界面为准。</p>
+
+<p>导入失败、国内站点打不开、要独立 AI 出口 → <a href="troubleshooting.html">排查手册</a>。</p>
+
+<p style="margin-top:24px"><a href="04-hy2.html">← 上一步</a>　·　<a href="06-ops.html">下一步 →</a></p>

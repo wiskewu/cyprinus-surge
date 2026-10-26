@@ -82,9 +82,9 @@ details .body{padding:4px 14px 14px}
 
 <h2>执行</h2>
 <pre><code>cd /root/deploy
-sudo bash 10-install-singbox.sh
-sudo bash 20-secrets.sh</code></pre>
-<p><code>20-secrets.sh</code> 逐项提问，回车取方括号里的默认值：</p>
+sudo bash bin/deploy/one/install-singbox.sh
+sudo bash bin/deploy/one/secrets.sh</code></pre>
+<p><code>bin/deploy/one/secrets.sh</code> 逐项提问，回车取方括号里的默认值：</p>
 <div class="tw">
 <table>
 <thead><tr><th>提问</th><th>默认</th><th>怎么填</th></tr></thead>
@@ -111,19 +111,19 @@ sudo bash 20-secrets.sh</code></pre>
 <tbody>
 <tr><td><code>/etc/sing-box/deploy.env</code></td><td>服务端参数，含 REALITY 私钥</td><td>只留服务器，不进仓库、不进备份的明文包</td></tr>
 <tr><td><code>/etc/sing-box/client.env</code></td><td>渲染客户端配置要用的参数</td><td>第 5 步在客户端机器上用</td></tr>
-<tr><td><code>/etc/sing-box/devices.list</code></td><td>设备名、凭据、平台，一台一行</td><td>只留服务器。加设备用 <code>device.sh</code>，见<a href="03-server.html#devices">第 3 页</a></td></tr>
+<tr><td><code>/etc/sing-box/devices.list</code></td><td>设备名、凭据、平台，一台一行</td><td>只留服务器。加设备用 <code>bin/deploy/device.sh</code>，见<a href="03-server.html#devices">第 3 页</a></td></tr>
 </tbody>
 </table>
 </div>
 
 <h2>换版本与离线安装</h2>
-<pre><code>sudo SING_BOX_VERSION=1.15.0 bash 10-install-singbox.sh
-sudo SING_BOX_PKG=/root/sing-box.tar.gz bash 10-install-singbox.sh</code></pre>
-<div class="warn"><b>重装会覆盖 systemd 单元。</b>用 <code>deploy.sh</code> 升级时 <code>harden</code> 步骤在后面自动补回；单独跑 <code>10-install-singbox.sh</code> 升级的，补一次 <code>--only harden</code>，否则服务回到 root 全权限运行。</div>
+<pre><code>sudo SING_BOX_VERSION=1.15.0 bash bin/deploy/one/install-singbox.sh
+sudo SING_BOX_PKG=/root/sing-box.tar.gz bash bin/deploy/one/install-singbox.sh</code></pre>
+<div class="warn"><b>重装会覆盖 systemd 单元。</b>用 <code>deploy.sh</code> 升级时 <code>harden</code> 步骤在后面自动补回；单独跑 <code>bin/deploy/one/install-singbox.sh</code> 升级的，补一次 <code>--only harden</code>，否则服务回到 root 全权限运行。</div>
 
 <h2>重建密钥</h2>
 <p><code>deploy.env</code> 已存在时脚本只打印一行提示并退出，不会覆盖：</p>
-<pre><code>[+] /etc/sing-box/deploy.env 已存在，保留原样（要重建：sudo FORCE=1 bash 20-secrets.sh）</code></pre>
+<pre><code>[+] /etc/sing-box/deploy.env 已存在，保留原样（要重建：sudo FORCE=1 bash bin/deploy/one/secrets.sh）</code></pre>
 <div class="bad"><b><code>FORCE=1</code> 会换掉全部凭据。</b>旧配置立刻失效，已分发的客户端要全部重渲染重发。只想改单个设备的凭据用 <code>device.sh rotate</code>。</div>
 
 <p style="margin-top:24px"><a href="01-init.html">← 上一步</a>　·　<a href="03-server.html">下一步 →</a></p>

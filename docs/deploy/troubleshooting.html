@@ -87,7 +87,7 @@ details .body{padding:4px 14px 14px}
 </tbody>
 </table>
 </div>
-<p>桌面要覆盖成 false：<code>AUTO_DETECT_INTERFACE=false bash 50-render-client.sh client.env</code>（命令行优先于 client.env）。</p>
+<p>桌面要覆盖成 false：<code>AUTO_DETECT_INTERFACE=false bash bin/deploy/client/render.sh client.env</code>（命令行优先于 client.env）。</p>
 
 
 <p>Windows 多宿主 / 网卡驱动环境下，直连的 socket 会被绑到无效的本地地址，解析国内域名直接失败：</p>
@@ -108,7 +108,7 @@ details .body{padding:4px 14px 14px}
 <li><b>删掉</b>该 DNS 服务器的 <code>"detour": "direct"</code> → 跟随默认出站（通常是代理），解析要等隧道建好</li>
 <li><b>给 direct 出站加任一选项</b>让它不再"空"，例如 <code>"domain_resolver": { "server": "dns-cn" }</code> → 国内域名仍走直连解析</li>
 </ul>
-<p>本方案用第二种：国内域名直连解析，不依赖隧道。<code>50-render-client.sh</code> 生成的配置已经带上。</p>
+<p>本方案用第二种：国内域名直连解析，不依赖隧道。<code>bin/deploy/client/render.sh</code> 生成的配置已经带上。</p>
 <div class="warn"><b><code>sing-box check</code> 查不出这个错。</b>check 不初始化 DNS 传输，所以「能导入 / 能过 check」不代表能启动，必须以真正启动一次为准。</div>
 
 <h2>GUI 报 <code>missing tags</code> 或 <code>duplicate outbound tag</code></h2>
@@ -129,7 +129,7 @@ details .body{padding:4px 14px 14px}
 <thead><tr><th>项</th><th>不通过意味着</th><th>动作</th></tr></thead>
 <tbody>
 <tr><td>sing-box 运行中 / 端口在监听</td><td>进程没起来，或端口被占</td><td><code>ss -tlnp | grep 443</code>、<code>journalctl -u sing-box -n 50</code></td></tr>
-<tr><td>配置已落盘</td><td><code>30</code> 没跑成功</td><td>重跑 <code>bash 30-render-server.sh</code></td></tr>
+<tr><td>配置已落盘</td><td><code>30</code> 没跑成功</td><td>重跑 <code>bash bin/deploy/one/server.sh</code></td></tr>
 <tr><td>日志无 error</td><td>配置被拒 / 证书读不到 / 端口绑定失败</td><td>看 error 那几行，对照下方「起不来的原因」</td></tr>
 <tr><td>拥塞控制 / NTP</td><td>内核模块没加载 / 时间漂移</td><td><code>modprobe tcp_bbr &amp;&amp; sysctl --system</code>；<code>systemctl restart systemd-timesyncd</code></td></tr>
 <tr><td>出站 IPv4 = SERVER_IP</td><td>多出口或走 NAT</td><td>确认 <code>deploy.env</code> 里的 IP 是对外的那个</td></tr>
@@ -142,7 +142,7 @@ details .body{padding:4px 14px 14px}
 <ol>
 <li>证书读不到：<code>ENABLE_HY2=1</code> 但没证书 → 跑第 4 步，或把它改成 0</li>
 <li>端口被占：<code>address already in use</code> → 停掉占 443 的服务</li>
-<li>变量缺失：<code>变量 X 未设置</code> → 重跑 <code>20-secrets.sh</code> 或补上</li>
+<li>变量缺失：<code>变量 X 未设置</code> → 重跑 <code>bin/deploy/one/secrets.sh</code> 或补上</li>
 <li><code>short_id</code> 不是偶数长度 hex</li>
 </ol>
 
@@ -200,8 +200,8 @@ curl -s -H "Authorization: Bearer $S" "http://$C/connections" | grep -o '"chains
 <table>
 <thead><tr><th>现象</th><th>动作</th></tr></thead>
 <tbody>
-<tr><td>三端同时连不上</td><td><code>systemctl status sing-box</code> → <code>journalctl -n 50</code> → <code>bash 40-check-server.sh</code></td></tr>
-<tr><td>REALITY 通、Hysteria2 不通</td><td>UDP 被限速/阻断，或端口跳跃规则没加（<code>90-port-hop.sh</code>）；只用 REALITY 也可</td></tr>
+<tr><td>三端同时连不上</td><td><code>systemctl status sing-box</code> → <code>journalctl -n 50</code> → <code>bash bin/deploy/check/server.sh</code></td></tr>
+<tr><td>REALITY 通、Hysteria2 不通</td><td>UDP 被限速/阻断，或端口跳跃规则没加（<code>bin/deploy/one/port-hop.sh</code>）；只用 REALITY 也可</td></tr>
 <tr><td>Hysteria2 通、REALITY 不通</td><td>换 <code>VLESS_PORT</code> 或 <code>REALITY_DEST</code>，重跑 <code>30</code>，客户端重渲染</td></tr>
 <tr><td>能连但 ChatGPT 报错/无限验证</td><td>AI 出口被风控，换出口（<code>AI_MODE=dedicated</code>）</td></tr>
 <tr><td>一切正常但很慢</td><td>晚高峰用 mtr 看丢包；考虑迁移机房</td></tr>
@@ -222,7 +222,7 @@ curl -s -H "Authorization: Bearer $S" "http://$C/connections" | grep -o '"chains
 <h2>本机 TUN 捕获 SSH</h2>
 <p>如果你自己电脑上跑着 Clash / sing-box 之类的 TUN（虚拟网卡），<b>连服务器的 SSH 也会被隧道接管</b>，服务器 IP 不在隧道的直连规则里，握手就死在半路。症状是 <code>kex_exchange_identification: Connection closed</code>、<code>Connection closed by UNKNOWN port 65535</code>，或者干脆超时，但服务器明明在跑。</p>
 <div class="bad"><b><code>nc -vz</code> 报「能通」不能当证据。</b>TUN 在本地就把 TCP 握手接住了，连本来没服务监听的端口也会「成功」。判断：<code>route -n get &lt;服务器IP&gt; | grep interface</code>，看到 <code>utunX</code> 就是被接管了。</div>
-<p><b>正确的修法在代理配置里：把服务器自己的 IP 设为直连。</b>规则要加在<b>真正持有 <code>utun</code> 的那个客户端</b>上（先 <code>pgrep -fl 'clash|mihomo|sing-box'</code> 看一眼）；机场客户端通常只把自己的节点加入直连，你自建的 VPS 不在它名单里。（本手册的 <code>50-render-client.sh</code> 现在会自动给 sing-box 写这条规则，旧配置重新渲染一次就修好。）</p>
+<p><b>正确的修法在代理配置里：把服务器自己的 IP 设为直连。</b>规则要加在<b>真正持有 <code>utun</code> 的那个客户端</b>上（先 <code>pgrep -fl 'clash|mihomo|sing-box'</code> 看一眼）；机场客户端通常只把自己的节点加入直连，你自建的 VPS 不在它名单里。（本手册的 <code>bin/deploy/client/render.sh</code> 现在会自动给 sing-box 写这条规则，旧配置重新渲染一次就修好。）</p>
 <pre><code># sing-box：route.rules 的第一条
 { "ip_cidr": ["&lt;服务器IP&gt;/32"], "action": "route", "outbound": "direct" }
 

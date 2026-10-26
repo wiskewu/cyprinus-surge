@@ -77,14 +77,14 @@ details .body{padding:4px 14px 14px}
 <pre><code>ssh root@你的服务器IP
 
 # 在你自己电脑上执行（不是服务器）
-scp -r docs/deploy/scripts root@你的服务器IP:/root/deploy</code></pre>
+scp -r bin root@你的服务器IP:/root/</code></pre>
 
 <h2>运行初始化</h2>
 <pre><code>cd /root/deploy
-bash 00-bootstrap.sh
+bash bin/deploy/one/system.sh
 
 # SSH 不是 22 端口时：
-SSH_PORT=你的端口 bash 00-bootstrap.sh</code></pre>
+SSH_PORT=你的端口 bash bin/deploy/one/system.sh</code></pre>
 
 <p><code>SSH_PORT</code> 是「额外放行」，不是「只放行」：脚本会自己探测 sshd 的真实端口（当前连接 → <code>ss</code> 监听 → <code>ssh.socket</code> → <code>sshd_config</code>），探测到的一律放行。但<b>从云控制台 / VNC 登录</b>（没有 <code>SSH_CONNECTION</code>）或 socket 激活的 sshd 又拿不到监听信息时，防火墙就<b>只</b>按 <code>SSH_PORT</code> 开，填错就是把自己关在门外。日志里会出现「探测不到 sshd 在听哪个端口」的警告，看到就先核实：</p>
 <pre><code>ss -tlnp | grep -E 'sshd|:22'        # 实际监听（socket 激活时看 systemctl cat ssh.socket）
@@ -114,7 +114,7 @@ ssh-copy-id -p 你的SSH端口 root@服务器IP
 ssh -o PreferredAuthentications=publickey -o PasswordAuthentication=no -p 你的SSH端口 root@服务器IP true &amp;&amp; echo 公钥OK
 
 # 3) 回服务器重跑本步
-cd /root/deploy &amp;&amp; SSH_PORT=你的SSH端口 bash 00-bootstrap.sh</code></pre>
+cd /root/deploy &amp;&amp; SSH_PORT=你的SSH端口 bash bin/deploy/one/system.sh</code></pre>
 <p>看到 <code>[+]     已生效：passwordauthentication no</code> 就成了，可用 <code>sshd -T | grep -i '^passwordauthentication'</code> 复核。<b>不要</b>先手动关密码登录再跑脚本，那才是真死循环。</p>
 <p>只能用云控制台（本地没有 ssh 客户端）时，把公钥贴进去也一样管用：</p>
 <pre><code>mkdir -p ~/.ssh &amp;&amp; chmod 700 ~/.ssh

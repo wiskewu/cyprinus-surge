@@ -1,0 +1,101 @@
+<h1>3 · 服务端配置与自检</h1>
+<p class="lede">目标：把第 2 步生成的参数渲染成 sing-box 配置、启动服务，再用自检脚本确认监听、日志、证书都对。读者是维护这台节点的人。</p>
+
+<pre><code>cd /root/deploy
+bash bin/deploy/one/server.sh
+bash bin/deploy/check/server.sh</code></pre>
+
+<p><code>30</code> 用 <code>deploy.env</code> 渲染配置 → <code>sing-box check</code> 校验 → 重启服务。校验不通过就不会覆盖旧配置。</p>
+<p><code>40</code> 有 9 项，全绿再往下走。某几项的含义见 <a href="troubleshooting.html">排查手册</a>。</p>
+
+<h2>设备名单</h2>
+<p><code>bin/deploy/one/secrets.sh</code> 顺便建了 <code>/etc/sing-box/devices.list</code>，第一台叫 <code>main</code>。服务端的 <code>users</code> 数组就是从它渲染的，所以<b>改名单 → 重跑 <code>30</code></b> 就生效。</p>
+<pre><code># 名字 凭据 平台：一台设备一行
+main   af2358a4-df32-419c-9774-63a44c540970  desktop
+phone  9b2c1d70-3e44-4a1b-8c02-7e5d9f10a333  android</code></pre>
+<p>一台设备一个凭据，同时当 VLESS 的 uuid 和 Hysteria2 的 password 用，所以<b>删一行就是吊销那台</b>，两条入口同时失效，不会漏一边。</p>
+<div class="warn"><b>这份名单就是全部设备的凭据。</b>别提交到公开仓库：要版本管理就放私有仓库或加密后存；随手的本地副本用完删掉。</div>
+<div class="note">改凭据请用 <a href="#devices"><code>bin/deploy/device.sh</code></a>，别手改名单：它会顺手重渲染服务端并重新生成那台的客户端配置。</div>
+
+<h2>常用</h2>
+<pre><code>DRY_RUN=1 bash bin/deploy/one/server.sh   # 只生成配置，不动系统
+systemctl status sing-box
+journalctl -u sing-box -n 50 --no-pager
+systemctl restart sing-box</code></pre>
+
+<h2 id="harden">加固：降权与 systemd 沙箱 <span class="tag">推荐</span></h2>
+<p>默认的单元文件让 sing-box 以 root 全权限运行。它是唯一监听公网、解析密文的进程，值得收一次权限。脚本幂等，随时可以 <code>--check</code> 复查或 <code>--revert</code> 退回。</p>
+<p><a href="onekey.html">一键脚本</a>把这一步作为 <code>harden</code> 步骤固定执行，位于 <code>hy2</code> 之后、<code>porthop</code> 之前，不需要单独跑。单独重装 sing-box 之后补一次 <code>bash deploy.sh --only harden --overwrite --yes</code>。</p>
+<pre><code>sudo bash bin/deploy/one/harden.sh           # 建 system 用户、收权限、重写 unit、重启并自检
+sudo bash bin/deploy/one/harden.sh --minimal # 只降权，不加沙箱指令
+sudo bash bin/deploy/one/harden.sh --check   # 只看现状
+sudo bash bin/deploy/one/harden.sh --revert  # 用备份的 .orig 覆盖回去并重启</code></pre>
+<div class="tw">
+<table>
+<thead><tr><th>做了什么</th><th>为什么</th></tr></thead>
+<tbody>
+<tr><td><code>User=sing-box</code> + <code>CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW</code></td><td>只需要三项能力：操作 nftables/路由、绑 443、创建 TUN。其余 root 权限一律不给</td></tr>
+<tr><td><code>/etc/sing-box</code> 归 <code>root:sing-box</code>，目录 750、文件 640</td><td>配置里有 REALITY 私钥与证书私钥，只有该组可读</td></tr>
+<tr><td><code>ProtectSystem=strict</code>、<code>ProtectHome</code>、<code>PrivateTmp</code>、<code>ReadWritePaths=/var/lib/sing-box</code></td><td>文件系统只读，唯一可写是自己的运行目录</td></tr>
+<tr><td><code>ProtectKernelTunables</code>、<code>ProtectKernelModules</code>、<code>ProtectKernelLogs</code>、<code>ProtectControlGroups</code>、<code>ProtectClock</code>、<code>ProtectHostname</code>、<code>ProtectProc=invisible</code></td><td>内核面全部收掉，nftables 走 netlink 不受影响</td></tr>
+<tr><td><code>RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK</code>、<code>RestrictNamespaces</code>、<code>MemoryDenyWriteExecute</code>、<code>SystemCallFilter=@system-service</code></td><td>只留网络相关的地址族与系统调用</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="harden-verify">怎么算加固成功</h3>
+<p>脚本的判定不是「服务 active」就算过。sing-box 起来后还要几十到几百毫秒才绑定端口，只看 unit 状态会把「还在绑定」误判成失败，因此它会等端口：服务 active 且 <code>VLESS_PORT</code> 在监听，启用 Hy2 时再要求 <code>HY2_PORT/udp</code> 在监听，最多等 20 秒。任一条件不满足就回滚。</p>
+<pre><code>sudo bash bin/deploy/one/harden.sh --check</code></pre>
+<p>关键三行：<code>生效 User</code> 应为 <code>sing-box</code>、<code>StateDirectory</code> 应为 <code>sing-box</code>、<code>沙箱</code> 应为 <code>完整</code>。另有两行用来排除干扰：<code>FragmentPath</code> 与 <code>DropInPaths</code>，后者不为空说明有 drop-in 覆盖了单元。</p>
+<div class="warn"><b>重渲染会把配置权限改回 <code>600 root:root</code>。</b>降权后 sing-box 读不到，表现为 <code>read config at …: permission denied</code>。渲染脚本已改用 <code>install_service_file</code>，按单元里的 <code>User=</code> 自动落成 <code>640 root:&lt;该用户的组&gt;</code>；手工 <code>install -m 600</code> 覆盖过配置的，补 <code>chgrp</code> 后重启即可。</div>
+
+<div class="note"><b>排障时先对齐时间。</b><code>journalctl -u sing-box -n 30</code> 会把历史失败一起打出来，容易把几小时前的 <code>FATAL chdir</code> 当成这次的错误。用 <code>journalctl -u sing-box --since "10 min ago" --no-pager</code>，或者按脚本打印的调试信息为准。</div>
+
+<h3 id="harden-fail">沙箱下起不来时怎么定位</h3>
+<p>脚本会在重启后自检，失败自动回滚到 <code>.orig</code>，原服务照旧运行。原因看 <code>journal</code> 里的 <code>status=</code>：</p>
+<pre><code>journalctl -u sing-box -n 50 --no-pager</code></pre>
+<div class="tw">
+<table>
+<thead><tr><th><code>status=</code></th><th>含义</th><th>先删哪一组</th></tr></thead>
+<tbody>
+<tr><td><code>226/NAMESPACE</code></td><td>某项命名空间或文件系统隔离加不上</td><td>先去掉 <code>ProtectSystem=strict</code>、<code>ProtectHome</code>、<code>PrivateTmp</code>，逐条加回</td></tr>
+<tr><td><code>203/EXEC</code></td><td>执行阶段就被拒：二进制路径、权限或能力不够</td><td>先跑 <code>--minimal</code>，确认没有 <code>User=</code> 与能力集的问题</td></tr>
+<tr><td>降权后 <code>chdir … permission denied</code></td><td><code>/var/lib/sing-box</code> 还是 <code>root:root 700</code>，<code>sing-box</code> 用户进不去</td><td><code>ls -ld /var/lib/sing-box</code> 应显示 <code>sing-box sing-box</code>；脚本已显式 <code>chown</code>，并用 <code>StateDirectory</code> 让 systemd 兜底</td></tr>
+<tr><td>回滚后仍 <code>chdir … permission denied</code></td><td>原单元以 root 运行，但能力集里没有 <code>CAP_DAC_OVERRIDE</code>，root 不绕过文件权限；目录属主是 <code>sing-box</code>，root 成了「其他人」，<code>750</code> 的 <code>o</code> 位没有 <code>x</code></td><td><code>chown -R root:root /var/lib/sing-box &amp;&amp; chmod 700 /var/lib/sing-box</code>；<code>09-harden.sh --revert</code> 与自动回滚都已包含这一步</td></tr>
+<tr><td><code>1</code> 且日志有 <code>permission denied</code></td><td>配置、证书或运行目录读不到</td><td><code>ls -l /etc/sing-box</code> 看是否 <code>root:sing-box</code>、目录 750、文件 640</td></tr>
+<tr><td><code>1</code> 且日志有 <code>operation not permitted</code></td><td>系统调用被 <code>SystemCallFilter</code> 拦下</td><td>去掉 <code>SystemCallFilter</code> 与 <code>SystemCallErrorNumber</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>二分顺序：先 <code>--minimal</code> 确认降权本身没问题，再加回文件系统组，最后加进程组。也可以用 <code>sudo bash bin/deploy/check/selfcheck.sh</code>：它对每组属性做一次带真实二进制的试验，直接指出是哪一组挡住启动；<code>--fix-dac</code> 按生效用户修正目录属主，<code>--recover</code> 退回原单元。加回时一次只放一组，每轮都看 <code>systemctl is-active</code> 与 <code>ss -tlnp</code>。</p>
+<div class="note"><b>只看日志用 <code>--no-pager</code>。</b>在极简终端里直接跑 <code>journalctl</code> 会进分页器并提示 <code>WARNING: terminal is not fully functional</code>，那不是服务报错。</div>
+
+<div class="bad"><b>改完会重启 sing-box。</b>脚本重启后验证「服务 active + <code>VLESS_PORT</code> 在监听 + 启用 Hy2 时 <code>HY2_PORT/udp</code> 在监听」，任一不满足就自动回滚到原单元。若在沙箱下起不来，多半是某个 <code>Protect*</code> 或 <code>SystemCallFilter</code> 挡了 TUN 与 netlink：删掉对应一行再跑。</div>
+<div class="note">原单元备份在 <code>/etc/systemd/system/sing-box.service.orig</code>，只在首次加固时写一次，重复执行不会覆盖它。用 <code>bin/deploy/one/install-singbox.sh</code> 重装 sing-box 会把 unit 覆盖回未加固版本，重装后需要再跑一次本脚本。</div>
+
+<h2 id="devices">设备管理</h2>
+<p><code>bin/deploy/device.sh</code> 在<b>服务器</b>上就地完成：改名单 → 重渲染服务端 → 重新生成那台的客户端 JSON，然后你把 JSON 拿去分发。它不自己实现任何 sing-box 逻辑，渲染一律走现有脚本，所以不会和模板漂移。</p>
+<pre><code>sudo bash bin/deploy/device.sh list
+sudo bash bin/deploy/device.sh add laptop [desktop|android|ios]   # 默认 desktop
+sudo bash bin/deploy/device.sh rotate laptop                       # 换凭据，旧配置立刻失效
+sudo bash bin/deploy/device.sh revoke laptop                       # 删掉，两条入口同时失效
+sudo bash bin/deploy/device.sh render laptop                       # 只重渲染客户端配置</code></pre>
+<p>产物在 <code>/etc/sing-box/clients/sing-box-client-&lt;名字&gt;-&lt;平台&gt;.json</code>：</p>
+<pre><code>scp root@服务器:/etc/sing-box/clients/sing-box-client-laptop-desktop.json laptop@机器:~/</code></pre>
+<div class="warn"><b>每台设备只发它自己那一份。</b>整个 <code>devices.list</code> 落到任何一台机器上，就等于把所有设备的凭据都给了它。名单本身也要进 <code>.gitignore</code> 或单独加密存放。</div>
+<div class="bad"><b>add / rotate / revoke 都会重启 sing-box。</b>当前活跃会话不会断（连接已建立），但新连接会短暂受影响。</div>
+<div class="note">这里的名字只属于<b>代理凭据</b>。SSH 敲门（fwknop SPA）是另一套凭据、另一套吊销（删一个 <code>access.conf</code> stanza），与 <code>devices.list</code> 无关，见 <a href="../quality/index.html">SSH 加固手册</a>。</div>
+
+<h3>跑完之后做什么</h3>
+<ol>
+<li><b>确认产物</b>：<code>ls -l /etc/sing-box/clients/</code>。文件名里的平台就是这台设备的平台。</li>
+<li><b>只发那一份</b>：上面那条 <code>scp</code>。<b>客户端机器不需要</b> <code>client.env</code>、<code>devices.list</code> 或密钥包。</li>
+<li><b>导入</b>：按平台操作见 <a href="05-client.html#import">第 5 页</a>的导入表；Android 用 <code>-android.json</code>，iOS 用 <code>-ios.json</code>。</li>
+<li><b>验收</b>：在客户端机器上（不带 <code>client.env</code>，只给两个变量）：<br>
+<code>SERVER_IP=你的服务器IP VLESS_PORT=443 bash bin/deploy/client/verify.sh</code><br>
+见 <a href="06-ops.html">第 6 页</a>。</li>
+<li><b>以后要换/要删</b>：<code>rotate</code> → 重新 <code>scp</code> → 客户端重新导入（旧 JSON 的凭据当场失效）；<code>revoke</code> 之后需删除对方机器上的那份 JSON。换设备不改名单时，客户端那份旧 JSON 照样能用。</li>
+</ol>
+<p>一台设备要出<b>多份</b>（比如笔记本同时要桌面与安卓版）：<code>bin/deploy/device.sh</code> 只按名单里记的那个平台出一份，多份直接用渲染脚本，在服务器上跑，<code>--device</code> 会替它自己取凭据：</p>
+<pre><code>sudo OUTDIR=/etc/sing-box/clients bash bin/deploy/client/render.sh /etc/sing-box/client.env --device laptop desktop android</code></pre>
+
+<p style="margin-top:24px"><a href="02-install.html">← 上一步</a>　·　<a href="04-hy2.html">下一步（可选）→</a>　·　<a href="05-client.html">跳过 Hysteria2 →</a></p>

@@ -81,12 +81,12 @@ details .body{padding:4px 14px 14px}
 
 <h2>执行</h2>
 <pre><code>cd /root/deploy
-bash 35-tls-hy2.sh        # 输入域名 / 邮箱 / Token，自动签发并续期
-bash 30-render-server.sh  # 服务端开始监听 UDP
-bash 40-check-server.sh
+bash bin/deploy/one/hy2.sh        # 输入域名 / 邮箱 / Token，自动签发并续期
+bash bin/deploy/one/server.sh  # 服务端开始监听 UDP
+bash bin/deploy/check/server.sh
 
 # 可选：让客户端的端口跳跃真正可用
-bash 90-port-hop.sh</code></pre>
+bash bin/deploy/one/port-hop.sh</code></pre>
 
 <p>完成后要回到客户端重新渲染一次配置（它会读到 <code>ENABLE_HY2=1</code>）。</p>
 
@@ -96,7 +96,7 @@ bash 90-port-hop.sh</code></pre>
 <h3>1. 服务端在监听</h3>
 <pre><code>systemctl is-active sing-box
 ss -ulnp | grep ':8443'          # hysteria2 走 UDP，用 -u
-sudo bash 40-check-server.sh     # 自带「UDP 8443 在监听」一项</code></pre>
+sudo bash bin/deploy/check/server.sh     # 自带「UDP 8443 在监听」一项</code></pre>
 <p>云安全组与 ufw 要放行 <code>8443-8447/udp</code>。只放 8443 时端口跳跃会随机失败，现象是「时通时不通」。</p>
 
 <h3>2. 客户端配置的形状</h3>
@@ -109,18 +109,18 @@ jq -r '.route.final' client.json          # ENABLE_HY2=1 时应为 auto</code></
 
 <h3>3. 一条命令验证：<code>HY2_ONLY=1</code></h3>
 <p>验收脚本会从你手上的配置派生一份副本：所有指向其它代理出站的引用改写成 <code>proxy-hy2</code>，出站裁到只剩 <code>proxy-hy2</code> 与 <code>direct</code>，入站换成一个本地 mixed 端口，然后前台跑起来验收、跑完自动清理。不改你原来那份配置，也不用 root。</p>
-<pre><code>HY2_ONLY=1 CONFIG=./client.json bash docs/deploy/scripts/60-verify-client.sh ./client.env
+<pre><code>HY2_ONLY=1 CONFIG=./client.json bash bin/deploy/client/verify.sh ./client.env
 
 # 只给变量、没有 client.env 时
 HY2_ONLY=1 CONFIG=./client.json SERVER_IP=你的服务器IP VLESS_PORT=443 \
-  bash docs/deploy/scripts/60-verify-client.sh</code></pre>
+  bash bin/deploy/client/verify.sh</code></pre>
 <div class="tw">
 <table>
 <thead><tr><th>变量</th><th>默认</th><th>作用</th></tr></thead>
 <tbody>
 <tr><td><code>HY2_ONLY=1</code></td><td>关</td><td>派生配置 + 起临时实例 + 跑完整验收，需要本机有 sing-box</td></tr>
 <tr><td><code>HY2_ONLY=emit</code></td><td>关</td><td>只生成一份只走 hy2 的配置，不起进程、不联网、不需要 sing-box</td></tr>
-<tr><td><code>CONFIG</code></td><td><code>./client.json</code></td><td>要派生的客户端配置，<code>device.sh</code> 生成的 <code>*-desktop.json</code> 直接用</td></tr>
+<tr><td><code>CONFIG</code></td><td><code>./client.json</code></td><td>要派生的客户端配置，<code>bin/deploy/device.sh</code> 生成的 <code>*-desktop.json</code> 直接用</td></tr>
 <tr><td><code>HY2_TAG</code></td><td><code>proxy-hy2</code></td><td>出站 tag，改了模板或手写过配置时用</td></tr>
 <tr><td><code>HY2_PROBE_PORT</code></td><td><code>2081</code></td><td>临时 mixed 入站端口，与 GUI 的 2080 错开</td></tr>
 <tr><td><code>SING_BOX_BIN</code></td><td><code>sing-box</code></td><td>要执行的二进制，非 PATH 里的可写绝对路径</td></tr>
@@ -134,7 +134,7 @@ HY2_ONLY=1 CONFIG=./client.json SERVER_IP=你的服务器IP VLESS_PORT=443 \
 <h4>装了图形客户端但没有 CLI 时</h4>
 <p>SFM、GUI.for.SingBox 这类客户端把核心装在 App 或系统扩展里，<code>PATH</code> 上没有可执行的 <code>sing-box</code>。用 <code>emit</code> 生成一份只含 hy2 出站的配置，导入客户端即可，不必装第二个核心：</p>
 <pre><code>HY2_ONLY=emit CONFIG=./client.json HY2_OUT=./hy2-only.json \
-  bash docs/deploy/scripts/60-verify-client.sh</code></pre>
+  bash bin/deploy/client/verify.sh</code></pre>
 <div class="tw">
 <table>
 <thead><tr><th>生成结果</th><th>说明</th></tr></thead>
@@ -148,7 +148,7 @@ HY2_ONLY=1 CONFIG=./client.json SERVER_IP=你的服务器IP VLESS_PORT=443 \
 </div>
 <p>导入后按客户端分配到的本地端口跑普通验收，所有检查都会经由 hy2：</p>
 <pre><code>PROXY=socks5h://127.0.0.1:&lt;客户端端口&gt; SERVER_IP=&lt;服务器IP&gt; \
-  bash docs/deploy/scripts/60-verify-client.sh</code></pre>
+  bash bin/deploy/client/verify.sh</code></pre>
 <p><code>emit</code> 不读 <code>client.env</code>、也不联网，所以没有那份文件也能用。两种模式的分工：<code>emit</code> 只落到文件，<code>HY2_ONLY=1</code> 自己起进程跑，后者需要本机有 <code>sing-box</code> 二进制，前者不需要。</p>
 <div class="note"><b>图形客户端的 TUN 会抢路由。</b>验收走的是客户端自己的本地端口，与 TUN 是否开启无关；但 TUN 在跑时命令行测出来的延迟会被它接管，看 <code>route -n get 8.8.8.8 | grep interface</code> 确认。</div>
 

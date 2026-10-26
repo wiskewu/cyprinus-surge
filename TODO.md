@@ -6,22 +6,23 @@
 
 ## 当前状态（2026-10-26）
 
-管理入口已收敛为「公钥认证的 SSH + 速率限制 + fail2ban」，fwknop 与 WireGuard 两条路线全部退役：
+仓库已按 `bin/` `fragments/` `docs/` 重组，脚本迁移与端到端验证完成。
 
 | 项 | 现状 |
 | --- | --- |
-| SSH | 端口取自 `sshd -T`，`passwordauthentication no`、`permitrootlogin without-password`、`maxauthtries 3`、`maxstartups 5:30:10` |
-| 防火墙 | 仅 `443/tcp`、`8443:8447/udp`、SSH 端口 `LIMIT` |
-| 已退役 | `wg-quick@wg0` 停用并移除接口，`fwknop-server` inactive，两者配置归档到 `/root/retired` |
-| 客户端 | Ubuntu、macOS、Windows 均用系统自带 OpenSSH，Ed25519 免密登录 |
+| 结构 | `bin/` 生产代码（含 `onekey/` 生成物），`fragments/` 页面片段与构建工具，`docs/` 文档 |
+| 入口 | `bin/entry.sh` 只做转发，子命令与直接调用模块脚本等价 |
+| 交互 | 主入口脚本无参数且为终端时进菜单，非终端缺参数退出 2 |
+| 服务器 | 已恢复到未部署、未加固状态，供手动验证；`/root/backups` 保留 3 份备份 |
+| 验证 | 全流程 20 项断言通过，客户端验收 13 项通过 |
 
 未完成项：
 
 | # | 事项 | 状态 |
 | --- | --- | --- |
-| 51 | 手机端或其他设备接入 | 需要在各设备上装公钥；没有公钥时只能走云控制台 |
-| 52 | 双因子评估 | TOTP 能覆盖密钥泄露，但必须打开 `KbdInteractiveAuthentication`，有锁死风险，待稳定运行后再评估 |
-| 53 | 备份与监控脚本同步 | `80-monitor.sh`、`70-backup.sh` 属旧部署手册，未随本次改动复核 |
+| 51 | 其他设备接入 | 需要各自装公钥；没有公钥时只能走云控制台 |
+| 52 | 双因子评估 | TOTP 有锁死风险，待稳定运行后单独评估 |
+| 53 | 首次部署时 sshd 端口探测 | 未部署状态下 system 步骤会额外放行 22，需确认是否只按 sshd 实际端口放行 |
 
 ## 可观测性
 

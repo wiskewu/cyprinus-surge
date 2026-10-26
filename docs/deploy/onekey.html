@@ -74,9 +74,9 @@ details .body{padding:4px 14px 14px}
 <p class="lede"><code>deploy.sh</code> 把 7 个步骤串起来：先扫描每一步是否已配置，再让你决定「复用 / 覆盖 / 跳过」。它由 <code>build-onekey.sh</code> 自动生成，内容就是 <code>lib.sh</code> + <code>steps/*.sh</code> + 驱动逻辑。</p>
 
 <h2>快速开始</h2>
-<pre><code>scp -r docs/deploy/scripts root@你的服务器IP:/root/deploy
+<pre><code>scp -r bin root@你的服务器IP:/root/
 ssh root@你的服务器IP
-cd /root/deploy &amp;&amp; bash deploy.sh</code></pre>
+cd /root/bin/deploy &amp;&amp; bash deploy.sh</code></pre>
 <p>不带参数就是交互模式。想先看看它会做什么：<code>bash deploy.sh --dry-run</code>。</p>
 
 <h2>交互模式长什么样</h2>
@@ -155,9 +155,9 @@ server     未配置 no     渲染服务端配置并启动（双入口）
 
 <h2>改步骤后重新生成</h2>
 <pre><code># 改 steps/*.sh 或 onekey/driver.sh 之后
-bash docs/deploy/scripts/build-onekey.sh
+bash fragments/build/build-onekey.sh
 # 生成 deploy.sh（会自动做 bash -n 语法检查）</code></pre>
-<p><code>deploy.sh</code> 是生成物，不要手改；单步入口（<code>00-bootstrap.sh</code> 等）也调用同一份 <code>steps/*.sh</code>，所以两条路径的行为永远一致。</p>
+<p><code>deploy.sh</code> 是生成物，不要手改；单步入口（<code>bin/deploy/one/system.sh</code> 等）也调用同一份 <code>steps/*.sh</code>，所以两条路径的行为永远一致。</p>
 
 <h2>常见用法</h2>
 <pre><code># 只重做服务端配置（改完 REALITY_DEST 之类）

@@ -3,9 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node .build/deploy/build.mjs && node .build/quality/build.mjs && node .build/issue/build.mjs",
-    "lint": "bash .build/lint.sh",
+    "build": "node fragments/build/build-deploy-docs.mjs && node fragments/build/build-quality-docs.mjs && bash fragments/build/build-onekey.sh",
+    "lint": "bash fragments/build/lint.sh",
     "preview": "npx live-server docs --port=8080 --open=index.html",
-    "build:issue": "node .build/issue/build.mjs"
+    "build:issue": "node fragments/build/build-issue-docs.mjs"
   }
 }
