@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# 单步入口：实现见 steps/50-hy2.sh（一键脚本 deploy.sh 用同一份实现）
+# 单步入口：实现见 steps/35-hy2.sh（一键脚本 deploy.sh 用同一份实现）
 set -euo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=SCRIPTDIR/../lib.sh
 . "${SELF_DIR}/../lib.sh"
-# shellcheck source=SCRIPTDIR/../steps/50-hy2.sh
-. "${SELF_DIR}/../steps/50-hy2.sh"
+# shellcheck source=SCRIPTDIR/../steps/35-hy2.sh
+. "${SELF_DIR}/../steps/35-hy2.sh"
 case "${1:-}" in
   -h | --help)
     printf '用法：sudo bash %s

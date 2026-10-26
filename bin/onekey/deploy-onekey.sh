@@ -5,7 +5,7 @@
 #   重新生成：bash fragments/build/build-onekey.sh
 # ===========================================================================
 set -o pipefail
-STEPS=(system install secrets server hy2 harden porthop)
+STEPS=(system install secrets hy2 server harden porthop)
 
 # ---------------------------- lib.sh ----------------------------
 # lib.sh —— 所有脚本共用的函数。不要单独运行，被 source。
@@ -717,6 +717,92 @@ secrets_uninstall() {
   fi
 }
 
+# ---------------------------- 35-hy2.sh ----------------------------
+# 步骤 35（可选）：Hysteria2 证书
+#
+# 排在 server 之前：渲染服务端配置时要读 cert.pem / key.pem，缺证书就得停下来。
+# 排在 secrets 之后：域名与 ENABLE_HY2 由 secrets 写进 deploy.env，本步骤自己再读一次。
+hy2_TITLE="可选：Hysteria2 证书（ACME DNS-01）"
+hy2_OPTIONAL=1
+
+hy2_check() {
+  [[ -s "${DEPLOY_DIR}/cert.pem" ]] && [[ -s "${DEPLOY_DIR}/key.pem" ]] || return 1
+  grep -q '^ENABLE_HY2=1' "${ENVFILE}" 2>/dev/null || return 1
+  return 0
+}
+
+hy2_run() {
+  local ACME _dom="${DOMAIN:-}" _hy2="${ENABLE_HY2:-}"
+  # 驱动是先攒计划再执行，本轮 secrets 刚写进 deploy.env 的 DOMAIN / ENABLE_HY2
+  # 传不进这个子 shell，必须自己读一遍，否则会在发证时再问一次域名。
+  # 命令行显式给的值优先，与驱动启动时的覆盖规则一致。
+  load_env_optional "${ENVFILE}" || true
+  [[ -n "${_dom}" ]] && DOMAIN="${_dom}"
+  [[ -n "${_hy2}" ]] && ENABLE_HY2="${_hy2}"
+  # 与 port-hop 一致：没启用就直接跳过，不要往下走到交互提问
+  if [[ "${ENABLE_HY2:-0}" != "1" ]]; then
+    warn "ENABLE_HY2=0，跳过 Hysteria2"
+    return 0
+  fi
+  : "${DOMAIN:=}"
+  : "${CF_TOKEN:=}"
+  : "${ACME_EMAIL:=}"
+  if [[ -z "${DOMAIN}" ]] || [[ -z "${CF_TOKEN}" ]] || [[ -z "${ACME_EMAIL}" ]]; then
+    if [[ -n "${NONINTERACTIVE:-}" ]]; then
+      warn "缺少 DOMAIN/CF_TOKEN/ACME_EMAIL，跳过 Hysteria2"
+      return 0
+    fi
+    # 没有终端就只能报错：直接 read 会因 stdin 已关闭而静默失败在 set -e 下
+    if [[ ! -t 0 ]]; then
+      die "缺少 DOMAIN/CF_TOKEN/ACME_EMAIL，且当前不是交互终端；补齐后重跑或用 NONINTERACTIVE=1 跳过"
+    fi
+    [[ -n "${DOMAIN}" ]] || read -r -p "域名（例如 vps.example.com）: " DOMAIN
+    [[ -n "${ACME_EMAIL}" ]] || read -r -p "邮箱（证书到期通知）: " ACME_EMAIL
+    [[ -n "${CF_TOKEN}" ]] || read -r -p "Cloudflare API Token: " CF_TOKEN
+  fi
+  [[ -n "${DOMAIN}" ]] && [[ -n "${ACME_EMAIL}" ]] && [[ -n "${CF_TOKEN}" ]] || die "DOMAIN / ACME_EMAIL / CF_TOKEN 不能为空"
+
+  ensure_deploy_dir
+  command -v acme.sh >/dev/null 2>&1 || {
+    log "安装 acme.sh"
+    curl -fsSL https://get.acme.sh | sh -s email="${ACME_EMAIL}" >/dev/null
+  }
+  ACME="${HOME}/.acme.sh/acme.sh"
+  export CF_Token="${CF_TOKEN}"
+  log "用 DNS-01 签发 ${DOMAIN}"
+  "${ACME}" --issue --dns dns_cf -d "${DOMAIN}" --server letsencrypt --keylength ec-256 \
+    || warn "签发失败：确认 A 记录已生效（Cloudflare 需灰云）后重跑"
+  # reloadcmd 用 try-restart：本步骤现在跑在 server 之前，此时还没有 config.json，
+  # 直接 restart 会失败并被 acme.sh 当成「证书安装失败」。续期时服务在跑，照常重启。
+  "${ACME}" --install-cert -d "${DOMAIN}" --ecc \
+    --fullchain-file "${DEPLOY_DIR}/cert.pem" \
+    --key-file "${DEPLOY_DIR}/key.pem" \
+    --reloadcmd "systemctl try-restart sing-box 2>/dev/null || true" || die "安装证书失败"
+  # acme.sh 直接写目标路径，权限是 600 root:root。降权运行时 sing-box 读不到，
+  # 这里补一次组读，规则与 install_service_file 一致。
+  svc_user="$(systemctl show -p User --value sing-box 2>/dev/null || true)"
+  chmod 600 "${DEPLOY_DIR}/cert.pem" "${DEPLOY_DIR}/key.pem"
+  if [[ -n "${svc_user}" && "${svc_user}" != "root" ]] && group="$(id -gn "${svc_user}" 2>/dev/null)"; then
+    chgrp "${group}" "${DEPLOY_DIR}/cert.pem" "${DEPLOY_DIR}/key.pem" 2>/dev/null || true
+    chmod 640 "${DEPLOY_DIR}/cert.pem" "${DEPLOY_DIR}/key.pem" 2>/dev/null || true
+  fi
+
+  for f in "${ENVFILE}" "${CLIENT_ENV}"; do
+    [[ -f "${f}" ]] || continue
+    sed -i.bak "s|^DOMAIN=.*|DOMAIN=${DOMAIN}|; s|^ENABLE_HY2=.*|ENABLE_HY2=1|" "${f}" && rm -f "${f}.bak"
+  done
+  log "证书就绪，ENABLE_HY2=1 已写入环境文件"
+}
+
+hy2_uninstall() {
+  rm -f "${DEPLOY_DIR}/cert.pem" "${DEPLOY_DIR}/key.pem"
+  for f in "${ENVFILE}" "${CLIENT_ENV}"; do
+    [[ -f "${f}" ]] || continue
+    sed -i.bak "s|^ENABLE_HY2=.*|ENABLE_HY2=0|" "${f}" && rm -f "${f}.bak"
+  done
+  log "已删除证书并把 ENABLE_HY2 置 0"
+}
+
 # ---------------------------- 40-server.sh ----------------------------
 # 步骤 40：渲染服务端配置并启动
 server_TITLE="渲染服务端配置并启动（双入口）"
@@ -765,7 +851,7 @@ server_run() {
   cp "${T}/in1.json" "${T}/inbounds.json"
   if [[ "${ENABLE_HY2:-0}" == "1" ]]; then
     for f in cert.pem key.pem; do
-      [[ -s "${DEPLOY_DIR}/${f}" ]] || die "缺少 ${DEPLOY_DIR}/${f}：先跑 Hysteria2 步骤，或把 ENABLE_HY2 改成 0"
+      [[ -s "${DEPLOY_DIR}/${f}" ]] || die "缺少 ${DEPLOY_DIR}/${f}：先跑 bash deploy.sh --only hy2 签发证书，或把 deploy.env 里的 ENABLE_HY2 改成 0 后重跑 server"
     done
     render_vars "${TPL_DIR}/in-hy2.json.tmpl" "${T}/in2.json"
     render_users "${rows}" password "${T}/u2.json"
@@ -830,85 +916,11 @@ server_uninstall() {
   log "已停止服务并删除 config.json（密钥与证书保留）"
 }
 
-# ---------------------------- 50-hy2.sh ----------------------------
-# 步骤 50（可选）：Hysteria2 证书
-hy2_TITLE="可选：Hysteria2 证书（ACME DNS-01）"
-hy2_OPTIONAL=1
-
-hy2_check() {
-  [[ -s "${DEPLOY_DIR}/cert.pem" ]] && [[ -s "${DEPLOY_DIR}/key.pem" ]] || return 1
-  grep -q '^ENABLE_HY2=1' "${ENVFILE}" 2>/dev/null || return 1
-  return 0
-}
-
-hy2_run() {
-  local ACME
-  # 与 port-hop 一致：没启用就直接跳过，不要往下走到交互提问
-  if [[ "${ENABLE_HY2:-0}" != "1" ]]; then
-    warn "ENABLE_HY2=0，跳过 Hysteria2"
-    return 0
-  fi
-  : "${DOMAIN:=}"
-  : "${CF_TOKEN:=}"
-  : "${ACME_EMAIL:=}"
-  if [[ -z "${DOMAIN}" ]] || [[ -z "${CF_TOKEN}" ]] || [[ -z "${ACME_EMAIL}" ]]; then
-    if [[ -n "${NONINTERACTIVE:-}" ]]; then
-      warn "缺少 DOMAIN/CF_TOKEN/ACME_EMAIL，跳过 Hysteria2"
-      return 0
-    fi
-    # 没有终端就只能报错：直接 read 会因 stdin 已关闭而静默失败在 set -e 下
-    if [[ ! -t 0 ]]; then
-      die "缺少 DOMAIN/CF_TOKEN/ACME_EMAIL，且当前不是交互终端；补齐后重跑或用 NONINTERACTIVE=1 跳过"
-    fi
-    [[ -n "${DOMAIN}" ]] || read -r -p "域名（例如 vps.example.com）: " DOMAIN
-    [[ -n "${ACME_EMAIL}" ]] || read -r -p "邮箱（证书到期通知）: " ACME_EMAIL
-    [[ -n "${CF_TOKEN}" ]] || read -r -p "Cloudflare API Token: " CF_TOKEN
-  fi
-  [[ -n "${DOMAIN}" ]] && [[ -n "${ACME_EMAIL}" ]] && [[ -n "${CF_TOKEN}" ]] || die "DOMAIN / ACME_EMAIL / CF_TOKEN 不能为空"
-
-  command -v acme.sh >/dev/null 2>&1 || {
-    log "安装 acme.sh"
-    curl -fsSL https://get.acme.sh | sh -s email="${ACME_EMAIL}" >/dev/null
-  }
-  ACME="${HOME}/.acme.sh/acme.sh"
-  export CF_Token="${CF_TOKEN}"
-  log "用 DNS-01 签发 ${DOMAIN}"
-  "${ACME}" --issue --dns dns_cf -d "${DOMAIN}" --server letsencrypt --keylength ec-256 \
-    || warn "签发失败：确认 A 记录已生效（Cloudflare 需灰云）后重跑"
-  "${ACME}" --install-cert -d "${DOMAIN}" --ecc \
-    --fullchain-file "${DEPLOY_DIR}/cert.pem" \
-    --key-file "${DEPLOY_DIR}/key.pem" \
-    --reloadcmd "systemctl restart sing-box" || die "安装证书失败"
-  # acme.sh 直接写目标路径，权限是 600 root:root。降权运行时 sing-box 读不到，
-  # 这里补一次组读，规则与 install_service_file 一致。
-  svc_user="$(systemctl show -p User --value sing-box 2>/dev/null || true)"
-  chmod 600 "${DEPLOY_DIR}/cert.pem" "${DEPLOY_DIR}/key.pem"
-  if [[ -n "${svc_user}" && "${svc_user}" != "root" ]] && group="$(id -gn "${svc_user}" 2>/dev/null)"; then
-    chgrp "${group}" "${DEPLOY_DIR}/cert.pem" "${DEPLOY_DIR}/key.pem" 2>/dev/null || true
-    chmod 640 "${DEPLOY_DIR}/cert.pem" "${DEPLOY_DIR}/key.pem" 2>/dev/null || true
-  fi
-
-  for f in "${ENVFILE}" "${CLIENT_ENV}"; do
-    [[ -f "${f}" ]] || continue
-    sed -i.bak "s|^DOMAIN=.*|DOMAIN=${DOMAIN}|; s|^ENABLE_HY2=.*|ENABLE_HY2=1|" "${f}" && rm -f "${f}.bak"
-  done
-  log "证书就绪，ENABLE_HY2=1 已写入环境文件"
-}
-
-hy2_uninstall() {
-  rm -f "${DEPLOY_DIR}/cert.pem" "${DEPLOY_DIR}/key.pem"
-  for f in "${ENVFILE}" "${CLIENT_ENV}"; do
-    [[ -f "${f}" ]] || continue
-    sed -i.bak "s|^ENABLE_HY2=.*|ENABLE_HY2=0|" "${f}" && rm -f "${f}.bak"
-  done
-  log "已删除证书并把 ENABLE_HY2 置 0"
-}
-
 # ---------------------------- 55-harden.sh ----------------------------
 # 步骤 55：sing-box 降权与 systemd 沙箱。
 #
 # 独立入口 bin/deploy/one/harden.sh 复用本文件的函数，两条路径行为一致。
-# 放在 hy2 之后：沙箱化后要验证 Hy2 端口，证书没装完时 8443 不会监听。
+# 放在 hy2 与 server 之后：沙箱化后要验证 Hy2 端口，证书与服务端配置都就位时 8443 才会监听。
 harden_TITLE="sing-box 降权与 systemd 沙箱"
 harden_OPTIONAL=0
 
@@ -1305,7 +1317,7 @@ usage() {
 
   --reuse            已配置的步骤直接复用（不提问）
   --overwrite        已配置的步骤重新执行并覆盖
-  --only a,b         只跑指定步骤（system,install,secrets,server,hy2,harden,porthop）
+  --only a,b         只跑指定步骤（system,install,secrets,hy2,server,harden,porthop）
   --skip a,b         跳过指定步骤
   --yes              全部确认，不再提问
   --dry-run          只打印计划，不执行
@@ -1428,10 +1440,6 @@ do_install() {
   local -a todo=()
   for id in "${STEPS[@]}"; do
     selected "${id}" || continue
-    if [[ "$(step_optional "${id}")" == 1 ]] && ! hy2_enabled && { [[ "${id}" == "hy2" ]] || [[ "${id}" == "porthop" ]]; }; then
-      log "跳过 ${id}（ENABLE_HY2 未开启）"
-      continue
-    fi
     if [[ "$(step_state "${id}")" == "已配置" ]]; then
       decide "${id}"
       rc=$?
@@ -1453,7 +1461,19 @@ do_install() {
     log "没有需要执行的步骤"
     return 0
   fi
-  log "将执行：${todo[*]}"
+  # 可选步骤现在是否启用还不定：ENABLE_HY2 可能要到 secrets 步骤才写进 deploy.env。
+  # 计划里用 ? 标出这类步骤，执行前再按 deploy.env 决定跳不跳。
+  local -a todo_show=() opt_wait=0
+  for id in "${todo[@]}"; do
+    if [[ "$(step_optional "${id}")" == 1 ]] && ! hy2_enabled; then
+      todo_show+=("${id}?")
+      opt_wait=1
+    else
+      todo_show+=("${id}")
+    fi
+  done
+  log "将执行：${todo_show[*]}"
+  [[ "${opt_wait}" == 0 ]] || log "带 ? 的步骤只在 ENABLE_HY2=1 时执行（secrets 步骤里开启也算）"
   if [[ "${INTERACTIVE}" == 1 ]] && [[ "${OPT_DRY}" == 0 ]]; then
     printf '确认开始？[Y/n] '
     local a
@@ -1465,6 +1485,12 @@ do_install() {
     esac
   fi
   for id in "${todo[@]}"; do
+    # 可选步骤是否执行由 deploy.env 的 ENABLE_HY2 决定，而这份文件可能本轮才被
+    # secrets 写入。计划阶段就过滤会把刚开启的 Hysteria2 静默跳过，留到执行前再判。
+    if [[ "$(step_optional "${id}")" == 1 ]] && ! hy2_enabled; then
+      log "跳过 ${id}（ENABLE_HY2 未开启）"
+      continue
+    fi
     if execute "${id}"; then run_ok=$((run_ok + 1)); else
       run_fail=$((run_fail + 1))
       warn "步骤 ${id} 失败"

@@ -3,7 +3,7 @@
 # 步骤 55：sing-box 降权与 systemd 沙箱。
 #
 # 独立入口 bin/deploy/one/harden.sh 复用本文件的函数，两条路径行为一致。
-# 放在 hy2 之后：沙箱化后要验证 Hy2 端口，证书没装完时 8443 不会监听。
+# 放在 hy2 与 server 之后：沙箱化后要验证 Hy2 端口，证书与服务端配置都就位时 8443 才会监听。
 harden_TITLE="sing-box 降权与 systemd 沙箱"
 harden_OPTIONAL=0
 

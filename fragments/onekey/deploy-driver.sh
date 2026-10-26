@@ -22,7 +22,7 @@ usage() {
 
   --reuse            已配置的步骤直接复用（不提问）
   --overwrite        已配置的步骤重新执行并覆盖
-  --only a,b         只跑指定步骤（system,install,secrets,server,hy2,harden,porthop）
+  --only a,b         只跑指定步骤（system,install,secrets,hy2,server,harden,porthop）
   --skip a,b         跳过指定步骤
   --yes              全部确认，不再提问
   --dry-run          只打印计划，不执行
@@ -145,10 +145,6 @@ do_install() {
   local -a todo=()
   for id in "${STEPS[@]}"; do
     selected "${id}" || continue
-    if [[ "$(step_optional "${id}")" == 1 ]] && ! hy2_enabled && { [[ "${id}" == "hy2" ]] || [[ "${id}" == "porthop" ]]; }; then
-      log "跳过 ${id}（ENABLE_HY2 未开启）"
-      continue
-    fi
     if [[ "$(step_state "${id}")" == "已配置" ]]; then
       decide "${id}"
       rc=$?
@@ -170,7 +166,19 @@ do_install() {
     log "没有需要执行的步骤"
     return 0
   fi
-  log "将执行：${todo[*]}"
+  # 可选步骤现在是否启用还不定：ENABLE_HY2 可能要到 secrets 步骤才写进 deploy.env。
+  # 计划里用 ? 标出这类步骤，执行前再按 deploy.env 决定跳不跳。
+  local -a todo_show=() opt_wait=0
+  for id in "${todo[@]}"; do
+    if [[ "$(step_optional "${id}")" == 1 ]] && ! hy2_enabled; then
+      todo_show+=("${id}?")
+      opt_wait=1
+    else
+      todo_show+=("${id}")
+    fi
+  done
+  log "将执行：${todo_show[*]}"
+  [[ "${opt_wait}" == 0 ]] || log "带 ? 的步骤只在 ENABLE_HY2=1 时执行（secrets 步骤里开启也算）"
   if [[ "${INTERACTIVE}" == 1 ]] && [[ "${OPT_DRY}" == 0 ]]; then
     printf '确认开始？[Y/n] '
     local a
@@ -182,6 +190,12 @@ do_install() {
     esac
   fi
   for id in "${todo[@]}"; do
+    # 可选步骤是否执行由 deploy.env 的 ENABLE_HY2 决定，而这份文件可能本轮才被
+    # secrets 写入。计划阶段就过滤会把刚开启的 Hysteria2 静默跳过，留到执行前再判。
+    if [[ "$(step_optional "${id}")" == 1 ]] && ! hy2_enabled; then
+      log "跳过 ${id}（ENABLE_HY2 未开启）"
+      continue
+    fi
     if execute "${id}"; then run_ok=$((run_ok + 1)); else
       run_fail=$((run_fail + 1))
       warn "步骤 ${id} 失败"
