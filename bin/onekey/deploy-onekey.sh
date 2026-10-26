@@ -26,6 +26,9 @@ if [[ ! -d "${TPL_DIR}" && -d "${LIB_DIR}/../deploy/templates" ]]; then
   TPL_DIR="${LIB_DIR}/../deploy/templates"
 fi
 
+# 运行目录：sing-box 的工作目录，属主必须跟单元的实际运行用户一致
+RUN_DIR="${RUN_DIR:-/var/lib/sing-box}"
+
 # 日志、root 检查与交互组件统一由 bin/lib/common.sh 提供
 # shellcheck source=SCRIPTDIR/../lib/common.sh
 . "${LIB_DIR}/../lib/common.sh"
@@ -65,6 +68,22 @@ ensure_deploy_dir() {
     chmod 750 "${DEPLOY_DIR}"
   else
     chmod 700 "${DEPLOY_DIR}"
+  fi
+}
+
+# 运行目录必须归单元的实际运行用户。两个方向都会失败：以 sing-box 运行时
+# 目录归 root:root；或者单元回到 root、但能力集里没有 CAP_DAC_OVERRIDE 时，
+# root 进不了 sing-box 的 750 目录。两种都是 chdir 失败、服务起不来。
+ensure_run_dir() {
+  local u
+  u="$(service_user)"
+  install -d "${RUN_DIR}"
+  if [[ "${u}" == "root" ]]; then
+    chown root:root "${RUN_DIR}"
+    chmod 700 "${RUN_DIR}"
+  else
+    chown -R "${u}:${u}" "${RUN_DIR}"
+    chmod 750 "${RUN_DIR}"
   fi
 }
 
@@ -531,7 +550,8 @@ SSHEOF
 
   log "8/8 目录与常驻服务"
   ensure_deploy_dir
-  install -d -m 700 /var/lib/sing-box /root/backups
+  ensure_run_dir
+  install -d -m 700 /root/backups
   systemctl enable --now fail2ban vnstat >/dev/null 2>&1 || true
   log "完成：${SSH_PORTS} / ${VLESS_PORT}/tcp / ${HY2_PORT}-${HY2_HOP_END}/udp 已放行"
   warn "云厂商安全组也需放行同样端口，否则部分端口超时"
@@ -583,10 +603,16 @@ install_run() {
   BIN="$(find "${TMP}" -type f -name sing-box -perm -u+x | head -1)"
   [[ -n "${BIN}" ]] || die "压缩包里找不到 sing-box"
   install -m 0755 "${BIN}" "${SB_BIN}"
-  ensure_deploy_dir
-  install -d -m 700 /var/lib/sing-box
 
-  cat >/etc/systemd/system/sing-box.service <<'UNIT'
+  # 单元已被 harden 改成 User=sing-box 时不要覆盖回去：重装二进制与单元策略无关，
+  # 覆盖会让服务回到 root 全权限，而且与运行目录属主对不上——root 的能力集里没有
+  # CAP_DAC_OVERRIDE，进不去 sing-box 的 750 目录，重启就是 chdir 失败。
+  local unit=/etc/systemd/system/sing-box.service prev_user
+  prev_user="$(service_user)"
+  if [[ -f "${unit}" ]] && [[ "${prev_user}" != "root" ]]; then
+    log "保留已有单元：以 ${prev_user} 运行，重装二进制不改动它"
+  else
+    cat >"${unit}" <<'UNIT'
 [Unit]
 Description=sing-box service
 Documentation=https://sing-box.sagernet.org
@@ -607,7 +633,13 @@ LimitMEMLOCK=infinity
 [Install]
 WantedBy=multi-user.target
 UNIT
+  fi
+
   systemctl daemon-reload
+  # 目录属主跟着单元的实际运行用户走，别让重装把加固后的权限改回 root
+  ensure_deploy_dir
+  ensure_run_dir
+  log "运行目录 ${RUN_DIR} 归 $(service_user)（ls -ld ${RUN_DIR} 可复核）"
   systemctl enable sing-box >/dev/null
   log "已安装：$("${SB_BIN}" version | head -1)"
 }
@@ -985,7 +1017,9 @@ server_run() {
   systemctl restart sing-box
   sleep 1
   systemctl is-active --quiet sing-box || {
-    journalctl -u sing-box -n 30 --no-pager
+    # 只贴本次重启前后的日志：默认 -n 30 会把几小时前的握手噪音一起打出来，
+    # 真因（比如 chdir permission denied）反而被冲掉
+    journalctl -u sing-box -n 30 --no-pager --since "-2 min" || true
     die "sing-box 没起来"
   }
   log "服务已启动"

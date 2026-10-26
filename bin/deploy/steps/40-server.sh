@@ -100,7 +100,9 @@ server_run() {
   systemctl restart sing-box
   sleep 1
   systemctl is-active --quiet sing-box || {
-    journalctl -u sing-box -n 30 --no-pager
+    # 只贴本次重启前后的日志：默认 -n 30 会把几小时前的握手噪音一起打出来，
+    # 真因（比如 chdir permission denied）反而被冲掉
+    journalctl -u sing-box -n 30 --no-pager --since "-2 min" || true
     die "sing-box 没起来"
   }
   log "服务已启动"

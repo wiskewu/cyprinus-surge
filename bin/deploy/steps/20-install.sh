@@ -32,10 +32,16 @@ install_run() {
   BIN="$(find "${TMP}" -type f -name sing-box -perm -u+x | head -1)"
   [[ -n "${BIN}" ]] || die "压缩包里找不到 sing-box"
   install -m 0755 "${BIN}" "${SB_BIN}"
-  ensure_deploy_dir
-  install -d -m 700 /var/lib/sing-box
 
-  cat >/etc/systemd/system/sing-box.service <<'UNIT'
+  # 单元已被 harden 改成 User=sing-box 时不要覆盖回去：重装二进制与单元策略无关，
+  # 覆盖会让服务回到 root 全权限，而且与运行目录属主对不上——root 的能力集里没有
+  # CAP_DAC_OVERRIDE，进不去 sing-box 的 750 目录，重启就是 chdir 失败。
+  local unit=/etc/systemd/system/sing-box.service prev_user
+  prev_user="$(service_user)"
+  if [[ -f "${unit}" ]] && [[ "${prev_user}" != "root" ]]; then
+    log "保留已有单元：以 ${prev_user} 运行，重装二进制不改动它"
+  else
+    cat >"${unit}" <<'UNIT'
 [Unit]
 Description=sing-box service
 Documentation=https://sing-box.sagernet.org
@@ -56,7 +62,13 @@ LimitMEMLOCK=infinity
 [Install]
 WantedBy=multi-user.target
 UNIT
+  fi
+
   systemctl daemon-reload
+  # 目录属主跟着单元的实际运行用户走，别让重装把加固后的权限改回 root
+  ensure_deploy_dir
+  ensure_run_dir
+  log "运行目录 ${RUN_DIR} 归 $(service_user)（ls -ld ${RUN_DIR} 可复核）"
   systemctl enable sing-box >/dev/null
   log "已安装：$("${SB_BIN}" version | head -1)"
 }

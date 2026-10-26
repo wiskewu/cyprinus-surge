@@ -18,6 +18,9 @@ if [[ ! -d "${TPL_DIR}" && -d "${LIB_DIR}/../deploy/templates" ]]; then
   TPL_DIR="${LIB_DIR}/../deploy/templates"
 fi
 
+# 运行目录：sing-box 的工作目录，属主必须跟单元的实际运行用户一致
+RUN_DIR="${RUN_DIR:-/var/lib/sing-box}"
+
 # 日志、root 检查与交互组件统一由 bin/lib/common.sh 提供
 # shellcheck source=SCRIPTDIR/../lib/common.sh
 . "${LIB_DIR}/../lib/common.sh"
@@ -57,6 +60,22 @@ ensure_deploy_dir() {
     chmod 750 "${DEPLOY_DIR}"
   else
     chmod 700 "${DEPLOY_DIR}"
+  fi
+}
+
+# 运行目录必须归单元的实际运行用户。两个方向都会失败：以 sing-box 运行时
+# 目录归 root:root；或者单元回到 root、但能力集里没有 CAP_DAC_OVERRIDE 时，
+# root 进不了 sing-box 的 750 目录。两种都是 chdir 失败、服务起不来。
+ensure_run_dir() {
+  local u
+  u="$(service_user)"
+  install -d "${RUN_DIR}"
+  if [[ "${u}" == "root" ]]; then
+    chown root:root "${RUN_DIR}"
+    chmod 700 "${RUN_DIR}"
+  else
+    chown -R "${u}:${u}" "${RUN_DIR}"
+    chmod 750 "${RUN_DIR}"
   fi
 }
 

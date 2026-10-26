@@ -236,7 +236,8 @@ SSHEOF
 
   log "8/8 目录与常驻服务"
   ensure_deploy_dir
-  install -d -m 700 /var/lib/sing-box /root/backups
+  ensure_run_dir
+  install -d -m 700 /root/backups
   systemctl enable --now fail2ban vnstat >/dev/null 2>&1 || true
   log "完成：${SSH_PORTS} / ${VLESS_PORT}/tcp / ${HY2_PORT}-${HY2_HOP_END}/udp 已放行"
   warn "云厂商安全组也需放行同样端口，否则部分端口超时"
