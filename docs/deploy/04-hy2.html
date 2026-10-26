@@ -74,10 +74,13 @@ details .body{padding:4px 14px 14px}
 <p class="lede">不做也可以，REALITY 单入口已经能用。需要你有一个域名，DNS 托管在 Cloudflare。</p>
 
 <h2>准备</h2>
+<p>这一步要先备齐三样，缺一样就只能中止：</p>
 <ol>
-<li>加一条 A 记录指向你的服务器 IP，<b>关闭 Cloudflare 代理（灰云）</b></li>
-<li>创建 API Token，权限选「编辑区域 DNS」</li>
+<li><b>入口域名</b>：一条 A 记录指向服务器 IP，代理<b>关闭（灰云）</b>。证书按这个域名签，客户端也连这个域名。</li>
+<li><b>Cloudflare API Token</b>：权限选「编辑区域 DNS」，DNS-01 验证要用。</li>
+<li><b>邮箱</b>：证书到期通知地址，acme.sh 注册账号时用。</li>
 </ol>
+<p>用 <code>deploy.sh</code> 时，这三样会在开局的材料清单里列出；<code>--yes</code> 且缺料会直接退出 2，不会跑到发证才失败。</p>
 
 <h2>执行</h2>
 <pre><code>cd /root/deploy

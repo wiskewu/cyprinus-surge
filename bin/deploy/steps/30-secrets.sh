@@ -8,6 +8,23 @@ secrets_check() {
   [[ -s "${ENVFILE}" ]] && [[ -s "${CLIENT_ENV}" ]] && [[ -s "${DEVICES_LIST}" ]]
 }
 
+# 是否换新客户端可见的密钥（REALITY 密钥对、short_id、HY2 混淆密码）。
+# 参数 --rotate-secrets 优先；否则在真 TTY 上问一句，问不到（非交互）就沿用。
+# 返回值：0=换新，1=沿用。
+# 单独成函数是为了能在无 TTY 的环境里用桩替换来验证调用方逻辑。
+secrets_decide_rotate() {
+  [[ "${OPT_ROTATE_SECRETS:-0}" == "1" ]] && return 0
+  [[ -z "${NONINTERACTIVE:-}" ]] || return 1
+  [[ -t 0 ]] || return 1
+  local ans=""
+  printf '\n%s 里已有 REALITY 密钥对与 HY2 混淆密码。\n' "${ENVFILE}" >&2
+  read -r -p "沿用（已导出的客户端配置继续有效）？[Y/n，n = 全部换新并作废所有客户端配置]: " ans || true
+  case "${ans:-y}" in
+    n | N) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 secrets_run() {
   local SERVER_IP="${SERVER_IP}"
   ensure_deploy_dir
@@ -44,22 +61,28 @@ secrets_run() {
   fi
   valid_device_name "${FIRST_DEVICE}" || die "设备名不合法：${FIRST_DEVICE}（只允许字母数字 . _ -）"
 
-  # REALITY 公钥、short_id 与 HY2 混淆密码都嵌在已经导出的客户端配置里。重跑
-  # secrets 若把它们换掉，所有客户端当场失效，而错误只在客户端表现为 REALITY
-  # 校验失败或 QUIC 握手失败，很难联想到部署动作。所以默认沿用 deploy.env 里
-  # 的旧值，与 devices.list 的处理一致；要换必须显式给 FORCE_ROTATE_REALITY=1。
-  local old_priv="" old_pub="" old_sid="" old_obfs=""
-  if [[ "${FORCE_ROTATE_REALITY:-0}" != "1" ]] && [[ -f "${ENVFILE}" ]]; then
+  # REALITY 公钥、short_id 与 HY2 混淆密码都嵌在已经导出的客户端配置里。换掉
+  # 它们等于作废所有客户端，而错误只在客户端表现为 REALITY 校验失败或 QUIC
+  # 握手失败。默认沿用 deploy.env 里的旧值；换新要用参数 --rotate-secrets，
+  # 交互模式下每次都会问一句，不静默决定。
+  local old_priv="" old_pub="" old_sid="" old_obfs="" reuse_reality=1
+  if [[ "${OPT_ROTATE_SECRETS:-0}" != "1" ]] && [[ -f "${ENVFILE}" ]]; then
     old_priv="$(sed -n 's/^REALITY_PRIVATE_KEY=//p' "${ENVFILE}" | head -1)"
     old_pub="$(sed -n 's/^REALITY_PUBLIC_KEY=//p' "${ENVFILE}" | head -1)"
     old_sid="$(sed -n 's/^SHORT_ID=//p' "${ENVFILE}" | head -1)"
     old_obfs="$(sed -n 's/^OBFS_PASSWORD=//p' "${ENVFILE}" | head -1)"
   fi
   if [[ -n "${old_priv}" ]] && [[ -n "${old_pub}" ]] && [[ -n "${old_sid}" ]]; then
+    # 沿用与否都改变已分发配置的可用性，交互时问一句，不静默决定
+    secrets_decide_rotate && reuse_reality=0
+  else
+    reuse_reality=0
+  fi
+  if [[ "${reuse_reality}" == "1" ]]; then
     REALITY_PRIVATE_KEY="${old_priv}"
     REALITY_PUBLIC_KEY="${old_pub}"
     SHORT_ID="${old_sid}"
-    log "沿用已有 REALITY 密钥对与 short_id（换新：FORCE_ROTATE_REALITY=1，之后所有设备需重新 export）"
+    log "沿用已有 REALITY 密钥对、short_id 与 HY2 混淆密码（换新：--rotate-secrets，之后所有设备需重新 export）"
   else
     KP="$("${SB_BIN}" generate reality-keypair)"
     REALITY_PRIVATE_KEY="$(printf '%s\n' "${KP}" | awk -F': *' '/PrivateKey/{print $2}')"
@@ -67,7 +90,7 @@ secrets_run() {
     SHORT_ID="$(openssl rand -hex 4)"
     [[ -n "${REALITY_PRIVATE_KEY}" ]] && [[ -n "${REALITY_PUBLIC_KEY}" ]] || die "REALITY 密钥生成失败"
   fi
-  if [[ -n "${old_obfs}" ]]; then
+  if [[ "${reuse_reality}" == "1" ]] && [[ -n "${old_obfs}" ]]; then
     OBFS_PASSWORD="${old_obfs}"
   else
     OBFS_PASSWORD="$(rand_pass 20)"

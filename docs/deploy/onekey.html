@@ -94,9 +94,21 @@ porthop    未配置 yes    可选：Hysteria2 端口跳跃（iptables 重定向
       (r) 复用已存在配置  (o) 覆盖重跑  (s) 跳过   [r]
   [install] 已配置（安装 sing-box…）
       (r) 复用已存在配置  (o) 覆盖重跑  (s) 跳过   [r]
+本次需要用到的材料
+  - REALITY_DEST（伪装站点）：www.apple.com（默认）
+  - DOMAIN（入口域名，启用 Hysteria2 时必填）：未给出
+  - Cloudflare API Token（编辑区域 DNS 权限）：未给出
+  - ACME 邮箱（证书到期通知）：未给出
+  - Cloudflare A 记录：域名指向本机，代理关闭（灰云）
+  - 客户端可见密钥（REALITY 密钥对 / short_id / HY2 混淆密码）：默认沿用已有值，交互时再确认
+
 将执行：secrets hy2? server harden porthop?
 带 ? 的步骤只在 ENABLE_HY2=1 时执行（secrets 步骤里开启也算）
 确认开始？[Y/n]</code></pre>
+<p>清单里的值既可以提前用环境变量给，也可以在执行中按提示输入。<code>--yes</code> 下不再提问，缺料会直接退出 2 并列出缺哪几项。</p>
+<p>已有 <code>deploy.env</code> 时，<code>secrets</code> 会在重建前问一句密钥是否沿用：</p>
+<pre><code>/etc/sing-box/deploy.env 里已有 REALITY 密钥对与 HY2 混淆密码。
+沿用（已导出的客户端配置继续有效）？[Y/n，n = 全部换新并作废所有客户端配置]:</code></pre>
 <p>已配置的步骤默认「复用」，只有你选 <code>o</code> 才会重跑并覆盖。</p>
 
 <h2>参数</h2>
@@ -114,6 +126,7 @@ porthop    未配置 yes    可选：Hysteria2 端口跳跃（iptables 重定向
 <tr><td><code>--uninstall</code></td><td>卸载，保留 <code>deploy.env</code> 与证书</td></tr>
 <tr><td><code>--purge</code></td><td>卸载并删除 <code>deploy.env</code> / 证书</td></tr>
 <tr><td><code>--reinstall</code></td><td>卸载并重装（等价于 <code>--purge</code> 后全量覆盖）</td></tr>
+<tr><td><code>--rotate-secrets</code></td><td>重建密钥时换掉所有客户端可见的密钥：REALITY 密钥对、<code>short_id</code>、HY2 混淆密码。已导出的客户端配置立即失效（默认沿用，交互模式会再问一句）</td></tr>
 </tbody>
 </table>
 </div>
@@ -224,7 +237,7 @@ bash deploy.sh --purge --yes &amp;&amp; bash deploy.sh --yes</code></pre>
 [+]     scp -P 4061 root@203.0.113.9:/etc/sing-box/clients/dist/mac-20261026T123626Z.tar.gz root@203.0.113.9:/etc/sing-box/clients/dist/mac-20261026T123626Z.tar.gz.sha256 .
 [+] 校验并解包：sha256sum -c mac-20261026T123626Z.tar.gz.sha256 &amp;&amp; tar -xzf mac-20261026T123626Z.tar.gz    # macOS 用 shasum -a 256 -c</code></pre>
 <p>端口与地址取自 <code>deploy.env</code> 的 <code>SSH_PORT</code> / <code>SERVER_IP</code>；服务器登录用户默认 <code>root</code>，用 <code>SSH_LOGIN_USER</code> 覆盖。客户端侧的导入与验收见 <a href="05-client.html">第 5 页</a>。</p>
-<div class="warn"><b>收尾会检查已导出的客户端配置是否还对得上服务器。</b>脚本比对 <code>clients/*.json</code> 里的 <code>tls.reality.public_key</code>、<code>short_id</code> 与 Hysteria2 混淆密码，与 <code>deploy.env</code> 不一致的设备会被点名并要求重新 <code>export</code>：这类配置连不上，客户端只报 <code>reality verification failed</code>。重跑 <code>secrets</code> 默认不再轮换这些密钥（见 <a href="02-install.html">第 2 页</a>的重跑与换密钥），只有显式给 <code>FORCE_ROTATE_REALITY=1</code> 才会变。</div>
+<div class="warn"><b>收尾会检查已导出的客户端配置是否还对得上服务器。</b>脚本比对 <code>clients/*.json</code> 里的 <code>tls.reality.public_key</code>、<code>short_id</code> 与 Hysteria2 混淆密码，与 <code>deploy.env</code> 不一致的设备会被点名并要求重新 <code>export</code>：这类配置连不上，客户端只报 <code>reality verification failed</code>。重跑 <code>secrets</code> 默认不再轮换这些密钥（见 <a href="02-install.html">第 2 页</a>的重跑与换密钥），只有显式给 <code>--rotate-secrets</code> 才会变。</div>
 
 <p style="margin-top:24px"><a href="index.html">← 总览</a>　·　<a href="troubleshooting.html">排查手册</a></p>
 

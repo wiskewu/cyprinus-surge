@@ -9,6 +9,8 @@ OPT_YES=0
 OPT_DRY=0
 OPT_UNINSTALL=0
 OPT_REINSTALL=0
+OPT_STATUS=0
+OPT_ROTATE_SECRETS=0
 ONLY=""
 SKIP=""
 INTERACTIVE=1
@@ -30,6 +32,9 @@ usage() {
   --uninstall        卸载（保留 deploy.env / 证书）
   --purge            卸载并删除 deploy.env / 证书
   --reinstall        卸载并重装（等价 --purge 后全量 --overwrite）
+  --rotate-secrets   重建密钥时换掉所有客户端可见的密钥：REALITY 密钥对、
+                     short_id 与 HY2 混淆密码。已导出的客户端配置立即失效
+                     （默认沿用，交互模式会再确认一次）
   -h, --help         显示本帮助
 
 环境变量（也可直接传给脚本）：
@@ -46,6 +51,10 @@ parse_args() {
       --yes)
         OPT_YES=1
         INTERACTIVE=0
+        # 步骤内部也按这个判断要不要提问：只关掉驱动自己的确认不够，
+        # secrets / hy2 仍会 read，非交互跑就会卡住或读空
+        NONINTERACTIVE=1
+        export NONINTERACTIVE
         ;;
       --dry-run) OPT_DRY=1 ;;
       --uninstall) OPT_UNINSTALL=1 ;;
@@ -54,9 +63,11 @@ parse_args() {
         OPT_REINSTALL=1
         PURGE=1
         ;;
+      --rotate-secrets) OPT_ROTATE_SECRETS=1 ;;
       --status)
         OPT_DRY=1
         OPT_YES=1
+        OPT_STATUS=1
         ;;
       --only)
         shift
@@ -198,6 +209,38 @@ print_next_steps() {
   printf '  导出这一台的配置：sudo bash %s export <名字>\n' "${dev}"
   printf '  换凭据：sudo bash %s rotate <名字>　　吊销：sudo bash %s revoke <名字>\n' "${dev}" "${dev}"
   printf '  客户端导入后验收：bash bin/deploy/client/verify.sh\n'
+}
+
+# 开局把这次要跑的东西与需要准备的材料讲清楚：缺料在非交互运行下直接退出 2，
+# 交互下只提示，真正缺的时候由对应步骤提问。取值来自环境变量与 deploy.env。
+preflight() {
+  local missing=() want_hy2=0
+  [[ "${OPT_STATUS}" == "1" ]] && return 0
+  load_env_optional "${ENVFILE}" || true
+  # 只在 hy2 确实会执行时要求材料：--skip hy2,porthop 或 ENABLE_HY2=0 都不需要
+  if selected hy2 && hy2_enabled; then want_hy2=1; fi
+
+  printf '\n本次需要用到的材料\n'
+  printf '  - REALITY_DEST（伪装站点）：%s\n' "${REALITY_DEST:-www.apple.com（默认）}"
+  printf '  - DOMAIN（入口域名，启用 Hysteria2 时必填）：%s\n' "${DOMAIN:-未给出}"
+  printf '  - Cloudflare API Token（编辑区域 DNS 权限）：%s\n' "$([[ -n "${CF_TOKEN:-}" ]] && printf '已给出' || printf '未给出')"
+  printf '  - ACME 邮箱（证书到期通知）：%s\n' "${ACME_EMAIL:-未给出}"
+  printf '  - Cloudflare A 记录：域名指向本机，代理关闭（灰云）\n'
+  printf '  - 客户端可见密钥（REALITY 密钥对 / short_id / HY2 混淆密码）：%s\n' \
+    "$([[ "${OPT_ROTATE_SECRETS}" == "1" ]] && printf '按 --rotate-secrets 换新' || printf '默认沿用已有值，交互时再确认')"
+  printf '\n'
+
+  [[ "${want_hy2}" == "1" ]] || return 0
+  local k
+  for k in DOMAIN CF_TOKEN ACME_EMAIL; do
+    if [[ -z "${!k:-}" ]] && ! grep -q "^${k}=." "${ENVFILE}" 2>/dev/null; then
+      missing+=("${k}")
+    fi
+  done
+  [[ "${#missing[@]}" -gt 0 ]] || return 0
+  warn "启用 Hysteria2 需要的值还没给：${missing[*]}"
+  [[ "${INTERACTIVE}" == 1 ]] && return 0
+  usage_error "非交互运行缺少 ${missing[*]}；补齐后重跑，或用 --skip hy2,porthop 跳过 Hysteria2"
 }
 
 do_install() {
@@ -348,6 +391,7 @@ main() {
   fi
 
   print_plan
+  preflight
   # --dry-run 与 --status 的语义都是只看计划，打印完即返回，不进入执行阶段
   [[ "${OPT_DRY}" == 1 ]] && return 0
 

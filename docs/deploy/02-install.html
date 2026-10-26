@@ -136,20 +136,17 @@ sudo SING_BOX_PKG=/root/sing-box.tar.gz bash bin/deploy/one/install-singbox.sh</
 <div class="note"><b>单元与运行目录属主必须一致。</b>旧版本脚本会把单元改回 <code>User=root</code> 而 <code>/var/lib/sing-box</code> 仍属 <code>sing-box</code>：root 的能力集里没有 <code>CAP_DAC_OVERRIDE</code>，<code>750</code> 目录的 <code>o</code> 位没有 <code>x</code>，重启表现为 <code>chdir /var/lib/sing-box: permission denied</code>。现在 <code>install</code> / <code>system</code> / <code>server</code> 三步都调用 <code>ensure_run_dir</code>，按单元的实际用户<b>递归</b>归位，<code>cache.db</code> 这类上一次运行留下的文件也在内。</div>
 
 <h2>重跑与换密钥</h2>
-<p><code>bin/deploy/one/secrets.sh</code> 在 <code>deploy.env</code> 已存在时直接保留原样并退出；<code>deploy.sh</code> 里的 <code>secrets</code> 步骤即使选「覆盖」也保留三样东西：</p>
-<ul>
-<li><code>devices.list</code>：设备凭据不因重跑而全变一遍；</li>
-<li><code>REALITY</code> 密钥对与 <code>short_id</code>：公钥嵌在已导出的客户端配置里，换了所有客户端当场失效；</li>
-<li><code>OBFS_PASSWORD</code>：Hysteria2 的 salamander 密码同理，换了表现为 QUIC 握手失败。</li>
-</ul>
+<p>重跑保留三样东西：<code>devices.list</code>（设备凭据）、REALITY 密钥对与 <code>short_id</code>、Hysteria2 的混淆密码。这三样都嵌在已导出的客户端配置里，换了就让所有客户端当场失效。</p>
 <pre><code># 重跑：只补缺的字段，客户端配置继续有效
-sudo bash bin/deploy/one/secrets.sh
+sudo bash bin/deploy/one/secrets.sh --overwrite
 sudo bash deploy.sh --only secrets --overwrite --yes
 
-# 真的要换 REALITY 密钥（会作废所有已导出的客户端配置）
-sudo FORCE_ROTATE_REALITY=1 bash deploy.sh --only secrets --overwrite --yes
+# 换新：连 REALITY 密钥对、short_id 与 HY2 混淆密码一起换掉
+sudo bash bin/deploy/one/secrets.sh --rotate-secrets
+sudo bash deploy.sh --only secrets --rotate-secrets --yes
 sudo bash bin/deploy/device.sh export 每台设备名      # 逐台重新导出并分发</code></pre>
-<div class="bad"><b><code>FORCE_ROTATE_REALITY=1</code> 之后，没重新导出的客户端全部连不上。</b>现象是客户端 REALITY 校验失败，服务端日志为 <code>REALITY: processed invalid connection</code>。只想换单台设备的凭据用 <code>device.sh rotate</code>，不动 REALITY 密钥。</div>
+<div class="note"><b>动作走参数，取值走环境变量。</b><code>--overwrite</code> 与 <code>--rotate-secrets</code> 是动作，写在命令行；端口、域名、Token 这些取值用环境变量或交互输入。交互模式下 <code>secrets</code> 每次都会问一句密钥是否沿用，回答 <code>n</code> 等同于 <code>--rotate-secrets</code>。</div>
+<div class="bad"><b>换新之后，没重新导出的客户端全部连不上。</b>现象是客户端 REALITY 校验失败，服务端日志为 <code>REALITY: processed invalid connection</code>。只想换单台设备的凭据用 <code>device.sh rotate</code>，不动 REALITY 密钥。</div>
 
 <p style="margin-top:24px"><a href="01-init.html">← 上一步</a>　·　<a href="03-server.html">下一步 →</a></p>
 

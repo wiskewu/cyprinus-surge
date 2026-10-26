@@ -90,7 +90,7 @@ phone  9b2c1d70-3e44-4a1b-8c02-7e5d9f10a333  android</code></pre>
 <div class="note">改凭据请用 <a href="#devices"><code>bin/deploy/device.sh</code></a>，别手改名单：它会顺手重渲染服务端并重新生成那台的客户端配置。</div>
 
 <h2>常用</h2>
-<pre><code>DRY_RUN=1 bash bin/deploy/one/server.sh   # 只生成配置，不动系统
+<pre><code>bash bin/deploy/one/server.sh --dry-run    # 只生成配置，不改系统、不重启
 systemctl status sing-box
 journalctl -u sing-box -n 50 --no-pager
 systemctl restart sing-box</code></pre>
