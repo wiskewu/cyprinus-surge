@@ -335,7 +335,8 @@ alert_check() {
   local now cooldown problems="" last msg key last_ts cached
   now="$(date +%s)"
   cooldown="${ALERT_COOLDOWN_H:-6}"
-  last="$(tail -n 1 "${PROBE_LOG}" 2>/dev/null || true)"
+  # 探针停摆时最后一行不会自己消失，超龄的旧结论不能拿来报警
+  last="$(probe_last_fresh)"
 
   # 1) 服务与端口：探针 CSV 里出现 down
   if printf '%s' "${last}" | grep -q ',down'; then

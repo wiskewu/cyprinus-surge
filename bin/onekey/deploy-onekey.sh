@@ -2,7 +2,7 @@
 # shellcheck disable=SC2034  # 步骤元数据与跨文件变量由间接展开读取
 # ===========================================================================
 # deploy.sh，一键脚本。自动生成，勿手改。
-#   生成时间：2026-10-26T08:37:33Z
+#   生成时间：2026-10-26T08:39:19Z
 #   来源：bin/deploy/lib.sh + bin/deploy/steps/*.sh + fragments/onekey/deploy-driver.sh
 #   重新生成：bash fragments/build/build-onekey.sh
 # ===========================================================================
@@ -238,12 +238,30 @@ quota_label() {
   fi
 }
 
-# 探针异常标记：最近一条探针里服务或端口挂了、AI 出口被风控、丢包过高时返回一个符号。
-# 只用单个符号，避免节点名过长挤占客户端显示。
-probe_mark() {
-  local log="${PROBE_STATE_DIR:-/var/lib/sing-box-monitor}/probe.log" last
+# 最近一条探针记录，但只在它足够新时才返回。
+# 探针停摆时最后一行会一直留在文件里，拿着它下结论等于用过期事实报警。
+probe_last_fresh() {
+  local log="${PROBE_STATE_DIR:-/var/lib/sing-box-monitor}/probe.log" last ts epoch age
   [[ -r "${log}" ]] || return 0
   last="$(tail -n 1 "${log}")"
+  [[ -n "${last}" ]] || return 0
+  ts="${last%%,*}"
+  # GNU date 与 BSD date 的写法不同；都失败就退回不过滤，不能因为解析失败就丢记录
+  epoch="$(date -u -d "${ts}" +%s 2>/dev/null || date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "${ts}" +%s 2>/dev/null || printf '')"
+  [[ -n "${epoch}" ]] || {
+    printf '%s' "${last}"
+    return 0
+  }
+  age=$(($(date +%s) - epoch))
+  [[ "${age}" -le $((${PROBE_MAX_AGE_MIN:-15} * 60)) ]] || return 0
+  printf '%s' "${last}"
+}
+
+# 探针异常标记：最近一条探针里服务或端口挂了、AI 出口被风控时返回一个符号。
+# 只用单个符号，避免节点名过长挤占客户端显示。
+probe_mark() {
+  local last
+  last="$(probe_last_fresh)"
   [[ -n "${last}" ]] || return 0
   case "${last}" in
     *',down,'* | *',down'*) printf '⚠' ;;

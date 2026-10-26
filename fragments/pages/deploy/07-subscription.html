@@ -52,7 +52,7 @@ vps · 3.6G/1T ⚠       最近一次探针发现服务、端口、AI 出口或�
 <thead><tr><th>项</th><th>来源</th><th>说明</th></tr></thead>
 <tbody>
 <tr><td>用量</td><td><code>vnstat --json m</code></td><td>当月收发合计，配额取 <code>MONTHLY_QUOTA</code>，默认 <code>1T</code></td></tr>
-<tr><td>异常标记</td><td><code>probe.log</code> 最后一行</td><td>出现 <code>down</code>、HTTP 403/429 时追加一个符号，只用单个字符避免名称过长</td></tr>
+<tr><td>异常标记</td><td><code>probe.log</code> 最后一行，且不早于 <code>PROBE_MAX_AGE_MIN</code> 分钟（默认 15）</td><td>出现 <code>down</code> 或 AI 出口 <code>fail</code> 时追加一个符号，只用单个字符避免名称过长</td></tr>
 <tr><td>刷新时机</td><td>重渲染</td><td>名称是快照，客户端不会自己更新；改用量要重跑客户端渲染并重新分发</td></tr>
 </tbody>
 </table>
@@ -76,6 +76,7 @@ vps · 3.6G/1T ⚠       最近一次探针发现服务、端口、AI 出口或�
 <pre><code>sudo bash bin/deploy/ops/monitor.sh --alert-test     # 验证推送凭据
 sudo bash bin/deploy/ops/monitor.sh --alert-check    # 只评估，不发探针</code></pre>
 <p>两种推送都没配时，异常只写进 <code>probe.log</code>，不影响探针本身。</p>
+<div class="warn"><b>探针停摆时不会误报。</b>定时器没跑、文件停在几小时前，最后一行不会自己消失。异常标记与告警检查都只认 <code>PROBE_MAX_AGE_MIN</code> 分钟内的记录，超龄就当没有数据。要调整窗口：<code>PROBE_MAX_AGE_MIN=30 bash bin/deploy/client/render.sh ./client.env</code>。</div>
 
 <h2>推送通道</h2>
 <p><code>alert_send</code> 支持同时配置多个通道，任一成功即算送达。下列通道在大陆可直连：</p>
