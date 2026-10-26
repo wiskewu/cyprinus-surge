@@ -63,6 +63,13 @@ sudo bash bin/deploy/ops/monitor.sh --uninstall</code></pre>
 # 浏览器打开 http://127.0.0.1:9090/ui</code></pre>
 <div class="warn"><b><code>/ui</code> 需要面板文件。</b>clash_api 只提供 REST 接口，不自带前端，没装面板时访问 <code>/ui</code> 是 404。装一次即可：<code>sudo bash bin/deploy/ops/monitor.sh --ui</code>，它下载 metacubexd 到 <code>/var/lib/sing-box/ui</code> 并重渲染配置写入 <code>external_ui</code>。面板文件放在运行目录而不是 <code>/etc/sing-box</code>，避免被 <code>bin/deploy/ops/backup.sh</code> 打进每次备份。</div>
 <div class="bad"><b>不要把它绑到 0.0.0.0。</b>面板能看到全部连接与规则命中，暴露公网等于把控制面交出去；本脚本固定写回环地址。</div>
+<h4>面板读的是哪个配置</h4>
+<p>面板只跟<b>正在运行的那个 sing-box 实例</b>对话，数据来自它的运行状态，与 <code>/etc/sing-box/clients/*.json</code> 无关：</p>
+<ul>
+<li>通过 <code>ssh -L 9090:127.0.0.1:9090</code> 转发后访问 <code>/ui</code>，看的是服务器实例，也就是 <code>/etc/sing-box/config.json</code> 渲染出来的那份；</li>
+<li><code>clients/</code> 下那几份 JSON 是发给客户端机器导入的，服务器上的这个实例一份也不读，有多少份都不影响面板显示；</li>
+<li>要看代理组、延迟测试与规则命中，得让面板连到<b>客户端侧</b>运行的 sing-box：那份进程加载的是 client JSON，代理组与 rules 都在它里面。</li>
+</ul>
 <h4>面板里为什么大多是空的</h4>
 <p>这套服务端配置只有一个 <code>direct</code> 出站、没有 <code>route.rules</code>、<code>log.level=warn</code>，所以面板大部分栏目<strong>本来就没有数据</strong>。各栏的数据源与预期形态：</p>
 <div class="tw">
