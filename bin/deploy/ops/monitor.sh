@@ -151,6 +151,21 @@ run_probe() {
   alert_check || true
 }
 
+# ---------------------------------------------------------------- 面板
+# 面板各栏对应的端点。空不等于故障：服务端配置只有一个 direct 出站、没有
+# route.rules，代理与规则两栏本来就该是空的；log.level=warn 时日志栏也长期为空。
+panel_status() {
+  local base="http://${CLASH_API_LISTEN}" path out
+  printf '\n== 面板端点（浏览器里空白的那几栏对应下面几行）==\n'
+  for path in /version /configs /proxies /rules /connections /traffic /logs; do
+    out="$(curl -s -m 2 -o /dev/null -w '%{http_code} %{size_download}' "${base}${path}" 2>/dev/null || true)"
+    [[ -n "${out}" ]] || out='000 0'
+    printf '  %-12s HTTP %s  %6s 字节\n' "${path}" "${out%% *}" "${out##* }"
+  done
+  printf '  proxies 只有 direct、rules 为空、logs 为空（log.level=warn）是这套服务端配置的正常形态；\n'
+  printf '  connections 与 traffic 只在有活跃连接时才有数据，traffic 与 logs 是流式端点，按 2 秒采样。\n'
+}
+
 # ---------------------------------------------------------------- 状态
 show_status() {
   need_root
@@ -175,6 +190,7 @@ show_status() {
     printf '未开启（sudo bash %s --clash-api on）\n' "$0"
     return 0
   fi
+  panel_status
   if command -v jq >/dev/null 2>&1; then
     curl -fsS -m 3 "http://${CLASH_API_LISTEN}/connections" \
       | jq -r '"连接数 \(.connections | length)  下载 \(.downloadTotal / 1048576 | floor) MiB  上传 \(.uploadTotal / 1048576 | floor) MiB",

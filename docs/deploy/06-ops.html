@@ -135,6 +135,26 @@ sudo bash bin/deploy/ops/monitor.sh --uninstall</code></pre>
 # 浏览器打开 http://127.0.0.1:9090/ui</code></pre>
 <div class="warn"><b><code>/ui</code> 需要面板文件。</b>clash_api 只提供 REST 接口，不自带前端，没装面板时访问 <code>/ui</code> 是 404。装一次即可：<code>sudo bash bin/deploy/ops/monitor.sh --ui</code>，它下载 metacubexd 到 <code>/var/lib/sing-box/ui</code> 并重渲染配置写入 <code>external_ui</code>。面板文件放在运行目录而不是 <code>/etc/sing-box</code>，避免被 <code>bin/deploy/ops/backup.sh</code> 打进每次备份。</div>
 <div class="bad"><b>不要把它绑到 0.0.0.0。</b>面板能看到全部连接与规则命中，暴露公网等于把控制面交出去；本脚本固定写回环地址。</div>
+<h4>面板里为什么大多是空的</h4>
+<p>这套服务端配置只有一个 <code>direct</code> 出站、没有 <code>route.rules</code>、<code>log.level=warn</code>，所以面板大部分栏目<strong>本来就没有数据</strong>。各栏的数据源与预期形态：</p>
+<div class="tw">
+<table>
+<thead><tr><th>模块</th><th>端点</th><th>这套配置下的形态</th></tr></thead>
+<tbody>
+<tr><td>概览</td><td>聚合下面各栏</td><td>下面几栏都空时它也是空的</td></tr>
+<tr><td>代理</td><td><code>/proxies</code></td><td>只有 <code>direct</code>；服务端没有 selector / urltest，没有可切换、可测延迟的对象</td></tr>
+<tr><td>规则</td><td><code>/rules</code></td><td>服务端没有 <code>route.rules</code>，分流规则写在客户端 JSON 里，服务端看不到</td></tr>
+<tr><td>连接</td><td><code>/connections</code></td><td>只列活跃连接；无人连接或刚重启过就是 0 条</td></tr>
+<tr><td>用量</td><td><code>/traffic</code></td><td>流式端点，只反映实时流量，空闲时没有点</td></tr>
+<tr><td>日志</td><td><code>/logs</code></td><td><code>log.level=warn</code> 时只有 warn 以上事件；正常运行时长期为空</td></tr>
+</tbody>
+</table>
+</div>
+<p>先确认 API 活着，再看哪一栏该有数据：</p>
+<pre><code>systemctl is-active sing-box
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:9090/version     # 200 说明 API 在
+sudo bash bin/deploy/ops/monitor.sh --status                                # 逐端点打印状态码与字节数</code></pre>
+<div class="warn"><b>服务挂掉时标签页不会自己变空页。</b>页面文件已被浏览器缓存，标签页仍会渲染出各栏布局，但所有请求都失败，看起来就是「全部空白」。先跑上面那两行确认 <code>sing-box</code> 在跑、<code>/version</code> 返回 200。</div>
 <div class="note">要按出口看连接数：<code>curl -s http://127.0.0.1:9090/connections | jq '[.connections[].chains[-1]] | group_by(.) | map({(.[0]): length}) | add'</code>。<code>--status</code> 已经做了这一步，没装 <code>jq</code> 时退回原始输出。</div>
 
 <h2>导出与回滚</h2>
