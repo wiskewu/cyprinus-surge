@@ -217,6 +217,34 @@ curl -s -H "Authorization: Bearer $S" "http://$C/connections" | grep -o '"chains
 <li><code>REALITY: processed invalid connection</code>，含义与处理见本页<a href="#reality-noise">同名小节</a>。</li>
 </ul>
 
+<h2>刚重启就看结论，三个坑</h2>
+<p>重启之后立刻自检，读到的往往还不是新进程的状态。下列结果在 Debian 13 上实测。</p>
+
+<h3>1 重启竞态：退出码 0 不等于就绪</h3>
+<pre><code>systemctl restart sing-box
+systemctl is-active sing-box     # active：服务已拉起
+ss -tln | grep ':443 '           # 可能还是空：监听尚未建立</code></pre>
+<p>实测连续三轮都是「<code>active</code> 但 443 未监听」，从 restart 返回到端口可用约 240 ms；要下载规则集或加载证书时更长。</p>
+<div class="bad"><b>日志要按启动时间切。</b>直接 <code>journalctl -u sing-box -n 300</code> 会把上一轮失败留下的 <code>FATAL</code> 一起读出来，看起来像当前版本起不来。按本次启动看：<br>
+<code>journalctl -u sing-box --since "$(systemctl show -p ActiveEnterTimestamp --value sing-box)"</code><br>
+服务端自检脚本已经这么做。</div>
+
+<h3>2 端口就绪：等监听，不要等进程</h3>
+<pre><code># 最多等 10 秒，直到端口真的在监听
+for i in $(seq 1 100); do
+  ss -tln | grep -q ':443 ' && { echo 就绪; break; }
+  sleep 0.1
+done</code></pre>
+<p>判定端口都走这个写法，比 <code>sleep 3</code> 稳：慢机器上够用，快机器上不浪费。UDP 用 <code>ss -uln</code>。</p>
+
+<h3>3 <code>CAP_DAC_OVERRIDE</code>：root 不绕过文件权限</h3>
+<p>能力集里去掉 <code>CAP_DAC_OVERRIDE</code> 之后，uid 0 只是一个普通用户：目录属主是 <code>sing-box</code>、权限 <code>750</code> 时，root 落在「其他人」，没有 <code>x</code> 就进不去。复现：</p>
+<pre><code>install -d -m 750 -o sing-box -g sing-box /tmp/dac2
+echo hi &gt; /tmp/dac2/f &amp;&amp; chown sing-box:sing-box /tmp/dac2/f &amp;&amp; chmod 640 /tmp/dac2/f
+cat /tmp/dac2/f                                   # hi
+capsh --drop=all -- -c 'cat /tmp/dac2/f'          # Permission denied</code></pre>
+<p>这是降权后「配置读不到」的根因之一，处理见<a href="03-server.html">第 3 页</a>的沙箱一节：目录属主跟随单元 <code>User</code>，或者 <code>bin/deploy/check/selfcheck.sh --fix-dac</code> 修正。</p>
+
 <h2>故障手册</h2>
 <div class="tw">
 <table>
