@@ -145,7 +145,7 @@ sudo bash bin/deploy/ops/monitor.sh --uninstall</code></pre>
 <tr><td>代理</td><td><code>/proxies</code></td><td>只有 <code>direct</code>；服务端没有 selector / urltest，没有可切换、可测延迟的对象</td></tr>
 <tr><td>规则</td><td><code>/rules</code></td><td>服务端没有 <code>route.rules</code>，分流规则写在客户端 JSON 里，服务端看不到</td></tr>
 <tr><td>连接</td><td><code>/connections</code></td><td>只列活跃连接；无人连接或刚重启过就是 0 条</td></tr>
-<tr><td>用量</td><td><code>/traffic</code></td><td>流式端点，只反映实时流量，空闲时没有点</td></tr>
+<tr><td>用量</td><td><code>/traffic</code></td><td>流式端点。实测 sing-box 1.14.3 在服务端角色下这一路恒为 <code>{"up":0,"down":0}</code>，即使 <code>/connections</code> 的 <code>downloadTotal</code> 在增长；同一版本作为客户端运行时能出数据。要看待用量请把面板开在客户端</td></tr>
 <tr><td>日志</td><td><code>/logs</code></td><td><code>log.level=warn</code> 时只有 warn 以上事件；正常运行时长期为空</td></tr>
 </tbody>
 </table>

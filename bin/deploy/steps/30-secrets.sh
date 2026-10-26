@@ -44,12 +44,34 @@ secrets_run() {
   fi
   valid_device_name "${FIRST_DEVICE}" || die "设备名不合法：${FIRST_DEVICE}（只允许字母数字 . _ -）"
 
-  KP="$("${SB_BIN}" generate reality-keypair)"
-  REALITY_PRIVATE_KEY="$(printf '%s\n' "${KP}" | awk -F': *' '/PrivateKey/{print $2}')"
-  REALITY_PUBLIC_KEY="$(printf '%s\n' "${KP}" | awk -F': *' '/PublicKey/{print $2}')"
-  SHORT_ID="$(openssl rand -hex 4)"
-  OBFS_PASSWORD="$(rand_pass 20)"
-  [[ -n "${REALITY_PRIVATE_KEY}" ]] && [[ -n "${REALITY_PUBLIC_KEY}" ]] || die "REALITY 密钥生成失败"
+  # REALITY 公钥、short_id 与 HY2 混淆密码都嵌在已经导出的客户端配置里。重跑
+  # secrets 若把它们换掉，所有客户端当场失效，而错误只在客户端表现为 REALITY
+  # 校验失败或 QUIC 握手失败，很难联想到部署动作。所以默认沿用 deploy.env 里
+  # 的旧值，与 devices.list 的处理一致；要换必须显式给 FORCE_ROTATE_REALITY=1。
+  local old_priv="" old_pub="" old_sid="" old_obfs=""
+  if [[ "${FORCE_ROTATE_REALITY:-0}" != "1" ]] && [[ -f "${ENVFILE}" ]]; then
+    old_priv="$(sed -n 's/^REALITY_PRIVATE_KEY=//p' "${ENVFILE}" | head -1)"
+    old_pub="$(sed -n 's/^REALITY_PUBLIC_KEY=//p' "${ENVFILE}" | head -1)"
+    old_sid="$(sed -n 's/^SHORT_ID=//p' "${ENVFILE}" | head -1)"
+    old_obfs="$(sed -n 's/^OBFS_PASSWORD=//p' "${ENVFILE}" | head -1)"
+  fi
+  if [[ -n "${old_priv}" ]] && [[ -n "${old_pub}" ]] && [[ -n "${old_sid}" ]]; then
+    REALITY_PRIVATE_KEY="${old_priv}"
+    REALITY_PUBLIC_KEY="${old_pub}"
+    SHORT_ID="${old_sid}"
+    log "沿用已有 REALITY 密钥对与 short_id（换新：FORCE_ROTATE_REALITY=1，之后所有设备需重新 export）"
+  else
+    KP="$("${SB_BIN}" generate reality-keypair)"
+    REALITY_PRIVATE_KEY="$(printf '%s\n' "${KP}" | awk -F': *' '/PrivateKey/{print $2}')"
+    REALITY_PUBLIC_KEY="$(printf '%s\n' "${KP}" | awk -F': *' '/PublicKey/{print $2}')"
+    SHORT_ID="$(openssl rand -hex 4)"
+    [[ -n "${REALITY_PRIVATE_KEY}" ]] && [[ -n "${REALITY_PUBLIC_KEY}" ]] || die "REALITY 密钥生成失败"
+  fi
+  if [[ -n "${old_obfs}" ]]; then
+    OBFS_PASSWORD="${old_obfs}"
+  else
+    OBFS_PASSWORD="$(rand_pass 20)"
+  fi
 
   # 设备名单已存在就原样保留：凭据不该因为重跑 secrets 而全变一遍。
   # 现有实例里的 devices.list 优先，Force 重跑也不覆盖。

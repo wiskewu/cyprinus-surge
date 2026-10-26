@@ -179,6 +179,7 @@ capsh --drop=all -- -c 'cat /tmp/dac2/f'          # Permission denied</code></pr
 <thead><tr><th>现象</th><th>动作</th></tr></thead>
 <tbody>
 <tr><td>三端同时连不上</td><td><code>systemctl status sing-box</code> → <code>journalctl -n 50</code> → <code>bash bin/deploy/check/server.sh</code></td></tr>
+<tr><td>客户端 <code>reality verification failed</code>，服务端日志 <code>REALITY: processed invalid connection</code></td><td>客户端配置里的 <code>public_key</code> / <code>short_id</code> 与服务器当前的不一致：<code>secrets</code> 被覆盖重跑过，密钥对已轮换</td><td>对比 <code>grep REALITY_PUBLIC_KEY /etc/sing-box/deploy.env</code> 与客户端 JSON 的 <code>tls.reality.public_key</code>；不一致就 <code>bash bin/deploy/device.sh export &lt;设备&gt;</code> 重新导出并分发。新版脚本重跑 <code>secrets</code> 默认保留旧密钥</td></tr>
 <tr><td>REALITY 通、Hysteria2 不通</td><td>UDP 被限速/阻断，或端口跳跃规则没加（<code>bin/deploy/one/port-hop.sh</code>）；只用 REALITY 也可</td></tr>
 <tr><td>Hysteria2 通、REALITY 不通</td><td>换 <code>VLESS_PORT</code> 或 <code>REALITY_DEST</code>，重跑 <code>bin/deploy/one/server.sh</code>，客户端重渲染</td></tr>
 <tr><td>能连但 ChatGPT 报错/无限验证</td><td>AI 出口被风控，换出口（<code>AI_MODE=dedicated</code>）</td></tr>
