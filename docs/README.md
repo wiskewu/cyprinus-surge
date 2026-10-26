@@ -7,7 +7,7 @@
 | **[index.html](index.html)** | **推荐入口**：单文件方案可视化（内联四张已校验的架构图，可离线打开） |
 | [vps-shortlist.html](vps-shortlist.html) | 服务器入门采购清单：满足下单门槛的 6 家厂商 / 8 个机型，含价格、线路、支付宝/Visa 支持、按小时与换 IP 能力 |
 | [deploy/index.html](deploy/index.html) | **部署手册**：6 步主流程 + [一键脚本](deploy/onekey.html) + 独立排查手册；页面只写命令与参数，`scripts/deploy.sh` 由 `build-onekey.sh` 从 `steps/*.sh` 生成 |
-| [quality/index.html](quality/index.html) | **SSH 加固手册**：仅公钥登录 + `ufw limit` + fail2ban；5 页（[路线选择](quality/index.html) → [服务端加固](quality/01-server.html) → [客户端配置](quality/02-client.html) → [验收与排障](quality/03-verify.html) → [参数与取舍](quality/04-reference.html)），可离线打开 |
+| [quality/index.html](quality/index.html) | **SSH 加固手册**：仅公钥登录 + `ufw limit` + fail2ban；5 页（[路线选择](quality/index.html) → [客户端配置](quality/01-client.html) → [服务端加固](quality/02-server.html) → [验收与排障](quality/03-verify.html) → [参数与取舍](quality/04-reference.html)），可离线打开 |
 | [方案.md](方案.md) | 完整文字方案：选型、协议、客户端配置骨架、分流与 DNS、IP 门禁、运维与故障手册、实施验收、成本、风险、参考来源 |
 | [quality/README.md](quality/README.md) | 同一批内容的 Markdown 版：三个幂等脚本（`bin/harden/{client,harden,audit}.sh`）与四步流程 |
 | [diagrams/01-architecture.html](diagrams/01-architecture.html) | 图 1 总体架构（独立交互版，可切主题） |
