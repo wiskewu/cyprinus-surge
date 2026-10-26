@@ -97,7 +97,7 @@ scp root@你的服务器IP:/etc/sing-box/client.env ./client.env</code></pre>
 <pre><code>bash bin/deploy/client/install.sh --rollback</code></pre>
 <p>回滚只替换配置文件，不碰 SSH 免密，也不重跑验收。要跨机器搬配置用服务器上的 <code>device.sh export</code>，见<a href="06-ops.html">第 6 页</a>。</p>
 
-<h2>规则集缓存</h2>
+<h2 id="rules">规则集缓存</h2>
 <p>分流依赖三个远程规则集。渲染时写入 <code>experimental.cache_file</code>，下载结果与编译结果落盘，重启不再整份重下；规则集自身的 <code>update_interval</code> 是 3 天，到期由 sing-box 自行刷新。</p>
 <div class="tw">
 <table>
@@ -111,7 +111,7 @@ scp root@你的服务器IP:/etc/sing-box/client.env ./client.env</code></pre>
 </div>
 <div class="note"><b>写法有版本要求。</b>1.13 起顶层 <code>cache_file</code> 被移除，必须写在 <code>experimental.cache_file</code> 里且为对象形式 <code>{"enabled": true, "path": "..."}</code>；写成字符串会被 sing-box 拒绝启动。</div>
 
-<h2>没有 CLI 时怎么验收</h2>
+<h2 id="ncli">没有 CLI 时怎么验收</h2>
 <p>图形客户端把核心装在扩展或 App 里，本机没有 <code>sing-box</code> 可执行文件。这时用免 CLI 子集：</p>
 <pre><code>bash bin/deploy/client/verify.sh --no-cli --proxy socks5h://127.0.0.1:7890</code></pre>
 <div class="tw">
@@ -176,6 +176,44 @@ OUTDIR=/tmp/x bash bin/deploy/client/render.sh ./client.env --all</code></pre>
 </div>
 
 <p>本脚本生成的配置本地测试端口是 <code>127.0.0.1:2080</code>。如果用 GUI.for.SingBox 自己的配置，端口以它的界面为准。</p>
+
+<h2 id="macos">macOS 只留一个客户端</h2>
+<p>两台代理客户端同时接管流量时，症状无法归因：断流、DNS 泄漏、TUN 抢路由三者互相掩盖。macOS 上统一用 SFM，其余客户端全部退出并停用系统代理。</p>
+
+<h3>操作清单</h3>
+<pre><code># 1. 关掉其他客户端的接管，退出 App（含菜单栏图标）
+#    Clash Verge：设置里关「系统代理」，关「TUN 模式」，再退出
+
+# 2. 确认系统代理已清空，三项都应为 Enabled: No 或不存在
+scutil --proxy | grep -Ei 'HTTPProxy|HTTPSProxy|SOCKSProxy|ProxyAutoConfig'
+networksetup -getwebproxy Wi-Fi
+networksetup -getsecurewebproxy Wi-Fi
+networksetup -getsocksfirewallproxy Wi-Fi
+
+# 3. 确认没有残留的 utun 接口与默认路由
+ifconfig | grep '^utun'
+route -n get default | grep -E 'interface|gateway'
+
+# 4. 只留 SFM：首次启动按提示授权系统扩展，再导入 JSON，最后打开 TUN
+
+# 5. 确认默认路由进了 SFM 的 utun，且能出网
+route -n get default | grep interface
+curl -s -o /dev/null -w '%{http_code}
+' https://www.gstatic.com/generate_204</code></pre>
+
+<h3>症状对照</h3>
+<div class="tw">
+<table>
+<thead><tr><th>现象</th><th>原因</th><th>处理</th></tr></thead>
+<tbody>
+<tr><td>时通时断，抓包看到两个 utun</td><td>两个客户端都在跑 TUN</td><td>退出其中一个，只留 SFM</td></tr>
+<tr><td>浏览器走代理，命令行不走</td><td>只有系统代理没有 TUN</td><td>SFM 里打开 TUN，或按 <a href="#import">导入</a>一节确认配置起了 TUN 入站</td></tr>
+<tr><td>国内站点很慢或走境外</td><td>规则集没加载，全部走代理</td><td>看<a href="#rules">规则集缓存</a>一节的缓存路径是否存在</td></tr>
+<tr><td>SSH 连服务器被立刻断开</td><td>服务器 IP 未直连，流量绕回本机</td><td>用脚本渲染，不要手改 JSON</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note">SFM 没有命令行核心，验收用 <a href="#ncli">没有 CLI 时怎么验收</a>的免 CLI 子集，代理地址填 SFM 界面里的混合端口。</div>
 
 <p>导入失败、国内站点打不开、要独立 AI 出口 → <a href="troubleshooting.html">排查手册</a>。</p>
 
