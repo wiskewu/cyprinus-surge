@@ -1516,6 +1516,37 @@ execute() {
   )
 }
 
+# device.sh 与本脚本的相对位置：仓库内它与 deploy.sh 同目录（bin/deploy），一键脚本在
+# bin/onekey/，设备脚本在 ../deploy/。找不到就只给文件名，不猜绝对路径。
+device_script_path() {
+  local dir
+  for dir in "${SELF_DIR:-}" "$(cd "$(dirname "$0")" 2>/dev/null && pwd)"; do
+    [[ -n "${dir}" ]] || continue
+    if [[ -f "${dir}/device.sh" ]]; then
+      printf '%s' "${dir}/device.sh"
+      return 0
+    fi
+    if [[ -f "${dir}/../deploy/device.sh" ]]; then
+      printf '%s' "$(cd "${dir}/../deploy" && pwd)/device.sh"
+      return 0
+    fi
+  done
+  printf 'device.sh'
+}
+
+print_next_steps() {
+  local dev
+  [[ -f "${ENVFILE}" ]] || return 0
+  load_env_optional "${ENVFILE}" || true
+  dev="$(device_script_path)"
+  printf '\n下一步\n'
+  printf '  当前设备：%s\n' "$(device_rows | awk '{print $1}' | paste -sd' ' -)"
+  printf '  新增设备：sudo bash %s add <名字> [desktop|android|ios]\n' "${dev}"
+  printf '  导出这一台的配置：sudo bash %s export <名字>\n' "${dev}"
+  printf '  换凭据：sudo bash %s rotate <名字>　　吊销：sudo bash %s revoke <名字>\n' "${dev}" "${dev}"
+  printf '  客户端导入后验收：bash bin/deploy/client/verify.sh\n'
+}
+
 do_install() {
   local id rc run_ok=0 run_fail=0
   local -a todo=()
@@ -1587,6 +1618,7 @@ do_install() {
   done
   printf '\n完成：%d 个步骤成功，%d 个失败\n' "${run_ok}" "${run_fail}"
   [[ "${run_fail}" -eq 0 ]] || exit 1
+  print_next_steps
 }
 
 do_uninstall() {

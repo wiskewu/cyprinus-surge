@@ -153,7 +153,16 @@ sudo bash bin/deploy/device.sh revoke laptop                       # 删掉，�
 sudo bash bin/deploy/device.sh render laptop                       # 只重渲染客户端配置
 sudo bash bin/deploy/device.sh export laptop                       # 渲染并打包，附校验和</code></pre>
 <p>产物在 <code>/etc/sing-box/clients/sing-box-client-&lt;名字&gt;-&lt;平台&gt;.json</code>：</p>
-<pre><code>scp root@服务器:/etc/sing-box/clients/sing-box-client-laptop-desktop.json laptop@机器:~/</code></pre>
+<pre><code># 客户端执行：-P 是 SSH 端口，用户与地址从 export 打出的那行直接抄
+scp -P 你的SSH端口 root@服务器IP:/etc/sing-box/clients/sing-box-client-laptop-desktop.json ~/</code></pre>
+<p>也可以在服务器推，前提是客户端开着 sshd、且知道它的用户与端口：<code>scp -P 客户端SSH端口 /etc/sing-box/clients/sing-box-client-laptop-desktop.json 客户端用户@客户端IP:~/</code>。</p>
+<pre><code># 不想每次写端口与 IP：在客户端的 ~/.ssh/config 里
+Host vps
+  HostName 服务器IP
+  User root
+  Port 你的SSH端口
+# 之后可以直接
+scp vps:/etc/sing-box/clients/sing-box-client-laptop-desktop.json ~/</code></pre>
 <div class="warn"><b>每台设备只发它自己那一份。</b>整个 <code>devices.list</code> 落到任何一台机器上，就等于把所有设备的凭据都给了它。名单本身也要进 <code>.gitignore</code> 或单独加密存放。</div>
 <div class="bad"><b>add / rotate / revoke 都会重启 sing-box。</b>当前活跃会话不会断（连接已建立），但新连接会短暂受影响。</div>
 <div class="note">这里的名字只属于<b>代理凭据</b>。SSH 的密钥与吊销走另一套机制，与 <code>devices.list</code> 无关，见 <a href="../quality/index.html">SSH 加固手册</a>。</div>

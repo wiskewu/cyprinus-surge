@@ -79,9 +79,10 @@ details .body{padding:4px 14px 14px}
 sudo bash bin/deploy/device.sh add laptop
 sudo bash bin/deploy/device.sh export laptop
 
-# 客户端：先校验再解包
-scp vps:/etc/sing-box/clients/dist/laptop-*.tar.gz* /tmp/
+# 客户端：先校验再解包（-P 是 SSH 端口；export 会打出填好端口、用户与地址的完整命令）
+scp -P 你的SSH端口 root@服务器IP:/etc/sing-box/clients/dist/laptop-*.tar.gz* /tmp/
 cd /tmp &amp;&amp; sha256sum -c laptop-*.tar.gz.sha256 &amp;&amp; tar -xzf laptop-*.tar.gz</code></pre>
+<p>在 <code>~/.ssh/config</code> 里配好 <code>Host vps / HostName 服务器IP / User root / Port 你的SSH端口</code> 之后，上面那行可以写成 <code>scp vps:/etc/sing-box/clients/dist/laptop-*.tar.gz* /tmp/</code>。macOS 没有 <code>sha256sum</code>，用 <code>shasum -a 256 -c laptop-*.tar.gz.sha256</code>。</p>
 <p>解出来的文件名形如 <code>sing-box-client-laptop-desktop.json</code>：中间是设备名，末尾是平台。包里只有这一台设备的配置与 <code>SHA256SUMS</code>。</p>
 <div class="tw">
 <table>

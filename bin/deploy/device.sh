@@ -42,6 +42,7 @@ usage() {
   DEVICES_LIST  设备名单路径（默认 /etc/sing-box/devices.list）
   CLIENT_OUT    客户端配置输出目录（默认 ${DEPLOY_DIR}/clients）
   CLIENT_ENV    客户端环境文件（默认 /etc/sing-box/client.env）
+  SSH_LOGIN_USER  分发提示里登录服务器的用户（默认 root）
 
 注意：add / rotate / revoke 都会重启 sing-box。当前有活跃会话时，
 连接不会断（规则已建立），但新连接会短暂受影响。
@@ -75,6 +76,17 @@ apply_changes() {
   if [[ -n "${dev}" ]]; then render_client "${dev}"; fi
 }
 
+# 分发命令里的服务器一侧：地址与端口取 deploy.env 的真实值，缺值时保留占位符。
+# 客户端默认以 root 登录，用 SSH_LOGIN_USER 覆盖。
+dist_server() {
+  local host port user
+  load_env_optional "${ENVFILE}" || true
+  host="${SERVER_IP:-<服务器IP>}"
+  port="${SSH_PORT:-22}"
+  user="${SSH_LOGIN_USER:-root}"
+  printf -- '-P %s %s@%s' "${port}" "${user}" "${host}"
+}
+
 render_client() {
   local dev="$1" plat log_
   plat="$(device_get "${dev}" | awk '{print $2}')"
@@ -91,7 +103,8 @@ render_client() {
   fi
   rm -f "${log_}"
   log "客户端配置：${CLIENT_OUT}/sing-box-client-${dev}-${plat}.json"
-  log "分发：scp ${CLIENT_OUT}/sing-box-client-${dev}-${plat}.json <设备>:/root/  （只发这一台的那份）"
+  # 文件在服务器上，实际传输由客户端发起：写全端口、用户与地址，别留 <设备> 这种占位符
+  log "分发（在客户端执行）：scp $(dist_server):${CLIENT_OUT}/sing-box-client-${dev}-${plat}.json ."
 }
 
 if [[ $# -eq 0 ]]; then
@@ -211,7 +224,11 @@ case "${CMD}" in
     chmod 600 "${pkg}" "${pkg}.sha256"
     log "已导出：${pkg}（$(du -h "${pkg}" | cut -f1)）"
     log "包内校验和：$(cut -d' ' -f1 "${pkg}.sha256")"
-    log "分发：scp ${pkg} ${pkg}.sha256 <设备>:/tmp/，然后 sha256sum -c"
+    log "分发（在客户端执行，只取这一台的包）："
+    log "    scp $(dist_server):${pkg} ${pkg}.sha256 ."
+    log "    sha256sum -c $(basename "${pkg}").sha256    # macOS 没有 sha256sum，用 shasum -a 256 -c"
+    log "分发（在服务器执行，需客户端开着 sshd）："
+    log "    scp -P <客户端SSH端口> ${pkg} ${pkg}.sha256 <客户端用户>@<客户端IP>:~/"
     ;;
   render)
     [[ $# -ge 1 ]] || {

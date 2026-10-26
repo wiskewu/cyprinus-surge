@@ -70,9 +70,9 @@ sudo bash bin/deploy/ops/monitor.sh --uninstall</code></pre>
 <pre><code># 服务器：渲染 + 打包 + 出校验和，产物在 /etc/sing-box/clients/dist/
 sudo bash bin/deploy/device.sh export laptop
 
-# 客户端：先校验再解包
-scp vps:/etc/sing-box/clients/dist/laptop-*.tar.gz* /tmp/
-cd /tmp && sha256sum -c laptop-*.tar.gz.sha256 && tar -xzf laptop-*.tar.gz</code></pre>
+# 客户端：先校验再解包（-P 是 SSH 端口，用户与地址按服务器实际的填）
+scp -P 你的SSH端口 root@服务器IP:/etc/sing-box/clients/dist/laptop-*.tar.gz* /tmp/
+cd /tmp &amp;&amp; sha256sum -c laptop-*.tar.gz.sha256 &amp;&amp; tar -xzf laptop-*.tar.gz</code></pre>
 <p>包内只有这一台设备的配置和 <code>SHA256SUMS</code>，不含其他设备的凭据，也不含 <code>client.env</code>。</p>
 <p>客户端不解包后立即删除旧包：<code>clients/dist/</code> 下每台设备都留着历史版本，文件名带 UTC 时间戳，按名字倒序就是版本序。</p>
 <pre><code>ls -1 /etc/sing-box/clients/dist/laptop-*.tar.gz | sort | tail -3</code></pre>
