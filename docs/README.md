@@ -17,6 +17,8 @@
 
 > `diagrams/*.html` 由 [archify](https://github.com/tt-a1i/archify) 生成；同目录下的 `*.finalize-summary.json` 是校验回执（validate / deliver / check / browser-check 全部通过）。源 JSON 与组装脚本在仓库根的 `.archify/`（本地工具目录，未纳入版本控制）。
 
+> 字体不内联：四张图与 `index.html` 共用 `diagrams/fonts/jetbrains-mono-*.woff2`，经本地预览服务器打开即可（`npm run preview`）。内联会让每页多 88 KB 且无法复用缓存，`npm run lint` 会挡住回退。
+
 > 脚本在仓库根的 `bin/`：`bin/entry.sh` 是入口，`bin/deploy/` 与 `bin/harden/` 是两套流程，`bin/onekey/deploy-onekey.sh` 由 `fragments/build/build-onekey.sh` 从 `bin/deploy/steps/*.sh` 生成。全部幂等，参数走 `deploy.env`，配置由模板渲染并用 `sing-box check` 挡住错误。
 
 > `quality/*.html` 由 `fragments/build/build-quality-docs.mjs` 从 `fragments/pages/quality/` 生成，页面里的脚本片段统一从 `bin/` 读取，避免文档与脚本漂移。

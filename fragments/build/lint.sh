@@ -32,3 +32,13 @@ node fragments/build/check-var-braces.mjs "${files[@]}"
 
 # 页面措辞：不写营销词、破折号、总结铺垫句、第一人称与感叹号。
 node fragments/build/check-docs-style.mjs
+
+# 生成物不内联资源：字体与图片一律落成同目录文件再引用，内联会把单页撑到
+# 数百 KB 且无法复用缓存。archify 重新生成时会退回内联，这里挡住。
+# 只认真正的大块 base64；页面脚本里内联的 svg 图标与导出用的字符串常量不算。
+inline="$(grep -rlE 'data:(font|image)/[a-z0-9.+-]*;base64,[A-Za-z0-9+/=]{500,}' docs --include='*.html' || true)"
+if [[ -n "${inline}" ]]; then
+  printf 'docs 里有内联资源，应改成外链文件：\n%s\n' "${inline}" >&2
+  exit 1
+fi
+printf '生成物内联资源检查通过\n'
