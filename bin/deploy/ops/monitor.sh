@@ -23,7 +23,9 @@ usage() {
   （不带选项）        安装：打开 clash_api（重新渲染并重启 sing-box）+ 装 5 分钟探针定时器
   --clash-api on|off  只切换 clash_api；on 会重渲染服务端配置
   --ui                下载面板（metacubexd）到运行目录，之后 /ui 可用
-  --probe             立刻跑一次探针，结果追加到 probe.log
+  --probe             走一次探针并评估告警
+  --alert-check       只评估告警
+  --alert-test        发一条测试告警
   --status            看最近 20 条探针与 clash_api 概览
   --uninstall         停并删定时器，关掉 clash_api
   -h, --help          显示帮助
@@ -48,6 +50,8 @@ while [[ $# -gt 0 ]]; do
       ;;
     --ui) MODE=ui ;;
     --probe) MODE=probe ;;
+    --alert-check) MODE=alertcheck ;;
+    --alert-test) MODE=alerttest ;;
     --status) MODE=status ;;
     --uninstall) MODE=uninstall ;;
     -h | --help)
@@ -135,6 +139,7 @@ run_probe() {
   [[ -f "${PROBE_LOG}" ]] || printf 'ts,service,tcp,udp,egress,ai_code,ai_loc,loss_pct,rtt_avg_ms\n' >"${PROBE_LOG}"
   probe_once >>"${PROBE_LOG}"
   trim_log
+  alert_check || true
 }
 
 # ---------------------------------------------------------------- 状态
@@ -255,11 +260,105 @@ remove_timer() {
   log "探针定时器已移除（记录保留）"
 }
 
+# ---------------------------------------------------------------- 告警
+# 阈值都可用环境变量覆盖；推送支持 Telegram 与通用 webhook，都没有则只写日志。
+ALERT_STATE="${STATE_DIR}/alert.state"
+
+alert_send() { # $1=正文
+  local text="$1" resp
+  if [[ -n "${ALERT_TG_TOKEN:-}" && -n "${ALERT_TG_CHAT:-}" ]]; then
+    resp="$(curl -fsS -m 10 "https://api.telegram.org/bot${ALERT_TG_TOKEN}/sendMessage" \
+      --data-urlencode "chat_id=${ALERT_TG_CHAT}" --data-urlencode "text=${text}" 2>&1)" || {
+      warn "Telegram 推送失败：${resp}"
+      return 1
+    }
+    return 0
+  fi
+  if [[ -n "${ALERT_WEBHOOK:-}" ]]; then
+    resp="$(printf '%s' "${text}" | jq -Rs '{text: .}' \
+      | curl -fsS -m 10 -H 'Content-Type: application/json' --data-binary @- "${ALERT_WEBHOOK}" 2>&1)" || {
+      warn "webhook 推送失败：${resp}"
+      return 1
+    }
+    return 0
+  fi
+  warn "未配置 ALERT_TG_TOKEN/ALERT_TG_CHAT 或 ALERT_WEBHOOK，告警只写日志"
+  return 1
+}
+
+alert_check() {
+  need_root
+  log_is_writable
+  local now cooldown problems="" last msg key last_ts cached
+  now="$(date +%s)"
+  cooldown="${ALERT_COOLDOWN_H:-6}"
+  last="$(tail -n 1 "${PROBE_LOG}" 2>/dev/null || true)"
+
+  # 1) 服务与端口：探针 CSV 里出现 down
+  if printf '%s' "${last}" | grep -q ',down'; then
+    problems="${problems}- 服务或端口异常：${last}%NL%"
+  fi
+  # 2) AI 出口被风控
+  if printf '%s' "${last}" | grep -qE ',(403|429),'; then
+    problems="${problems}- AI 出口返回 $(printf '%s' "${last}" | cut -d, -f6)%NL%"
+  fi
+
+  # 3) 月流量占比
+  local used quota pct
+  used="$(month_bytes)"
+  quota="$(quota_bytes)"
+  if [[ -n "${used}" && -n "${quota}" && "${quota}" != "0" ]]; then
+    pct="$(awk -v u="${used}" -v q="${quota}" 'BEGIN { printf "%d", u * 100 / q }')"
+    if [[ "${pct}" -ge "${ALERT_TRAFFIC_PCT:-80}" ]]; then
+      problems="${problems}- 当月流量 ${pct}%：$(fmt_bytes "${used}")/$(fmt_bytes "${quota}")%NL%"
+    fi
+  fi
+
+  # 4) 证书到期
+  if [[ -r "${DEPLOY_DIR}/cert.pem" ]]; then
+    local end days
+    end="$(openssl x509 -enddate -noout -in "${DEPLOY_DIR}/cert.pem" 2>/dev/null | cut -d= -f2)"
+    if [[ -n "${end}" ]]; then
+      days="$((($(date -d "${end}" +%s) - now) / 86400))"
+      if [[ "${days}" -le "${ALERT_CERT_DAYS:-14}" ]]; then
+        problems="${problems}- 证书 ${days} 天后到期%NL%"
+      fi
+    fi
+  fi
+
+  if [[ -z "${problems}" ]]; then
+    printf '无异常项\n'
+    return 0
+  fi
+
+  msg="$(printf '%s' "${problems}" | sed 's/%NL%/\n/g')"
+  key="$(printf '%s' "${msg}" | md5sum | cut -d' ' -f1)"
+  if [[ -r "${ALERT_STATE}" ]]; then
+    read -r last_ts cached <"${ALERT_STATE}" || true
+    if [[ "${cached:-}" == "${key}" ]] && [[ $((now - ${last_ts:-0})) -lt $((cooldown * 3600)) ]]; then
+      printf '冷却中，跳过推送\n'
+      return 0
+    fi
+  fi
+  printf '%s %s\n' "${now}" "${key}" >"${ALERT_STATE}"
+  printf '推送告警：\n%s\n' "${msg}"
+  alert_send "${msg}" || true
+}
+
 # ---------------------------------------------------------------- 主流程
 case "${MODE}" in
   probe)
     run_probe
     exit 0
+    ;;
+  alertcheck)
+    alert_check
+    exit 0
+    ;;
+  alerttest)
+    need_root
+    alert_send "探针告警测试：来自 $(hostname)" && log "测试告警已发出" && exit 0
+    die "测试告警未发出，检查 ALERT_TG_TOKEN/ALERT_TG_CHAT 或 ALERT_WEBHOOK"
     ;;
   status)
     show_status

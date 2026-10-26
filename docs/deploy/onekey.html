@@ -68,7 +68,7 @@ details .body{padding:4px 14px 14px}
 </head>
 <body>
 <header class="top"><div class="wrap"><a class="home" href="index.html">自建节点部署手册</a><span class="crumb">一键</span></div></header>
-<nav class="nav"><div class="wrap"><a href="index.html">0 · 总览与准备</a><a href="01-init.html">1 · 系统初始化</a><a href="02-install.html">2 · 安装与密钥</a><a href="03-server.html">3 · 服务端配置</a><a href="04-hy2.html">4 · 可选 Hysteria2</a><a href="05-client.html">5 · 客户端</a><a href="06-ops.html">6 · 验收与备份</a><a href="onekey.html" aria-current="page">一键</a><a href="troubleshooting.html">排查</a></div></nav>
+<nav class="nav"><div class="wrap"><a href="index.html">0 · 总览与准备</a><a href="01-init.html">1 · 系统初始化</a><a href="02-install.html">2 · 安装与密钥</a><a href="03-server.html">3 · 服务端配置</a><a href="04-hy2.html">4 · 可选 Hysteria2</a><a href="05-client.html">5 · 客户端</a><a href="06-ops.html">6 · 验收与备份</a><a href="onekey.html" aria-current="page">一键</a><a href="07-subscription.html">7 · 订阅与用量</a><a href="troubleshooting.html">排查</a></div></nav>
 <main class="wrap">
 <h1>一键脚本</h1>
 <p class="lede"><code>deploy.sh</code> 把 7 个步骤串起来：先扫描每一步是否已配置，再让你决定「复用 / 覆盖 / 跳过」。它由 <code>build-onekey.sh</code> 自动生成，内容就是 <code>lib.sh</code> + <code>steps/*.sh</code> + 驱动逻辑。</p>

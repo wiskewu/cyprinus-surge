@@ -113,10 +113,21 @@ validate_common() {
     [[ -n "${AI_SOCKS_SERVER:-}" ]] || die "AI_MODE=dedicated 但 AI_SOCKS_SERVER 为空"
     [[ -n "${AI_SOCKS_USER:-}" ]] || die "AI_MODE=dedicated 但 AI_SOCKS_USER 为空"
   fi
-  # 两个出口标签：模板里只认标签，不写死
-  if [[ "${ENABLE_HY2:-0}" == "1" ]]; then PROXY_TAG=auto; else PROXY_TAG=proxy; fi
+  # 节点显示名：客户端里看到的就是出站 tag，所以用量信息写进 tag。
+  # 只用「名字 · 用量」两段，异常时追加一个符号，避免挤占客户端列表。
+  local _usage _mark
+  NODE_LABEL="${NODE_LABEL:-vps}"
+  _usage="$(quota_label 2>/dev/null || true)"
+  [[ -n "${_usage}" ]] && NODE_LABEL="${NODE_LABEL} · ${_usage}"
+  _mark="$(probe_mark 2>/dev/null || true)"
+  [[ -n "${_mark}" ]] && NODE_LABEL="${NODE_LABEL} ${_mark}"
+
+  # 路由用的标签与模板里的 tag 必须一致：
+  # 单入口时 reality 出站就是这个标签；双入口时它是 urltest 组的标签，组内成员保持 proxy / proxy-hy2。
+  PROXY_TAG="${NODE_LABEL}"
+  if [[ "${ENABLE_HY2:-0}" == "1" ]]; then REALITY_TAG=proxy; else REALITY_TAG="${NODE_LABEL}"; fi
   if [[ "${AI_MODE:-main}" == "dedicated" ]]; then AI_OUT_TAG=ai-out; else AI_OUT_TAG="${PROXY_TAG}"; fi
-  export PROXY_TAG AI_OUT_TAG AUTO_DETECT_INTERFACE DNS_CN DNS_REMOTE
+  export PROXY_TAG REALITY_TAG NODE_LABEL AI_OUT_TAG AUTO_DETECT_INTERFACE DNS_CN DNS_REMOTE
   # auto_detect_interface=false 的代价：TUN 下 direct 出站的连接会按系统默认路由
   # 又走回 tun（环），表现为「连上立刻被断」。要关它就得给直连出站指定网卡。
   resolve_default_interface

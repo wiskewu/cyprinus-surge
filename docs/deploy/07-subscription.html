@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>订阅与用量显示 · 自建节点部署手册</title>
+<style>
+:root{--ink:#161a21;--ink2:#4a5361;--ink3:#6f7886;--line:#e4e8ee;--line2:#f0f3f7;--bg:#f7f8fa;--card:#fff;--acc:#0d6b58;--acc2:#e9f5f2;--warn:#9a5608;--warn2:#fdf4e7;--bad:#a21f36;--bad2:#fdeef1;--info:#1d4ed8;--info2:#eef2ff;--r:10px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.75 "PingFang SC","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1040px;margin:0 auto;padding:0 20px}
+a{color:var(--acc);text-decoration:none;border-bottom:1px solid rgba(13,107,88,.28)}
+a:hover{border-bottom-color:var(--acc)}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.88em;background:var(--line2);border:1px solid var(--line);border-radius:4px;padding:.05em .35em;overflow-wrap:anywhere}
+.top{background:#fff;border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;align-items:baseline;gap:12px;padding:12px 20px}
+.top .home{font-weight:700;border:0}
+.top .crumb{color:var(--ink3);font-size:13px}
+.nav{background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:9}
+.nav .wrap{display:flex;gap:6px;overflow-x:auto;padding:8px 20px;font-size:13.5px}
+.nav a{padding:4px 10px;border-radius:999px;border:0;color:var(--ink2);white-space:nowrap}
+.nav a:hover{background:var(--line2)}
+.nav a[aria-current="page"]{background:var(--acc);color:#fff}
+main{padding:28px 0 60px}
+h1{font-size:26px;margin:6px 0 10px;letter-spacing:-.01em}
+h2{font-size:20px;margin:34px 0 10px;padding-top:10px;border-top:1px solid var(--line)}
+h2:first-of-type{border-top:0;padding-top:0}
+h3{font-size:16px;margin:22px 0 8px}
+p{margin:8px 0}
+.lede{color:var(--ink2);font-size:15.5px;margin-bottom:16px}
+ul,ol{margin:8px 0;padding-left:22px}
+li{margin:4px 0}
+pre{position:relative;background:#0f172a;color:#e2e8f0;border-radius:var(--r);padding:14px 16px;overflow-x:auto;font:13px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;margin:10px 0}
+pre code{background:none;border:0;padding:0;color:inherit;font-size:inherit;overflow-wrap:normal}
+pre .copy{position:absolute;top:8px;right:8px;background:#1e293b;color:#cbd5e1;border:1px solid #334155;border-radius:6px;font-size:12px;padding:2px 8px;cursor:pointer}
+pre .copy:hover{background:#334155}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;margin:12px 0}
+.card h3{margin-top:0}
+.note,.warn,.bad{border-radius:0 var(--r) var(--r) 0;padding:11px 15px;margin:12px 0;font-size:14px;border-left:3px solid}
+.note{background:var(--acc2);border-color:var(--acc);color:#0a4a3d}
+.warn{background:var(--warn2);border-color:#d79a3f;color:#6b3d06}
+.bad{background:var(--bad2);border-color:#cf5b70;color:#7c1a2c}
+.note b,.warn b,.bad b{font-weight:650}
+table{border-collapse:collapse;width:100%;font-size:13.8px;background:#fff;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line2);vertical-align:top}
+th{background:#f8fafb;font-size:12.4px;color:var(--ink3);text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+.tw{overflow-x:auto;margin:12px 0}
+.tag{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:5px;background:var(--line2);color:var(--ink2)}
+.tag.ok{background:var(--acc2);color:var(--acc)}
+.tag.warn{background:var(--warn2);color:var(--warn)}
+.tag.bad{background:var(--bad2);color:var(--bad)}
+.tag.info{background:var(--info2);color:var(--info)}
+.steps{counter-reset:s;list-style:none;padding:0}
+.steps>li{counter-increment:s;position:relative;padding-left:38px;margin:14px 0}
+.steps>li::before{content:counter(s);position:absolute;left:0;top:1px;width:24px;height:24px;border-radius:50%;background:var(--acc);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.kv{display:grid;grid-template-columns:140px 1fr;gap:2px 12px;font-size:14px;margin:8px 0}
+.kv dt{color:var(--ink3)}
+.kv dd{margin:0}
+details{margin:10px 0;border:1px solid var(--line);border-radius:var(--r);background:#fff}
+details>summary{cursor:pointer;padding:10px 14px;font-weight:600;font-size:14px;color:var(--acc)}
+details[open]>summary{border-bottom:1px solid var(--line)}
+details .body{padding:4px 14px 14px}
+.foot{border-top:1px solid var(--line);background:#fff;padding:20px 0 40px;font-size:13px;color:var(--ink3)}
+@media(max-width:640px){h1{font-size:22px}.kv{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap"><a class="home" href="index.html">自建节点部署手册</a><span class="crumb">7 · 订阅与用量</span></div></header>
+<nav class="nav"><div class="wrap"><a href="index.html">0 · 总览与准备</a><a href="01-init.html">1 · 系统初始化</a><a href="02-install.html">2 · 安装与密钥</a><a href="03-server.html">3 · 服务端配置</a><a href="04-hy2.html">4 · 可选 Hysteria2</a><a href="05-client.html">5 · 客户端</a><a href="06-ops.html">6 · 验收与备份</a><a href="onekey.html">一键</a><a href="07-subscription.html" aria-current="page">7 · 订阅与用量</a><a href="troubleshooting.html">排查</a></div></nav>
+<main class="wrap">
+<h1>订阅与用量显示</h1>
+<p class="lede">主读者：需要把服务器用量与探针状态显示到客户端的人。本页是参考资料，记录商用机场的做法与本仓库选取的折中方案。</p>
+
+<h2>商用机场的标准做法</h2>
+<p>订阅链接除了返回配置正文，还会带几个 HTTP 响应头。客户端读头，把用量与到期显示在订阅卡片上。核心是 <code>subscription-userinfo</code>：</p>
+<pre><code>subscription-userinfo: upload=1234; download=2234; total=1099511627776; expire=1798761600
+content-disposition: attachment; filename="vps.yaml"
+profile-update-interval: 24
+profile-web-page-url: https://example.com</code></pre>
+<div class="tw">
+<table>
+<thead><tr><th>头</th><th>含义</th><th>取值</th></tr></thead>
+<tbody>
+<tr><td><code>subscription-userinfo</code></td><td>用量与到期</td><td><code>upload</code> / <code>download</code> / <code>total</code> 为字节，<code>expire</code> 为 Unix 时间戳</td></tr>
+<tr><td><code>content-disposition</code></td><td>配置文件名</td><td><code>attachment; filename="x.yaml"</code>，中文需 UTF-8 百分号编码</td></tr>
+<tr><td><code>profile-update-interval</code></td><td>自动更新间隔</td><td>小时</td></tr>
+<tr><td><code>profile-web-page-url</code></td><td>订阅卡片上的主页入口</td><td>URL</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>三个容易踩的坑</h2>
+<div class="tw">
+<table>
+<thead><tr><th>坑</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>UA 判断</td><td>多数实现只对含 <code>clash</code> 的 UA 返回该头，用浏览器直接打开看不到</td></tr>
+<tr><td><code>proxy-providers</code> 不显示</td><td>用节点源方式引用订阅时，客户端拿不到卡片级元信息，流量与到期不显示；必须用「远程配置文件」方式导入</td></tr>
+<tr><td>sing-box 不支持订阅</td><td>官方以「不在客户端解析代理分享格式」为由关闭了订阅支持，sing-box 系 GUI 不认这些头</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>客户端支持</h2>
+<div class="tw">
+<table>
+<thead><tr><th>客户端</th><th>订阅 URL</th><th>用量与到期</th></tr></thead>
+<tbody>
+<tr><td>Clash Verge Rev 1.6.0 及以上</td><td>支持</td><td>支持</td></tr>
+<tr><td>Clash Party、Stash、Shadowrocket、Karing</td><td>支持</td><td>支持</td></tr>
+<tr><td>sing-box 系 GUI（SFA / SFM / Windows）</td><td>不支持</td><td>不支持</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>本仓库的做法</h2>
+<p>客户端里能看到的名称就是出站 tag，所以把用量直接写进 tag，不引入订阅服务：</p>
+<pre><code>vps · 3.6G/1T         正常
+vps · 3.6G/1T ⚠       最近一次探针发现服务、端口、AI 出口或丢包异常</code></pre>
+<div class="tw">
+<table>
+<thead><tr><th>项</th><th>来源</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>用量</td><td><code>vnstat --json m</code></td><td>当月收发合计，配额取 <code>MONTHLY_QUOTA</code>，默认 <code>1T</code></td></tr>
+<tr><td>异常标记</td><td><code>probe.log</code> 最后一行</td><td>出现 <code>down</code>、HTTP 403/429 时追加一个符号，只用单个字符避免名称过长</td></tr>
+<tr><td>刷新时机</td><td>重渲染</td><td>名称是快照，客户端不会自己更新；改用量要重跑客户端渲染并重新分发</td></tr>
+</tbody>
+</table>
+</div>
+<p>这是快照而非实时。要实时刷新必须走订阅服务，代价见下节。</p>
+
+<h2>告警</h2>
+<p><code>monitor.sh</code> 在探针之后评估阈值，命中即推送。阈值都可用环境变量覆盖：</p>
+<div class="tw">
+<table>
+<thead><tr><th>变量</th><th>默认</th><th>含义</th></tr></thead>
+<tbody>
+<tr><td><code>ALERT_TRAFFIC_PCT</code></td><td><code>80</code></td><td>当月流量占比阈值</td></tr>
+<tr><td><code>ALERT_CERT_DAYS</code></td><td><code>14</code></td><td>证书剩余天数阈值</td></tr>
+<tr><td><code>ALERT_COOLDOWN_H</code></td><td><code>6</code></td><td>同一告警的冷却小时数</td></tr>
+<tr><td><code>ALERT_TG_TOKEN</code> / <code>ALERT_TG_CHAT</code></td><td>空</td><td>Telegram 推送凭据</td></tr>
+<tr><td><code>ALERT_WEBHOOK</code></td><td>空</td><td>通用 webhook，POST JSON 正文 <code>{"text": "..."}</code></td></tr>
+</tbody>
+</table>
+</div>
+<pre><code>sudo bash bin/deploy/ops/monitor.sh --alert-test     # 验证推送凭据
+sudo bash bin/deploy/ops/monitor.sh --alert-check    # 只评估，不发探针</code></pre>
+<p>两种推送都没配时，异常只写进 <code>probe.log</code>，不影响探针本身。</p>
+
+<h2>改走标准订阅的代价</h2>
+<p>要显示实时用量与到期，需要独立的 HTTP 服务：读取 <code>vnstat</code> 与配额，生成配置正文并附上响应头。代价是三处新增：</p>
+<ul>
+<li>一个常驻服务与一个对外端口。当前 <code>443/tcp</code> 被 REALITY 占用，订阅只能另开端口，并靠 token 保护。</li>
+<li>一套 token 分发与轮换机制，等价于再维护一份凭据。</li>
+<li>Clash 系需要 YAML 格式，现有模板是 sing-box JSON，要另写一份模板。</li>
+</ul>
+<p>设备数量少、只有一两个人使用时，节点名方案覆盖了同样的信息，不值得为此增加一个公开服务。</p>
+
+<p style="margin-top:24px"><a href="06-ops.html">← 验收与备份</a>　·　<a href="index.html">总览 →</a></p>
+
+</main>
+<footer class="foot"><div class="wrap">
+本手册与 <a href="../index.html">方案总览</a> · <a href="../vps-shortlist.html">服务器采购</a> 配套。命令在 Debian 12/13、Ubuntu 22.04/24.04 上验证；配置已用 sing-box 1.14.3 校验。仅限本人自用科研学习，遵守所在地法律法规与服务条款。
+</div></footer>
+<script>
+document.querySelectorAll('pre').forEach(function(pre){
+  var b=document.createElement('button');b.className='copy';b.type='button';b.textContent='复制';
+  b.onclick=function(){
+    var t=pre.innerText.replace(/复制$|已复制$/,'');
+    var done=function(){b.textContent='已复制';setTimeout(function(){b.textContent='复制'},1200)};
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(done,function(){fallback(t,done)})}
+    else{fallback(t,done)}
+  };
+  function fallback(t,cb){var ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');cb()}catch(e){}document.body.removeChild(ta)}
+  pre.appendChild(b);
+});
+</script>
+</body>
+</html>

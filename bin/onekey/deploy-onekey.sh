@@ -2,7 +2,7 @@
 # shellcheck disable=SC2034  # 步骤元数据与跨文件变量由间接展开读取
 # ===========================================================================
 # deploy.sh，一键脚本。自动生成，勿手改。
-#   生成时间：2026-10-26T04:00:38Z
+#   生成时间：2026-10-26T04:20:44Z
 #   来源：bin/deploy/lib.sh + bin/deploy/steps/*.sh + fragments/onekey/deploy-driver.sh
 #   重新生成：bash fragments/build/build-onekey.sh
 # ===========================================================================
@@ -186,6 +186,63 @@ device_get() {
 }
 
 device_exists() { device_get "$1" >/dev/null 2>&1; }
+
+# ---------------------------------------------------------------- 用量与告警
+# 当月已用流量（字节），数据源 vnstat；取不到时输出空，调用方据此省略标签
+month_bytes() {
+  command -v vnstat >/dev/null 2>&1 || return 0
+  command -v jq >/dev/null 2>&1 || return 0
+  vnstat --json m 2>/dev/null \
+    | jq -r '[.interfaces[].traffic | ((.month // .months) // []) | .[-1] | ((.rx // 0) + (.tx // 0))] | add // 0' 2>/dev/null || true
+}
+
+# 把字节数压成 1.2G 这样的短标识
+fmt_bytes() {
+  awk -v b="${1:-0}" 'BEGIN {
+    split("B K M G T P", u, " "); i = 1;
+    while (b >= 1024 && i < 6) { b /= 1024; i++ }
+    if (i <= 2 || b == int(b)) printf "%.0f%s", b, u[i]; else printf "%.1f%s", b, u[i];
+  }'
+}
+
+# 配额的写法：允许 1T / 1024G / 纯字节
+quota_bytes() {
+  local q="${MONTHLY_QUOTA:-1T}"
+  case "${q}" in
+    *[tT]) awk -v n="${q%[tT]}" 'BEGIN { printf "%.0f", n * 1024 * 1024 * 1024 * 1024 }' ;;
+    *[gG]) awk -v n="${q%[gG]}" 'BEGIN { printf "%.0f", n * 1024 * 1024 * 1024 }' ;;
+    *[mM]) awk -v n="${q%[mM]}" 'BEGIN { printf "%.0f", n * 1024 * 1024 }' ;;
+    *[!0-9]*) printf '' ;;
+    *) printf '%s' "${q}" ;;
+  esac
+}
+
+# 节点显示名用的用量标签，形如 3.6G/1T；取不到数据时输出空
+quota_label() {
+  local used quota
+  used="$(month_bytes)"
+  [[ -n "${used}" && "${used}" != "0" ]] || return 0
+  quota="$(quota_bytes)"
+  if [[ -n "${quota}" && "${quota}" != "0" ]]; then
+    printf '%s/%s' "$(fmt_bytes "${used}")" "$(fmt_bytes "${quota}")"
+  else
+    printf '%s' "$(fmt_bytes "${used}")"
+  fi
+}
+
+# 探针异常标记：最近一条探针里服务或端口挂了、AI 出口被风控、丢包过高时返回一个符号。
+# 只用单个符号，避免节点名过长挤占客户端显示。
+probe_mark() {
+  local log="${PROBE_STATE_DIR:-/var/lib/sing-box-monitor}/probe.log" last
+  [[ -r "${log}" ]] || return 0
+  last="$(tail -n 1 "${log}")"
+  [[ -n "${last}" ]] || return 0
+  case "${last}" in
+    *',down,'* | *',down'*) printf '⚠' ;;
+    *',403,'* | *',429,'*) printf '⚠' ;;
+    *) printf '' ;;
+  esac
+}
 
 # ---------------------------- 10-system.sh ----------------------------
 # 步骤 10：系统初始化。函数与变量都以 system_ 前缀命名，便于一键脚本内联后不冲突。

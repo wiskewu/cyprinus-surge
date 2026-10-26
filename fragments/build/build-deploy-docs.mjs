@@ -16,6 +16,7 @@ const pages = [
   { file: '05-client.html', title: '客户端', crumb: '5 · 客户端' },
   { file: '06-ops.html', title: '验收与备份', crumb: '6 · 验收与备份' },
   { file: 'onekey.html', title: '一键脚本', crumb: '一键' },
+  { file: '07-subscription.html', title: '订阅与用量显示', crumb: '7 · 订阅与用量' },
   { file: 'troubleshooting.html', title: '排查手册', crumb: '排查' },
 ];
 
