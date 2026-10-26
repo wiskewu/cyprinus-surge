@@ -36,6 +36,7 @@ usage() {
   rotate <名字>             换掉凭据，旧配置立刻失效
   revoke <名字>             删除设备，立刻失效
   render <名字>             只重新渲染该设备的客户端配置，不动服务端
+  export <名字>             渲染并打包成 tar.gz，附 SHA256SUMS，供分发与回滚
 
 环境变量：
   DEVICES_LIST  设备名单路径（默认 /etc/sing-box/devices.list）
@@ -98,6 +99,7 @@ if [[ $# -eq 0 ]]; then
       "rotate|轮换凭据，旧配置立刻失效"
       "revoke|删除设备"
       "render|只重新渲染该设备的客户端配置"
+      "export|渲染并打包，附校验和"
     )
     ui_menu "设备凭据" "${actions[@]}"
     case "${UI_CHOICE}" in
@@ -180,6 +182,34 @@ case "${CMD}" in
     log "记得把那台机器上的配置删掉，以及从任何保存了凭据的地方清除"
     ;;
 
+  export)
+    [[ $# -ge 1 ]] || {
+      usage
+      die "export 需要设备名"
+    }
+    NAME="$1"
+    device_exists "${NAME}" || die "设备名单里没有 ${NAME}"
+    render_client "${NAME}"
+    plat="$(device_get "${NAME}" | awk '{print $2}')"
+    [[ -n "${plat}" ]] || plat=desktop
+    src="${CLIENT_OUT}/sing-box-client-${NAME}-${plat}.json"
+    [[ -f "${src}" ]] || die "渲染产物不存在：${src}"
+    dist="${CLIENT_OUT}/dist"
+    install -d -m 700 "${dist}"
+    stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+    pkg="${dist}/${NAME}-${stamp}.tar.gz"
+    # 只把这一台的配置放进包里：包里出现其他设备的凭据就是事故
+    stage=""
+    mktemp_dir stage
+    cp "${src}" "${stage}/"
+    (cd "${stage}" && sha256sum ./*.json >SHA256SUMS)
+    tar -czf "${pkg}" -C "${stage}" .
+    (cd "${dist}" && sha256sum "$(basename "${pkg}")" >"$(basename "${pkg}").sha256")
+    chmod 600 "${pkg}" "${pkg}.sha256"
+    log "已导出：${pkg}（$(du -h "${pkg}" | cut -f1)）"
+    log "包内校验和：$(cut -d' ' -f1 "${pkg}.sha256")"
+    log "分发：scp ${pkg} ${pkg}.sha256 <设备>:/tmp/，然后 sha256sum -c"
+    ;;
   render)
     [[ $# -ge 1 ]] || {
       usage

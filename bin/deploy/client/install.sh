@@ -22,6 +22,7 @@ SKIP_SSH=0
 SKIP_VERIFY=0
 VERIFY_NO_CLI=0
 CHECK=0
+ROLLBACK=0
 
 usage() {
   cat <<'EOF'
@@ -37,6 +38,7 @@ usage() {
   --no-cli          验收走免 CLI 子集，适合图形客户端
   --skip-verify     跳过验收
   --check           只报告本机依赖与文件，不做改动
+  --rollback        用 data/previous 里最近一版配置替换 data/ 下的文件，不重新渲染
   -h, --help        显示帮助
 
 顺序：SSH 免密 → 渲染配置 → 验收。任一步失败即停止并打印原因。
@@ -73,6 +75,7 @@ while [[ $# -gt 0 ]]; do
     --skip-verify) SKIP_VERIFY=1 ;;
     --no-cli) VERIFY_NO_CLI=1 ;;
     --check) CHECK=1 ;;
+    --rollback) ROLLBACK=1 ;;
     -h | --help)
       usage
       exit 0
@@ -81,6 +84,12 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
+
+# 回滚只动配置文件，跟 SSH 与验收无关
+if [[ "${ROLLBACK}" == 1 ]]; then
+  SKIP_SSH=1
+  SKIP_VERIFY=1
+fi
 
 report() {
   printf '平台        : %s %s\n' "$(uname -s)" "$(uname -m)"
@@ -103,8 +112,8 @@ if [[ $# -eq 0 ]] && [[ -t 0 ]] && [[ ! -f "${KEYS}" ]]; then
 fi
 
 need_cmd curl
-command -v jq >/dev/null 2>&1 || die "缺少 jq：渲染配置与验收都要用（macOS: brew install jq，Debian: apt install jq）"
-[[ -f "${KEYS}" ]] || die "找不到密钥包 ${KEYS}，先从服务器取一份 clients/<名字>.env"
+[[ "${ROLLBACK}" == 1 ]] || command -v jq >/dev/null 2>&1 || die "缺少 jq：渲染配置与验收都要用（macOS: brew install jq，Debian: apt install jq）"
+[[ "${ROLLBACK}" == 1 ]] || [[ -f "${KEYS}" ]] || die "找不到密钥包 ${KEYS}，先从服务器取一份 clients/<名字>.env"
 
 # ---------------------------------------------------------------- 1. SSH 免密
 if [[ "${SKIP_SSH}" == 0 ]] && [[ -n "${SSH_HOST}" ]]; then
@@ -119,10 +128,35 @@ else
 fi
 
 # ---------------------------------------------------------------- 2. 渲染配置
-log "2/3 渲染客户端配置"
-render_args=("${KEYS}")
-[[ -n "${DEVICE}" ]] && render_args+=(--device "${DEVICE}")
-bash "${SELF_DIR}/render.sh" "${render_args[@]}"
+# 与 render.sh 的默认输出目录一致：相对当前工作目录的 data/
+DATA_DIR="${DATA_DIR:-data}"
+PREV_DIR="${DATA_DIR}/previous"
+
+if [[ "${ROLLBACK}" == 1 ]]; then
+  log "2/3 回滚到上一版配置"
+  last="$(find "${PREV_DIR}" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort | tail -1)"
+  [[ -n "${last}" ]] || die "没有可回滚的版本：${PREV_DIR} 为空"
+  if compgen -G "${last}/*.json" >/dev/null 2>&1; then
+    cp -f "${last}"/*.json "${DATA_DIR}/"
+  else
+    die "上一版目录里没有配置：${last}"
+  fi
+  log "    已还原 $(basename "${last}") 下的配置"
+else
+  log "2/3 渲染客户端配置"
+  # 覆盖前留一版：渲染失败或客户端跑不起来时可以 --rollback
+  if compgen -G "${DATA_DIR}/*.json" >/dev/null 2>&1; then
+    snap="${PREV_DIR}/$(date -u +%Y%m%dT%H%M%SZ)"
+    install -d -m 700 "${snap}"
+    cp -f "${DATA_DIR}"/*.json "${snap}/" 2>/dev/null || true
+    # 只留最近三版，避免无限堆积
+    find "${PREV_DIR}" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort | head -n -3 | xargs -r rm -rf
+    log "    上一版已存 ${snap}"
+  fi
+  render_args=("${KEYS}")
+  [[ -n "${DEVICE}" ]] && render_args+=(--device "${DEVICE}")
+  bash "${SELF_DIR}/render.sh" "${render_args[@]}"
+fi
 
 # ---------------------------------------------------------------- 3. 验收
 if [[ "${SKIP_VERIFY}" == 1 ]]; then

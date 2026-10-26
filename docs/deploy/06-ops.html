@@ -143,6 +143,19 @@ sudo bash bin/deploy/ops/monitor.sh --uninstall</code></pre>
 <div class="bad"><b>不要把它绑到 0.0.0.0。</b>面板能看到全部连接与规则命中，暴露公网等于把控制面交出去；本脚本固定写回环地址。</div>
 <div class="note">要按出口看连接数：<code>curl -s http://127.0.0.1:9090/connections | jq '[.connections[].chains[-1]] | group_by(.) | map({(.[0]): length}) | add'</code>。<code>--status</code> 已经做了这一步，没装 <code>jq</code> 时退回原始输出。</div>
 
+<h2>导出与回滚</h2>
+<p>分发一次不只发一个 JSON：包里带上校验和，收端先校验再导入，避免传输截断。</p>
+<pre><code># 服务器：渲染 + 打包 + 出校验和，产物在 /etc/sing-box/clients/dist/
+sudo bash bin/deploy/device.sh export laptop
+
+# 客户端：先校验再解包
+scp vps:/etc/sing-box/clients/dist/laptop-*.tar.gz* /tmp/
+cd /tmp && sha256sum -c laptop-*.tar.gz.sha256 && tar -xzf laptop-*.tar.gz</code></pre>
+<p>包内只有这一台设备的配置和 <code>SHA256SUMS</code>，不含其他设备的凭据，也不含 <code>client.env</code>。</p>
+<p>客户端每次重新渲染前会把现有配置存进 <code>data/previous/&lt;时间戳&gt;/</code>，只保留最近三版。新配置跑不起来时一条命令退回上一版：</p>
+<pre><code>bash bin/deploy/client/install.sh --rollback</code></pre>
+<div class="tip">回滚只替换 <code>data/</code> 下的配置文件，不碰 SSH 免密，也不重跑验收。</div>
+
 <h2>备份与加密</h2>
 <p>备份默认加密：优先 <code>gpg --symmetric</code>，没有 gpg 时退回 <code>openssl enc</code>。两者都缺失时脚本拒绝生成明文包。</p>
 <pre><code>sudo bash bin/deploy/ops/backup.sh key      # 首次：生成备份口令，打印一次
