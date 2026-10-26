@@ -27,6 +27,7 @@ usage() {
   --alert-check       只评估告警
   --alert-test        发一条测试告警
   --status            看最近 20 条探针与 clash_api 概览
+  --connections       按来源 IP 汇总当前活跃连接（所有设备共用服务器实例）
   --uninstall         停并删定时器，关掉 clash_api
   -h, --help          显示帮助
 
@@ -53,6 +54,7 @@ while [[ $# -gt 0 ]]; do
     --alert-check) MODE=alertcheck ;;
     --alert-test) MODE=alerttest ;;
     --status) MODE=status ;;
+    --connections) MODE=connections ;;
     --uninstall) MODE=uninstall ;;
     -h | --help)
       usage
@@ -199,6 +201,45 @@ show_status() {
   else
     printf '未装 jq，原始输出：curl -s http://%s/connections\n' "${CLASH_API_LISTEN}"
   fi
+}
+
+# 按来源 IP 汇总当前活跃连接：服务端实例能看到所有设备进来的连接，但只在
+# metadata.sourceIP 上有区分，clash_api 不暴露 VLESS 用户名。同一出口 NAT 后
+# 的多台设备会合并成一行。
+show_connections() {
+  need_root
+  if ! curl -fsS -m 3 "http://${CLASH_API_LISTEN}/version" >/dev/null 2>&1; then
+    die "clash_api 未开启（sudo bash $0 --clash-api on）"
+  fi
+  command -v jq >/dev/null 2>&1 || die "需要 jq：sudo apt-get install -y jq"
+  local out
+  out="$(curl -fsS -m 5 "http://${CLASH_API_LISTEN}/connections" | jq -r '
+    def human:
+      if . >= 1048576 then ((. / 1048576 * 10 | floor) / 10 | tostring) + "M"
+      elif . >= 1024 then ((. / 1024 * 10 | floor) / 10 | tostring) + "K"
+      else (. | tostring) + "B" end;
+    .connections as $c
+    | if ($c | length) == 0 then empty
+      else
+        (["来源 IP", "连接", "上传", "下载", "入口"] | @tsv),
+        ($c
+          | group_by(.metadata.sourceIP)
+          | map({ip: .[0].metadata.sourceIP, n: length,
+                 up: (map(.upload) | add), down: (map(.download) | add),
+                 kinds: (map(.metadata.type) | map(split("/") | last) | unique | join(","))})
+          | sort_by(-(.up + .down))
+          | .[] | [.ip, (.n | tostring), (.up | human), (.down | human), .kinds] | @tsv),
+        (["合计", (($c | length) | tostring),
+          (($c | map(.upload) | add) | human),
+          (($c | map(.download) | add) | human), "-"] | @tsv)
+      end')" || die "读取 /connections 失败"
+  if [[ -z "${out}" ]]; then
+    printf '  当前没有活跃连接（设备空闲，或刚重启过）\n'
+    return 0
+  fi
+  printf '%s\n' "${out}" | awk -F'\t' '{ printf "  %-20s %-6s %-9s %-9s %s\n", $1, $2, $3, $4, $5 }'
+  printf '\n来源 IP 是设备的出口地址；同一 NAT 后的多台设备会合并成一行。\n'
+  printf '要看单台设备的代理组与规则命中，得连那台设备上运行实例的 clash_api。\n'
 }
 
 # ---------------------------------------------------------------- clash_api
@@ -422,6 +463,10 @@ case "${MODE}" in
     ;;
   status)
     show_status
+    exit 0
+    ;;
+  connections)
+    show_connections
     exit 0
     ;;
   clash)

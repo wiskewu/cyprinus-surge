@@ -39,6 +39,7 @@ bash bin/deploy/check/server.sh</code></pre>
 <pre><code>sudo bash bin/deploy/ops/monitor.sh              # 一键：打开 clash_api + 装 5 分钟探针 + 立刻跑一次
 sudo bash bin/deploy/ops/monitor.sh --probe      # 只跑一次探针
 sudo bash bin/deploy/ops/monitor.sh --status     # 看最近 20 条记录与 clash_api 概览
+sudo bash bin/deploy/ops/monitor.sh --connections # 按来源 IP 汇总当前连接（看所有设备）
 sudo bash bin/deploy/ops/monitor.sh --clash-api on|off
 sudo bash bin/deploy/ops/monitor.sh --uninstall</code></pre>
 
@@ -70,6 +71,22 @@ sudo bash bin/deploy/ops/monitor.sh --uninstall</code></pre>
 <li><code>clients/</code> 下那几份 JSON 是发给客户端机器导入的，服务器上的这个实例一份也不读，有多少份都不影响面板显示；</li>
 <li>要看代理组、延迟测试与规则命中，得让面板连到<b>客户端侧</b>运行的 sing-box：那份进程加载的是 client JSON，代理组与 rules 都在它里面。</li>
 </ul>
+<h4>看所有设备的流量</h4>
+<p>面板是<b>单个 sing-box 进程</b>的观测面，不是多设备管理台。服务端这个进程是所有设备流量的出口，所以它能看到「谁连进来了、用了多少」，但区分手段只有连接的来源 IP：<code>clash_api</code> 不暴露 VLESS 用户名。</p>
+<pre><code>sudo bash bin/deploy/ops/monitor.sh --connections</code></pre>
+<pre><code>  来源 IP            连接  上传    下载    入口
+  198.51.100.7         2      3K        6M        vless-in
+  203.0.113.9          1      40K       2M        hy2-in
+  合计               3      43K       8M        -</code></pre>
+<p>这份输出是三件事的合计：每台设备的活跃连接数、上下行字节数、走的是 VLESS 还是 Hysteria2。限制与适用边界：</p>
+<ul>
+<li><b>同一 NAT 后的多台设备会合并成一行</b>，源 IP 相同就分不开；</li>
+<li>连接关掉就消失，<code>--connections</code> 只反映当前活跃连接，历史用量看 <code>vnstat</code>（<code>--status</code> 里的月流量）；</li>
+<li>每台设备自己的代理组选择、规则命中、单连接明细，都在那台设备的 sing-box 进程里，服务端看不到也管不了。</li>
+</ul>
+<p>要看单台设备的这些细节，在该设备的 client JSON 里加一段，然后用同一套面板连本机：</p>
+<pre><code>"experimental": { "clash_api": { "external_controller": "127.0.0.1:9090" } }</code></pre>
+<p>服务端配置只有 <code>direct</code> 出站、没有 <code>route.rules</code>，是因为分流在客户端做：服务端只负责把收到的流量发出去。只有当你想让服务端按目的地改走别的出口（例如 AI 流量走第二个落地）时，才需要在服务端加 outbound 与规则，那时「代理」「规则」两栏才会有内容。</p>
 <h4>面板里为什么大多是空的</h4>
 <p>这套服务端配置只有一个 <code>direct</code> 出站、没有 <code>route.rules</code>、<code>log.level=warn</code>，所以面板大部分栏目<strong>本来就没有数据</strong>。各栏的数据源与预期形态：</p>
 <div class="tw">
