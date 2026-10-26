@@ -170,6 +170,7 @@ sudo journalctl -u sing-box -n 100 --no-pager | grep -iE 'hysteria|hy2'</code></
 <tr><td>TLS 报 SNI / 证书错误</td><td>客户端 <code>tls.server_name</code> 与服务端证书域名不一致</td></tr>
 <tr><td>本地抓包有 UDP 出去，服务端抓不到</td><td>UDP 出境被拦，校园网与公司网常见</td></tr>
 <tr><td>8443 通，跳到区间内其它端口就失败</td><td>外层安全组只放了 8443，补 <code>8443-8447/udp</code></td></tr>
+<tr><td>acme.sh 打印 <code>Domains not changed.</code> / <code>Skipping.</code></td><td>不是失败：该域名已有证书且未到续期时间，脚本会直接把已有证书装到 <code>/etc/sing-box</code>。要强制重签加 <code>--force</code>，注意 Let's Encrypt 的同一域名每周签发上限</td></tr>
 <tr><td><code>HY2_ONLY=1</code> 报临时实例没起来</td><td>看脚本打出的日志尾部：多半是 <code>CONFIG</code> 里没有 <code>proxy-hy2</code>，或派生配置 <code>sing-box check</code> 不通过</td></tr>
 </tbody>
 </table>

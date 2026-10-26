@@ -52,8 +52,22 @@ hy2_run() {
   ACME="${HOME}/.acme.sh/acme.sh"
   export CF_Token="${CF_TOKEN}"
   log "用 DNS-01 签发 ${DOMAIN}"
+  # acme.sh 在「域名未变、还没到续期时间」时会打印 Domains not changed / Skipping
+  # 并返回非 0。那不是失败，后面照常把已有证书装到 ${DEPLOY_DIR}。
+  local issue_log issue_rc=0 T
+  mktemp_dir T
+  issue_log="${T}/acme-issue.log"
   "${ACME}" --issue --dns dns_cf -d "${DOMAIN}" --server letsencrypt --keylength ec-256 \
-    || warn "签发失败：确认 A 记录已生效（Cloudflare 需灰云）后重跑"
+    >"${issue_log}" 2>&1 || issue_rc=$?
+  cat "${issue_log}" 2>/dev/null || true
+  if [[ "${issue_rc}" -eq 0 ]]; then
+    log "签发完成"
+  elif grep -qE 'Domains not changed|Skip' "${issue_log}" 2>/dev/null; then
+    log "证书仍在有效期，跳过签发"
+  else
+    warn "签发失败：确认 A 记录已生效（Cloudflare 需灰云）后重跑"
+    warn "    继续尝试安装 acme.sh 里已有的证书"
+  fi
   # reloadcmd 用 try-restart：本步骤现在跑在 server 之前，此时还没有 config.json，
   # 直接 restart 会失败并被 acme.sh 当成「证书安装失败」。续期时服务在跑，照常重启。
   "${ACME}" --install-cert -d "${DOMAIN}" --ecc \
