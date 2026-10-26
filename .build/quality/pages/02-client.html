@@ -1,0 +1,58 @@
+<h1>客户端配置</h1>
+<p class="lede">主读者：在 macOS、Linux 或 Windows 上准备免密登录的运维者。本页只做一件事：让 <code>ssh &lt;别名&gt;</code> 一条命令进服务器。</p>
+
+<h2>一条命令完成</h2>
+<pre><code>bash ssh-client.sh --host 203.0.113.10 --port 4061 --install-server</code></pre>
+<p>脚本做四件事，每件都幂等：</p>
+<div class="tw">
+<table>
+<thead><tr><th>动作</th><th>细节</th></tr></thead>
+<tbody>
+<tr><td>生成或复用密钥</td><td>已有 <code>~/.ssh/id_ed25519</code> 就用它，没有则生成 Ed25519，不设口令</td></tr>
+<tr><td>安装公钥</td><td>先查服务器上是否已存在同一把公钥，避免重复追加；只追加，不改动其他行</td></tr>
+<tr><td>写 <code>~/.ssh/config</code></td><td>已有同名 <code>Host</code> 时保持原样</td></tr>
+<tr><td>验证</td><td>用 <code>BatchMode=yes</code> 连一次，失败即以非零退出</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>生成的配置</h2>
+<pre><code>Host vps
+  HostName 203.0.113.10
+  Port 4061
+  User root
+  IdentityFile ~/.ssh/id_ed25519
+  IdentitiesOnly yes</code></pre>
+<p><code>IdentitiesOnly yes</code> 让客户端只尝试这一把密钥。服务器 <code>MaxAuthTries 3</code> 时，客户端若挨个试代理里的密钥，几次就会耗尽配额。</p>
+
+<h2>分平台说明</h2>
+<div class="tw">
+<table>
+<thead><tr><th>平台</th><th>OpenSSH 来源</th><th>注意</th></tr></thead>
+<tbody>
+<tr><td>macOS</td><td>系统自带</td><td>钥匙串可用 <code>ssh-add --apple-use-keychain</code>，但本方案不需要保管口令</td></tr>
+<tr><td>Linux</td><td>发行版自带</td><td>无额外依赖</td></tr>
+<tr><td>Windows 10/11</td><td>系统自带 OpenSSH Client</td><td>路径为 <code>%USERPROFILE%\.ssh</code>；脚本在 Git Bash 或 WSL 中执行</td></tr>
+</tbody>
+</table>
+</div>
+<p>不安装任何第三方客户端，也不使用图形工具。图形化 SSH 客户端如 WinSCP 读取同一份 <code>~/.ssh/config</code> 与同一把密钥即可。</p>
+
+<h2>密钥的几个决定</h2>
+<ul>
+<li><b>算法用 Ed25519。</b>密钥短、签名快、无参数需要挑选。</li>
+<li><b>不设口令。</b>免密登录的前提是密钥无口令；密钥文件权限设为 <code>600</code>。需要额外保护时用系统登录密码与全盘加密，而不是给密钥加口令后再依赖 ssh-agent。</li>
+<li><b>一台设备一把密钥。</b>吊销时删掉服务器上对应那一行，不影响其他设备。</li>
+</ul>
+
+<h2>手工做法</h2>
+<pre><code>ssh-keygen -t ed25519 -C "laptop"
+ssh-copy-id -p 4061 root@203.0.113.10      # Windows 无 ssh-copy-id，用下面的写法
+type %USERPROFILE%\.ssh\id_ed25519.pub | ssh -p 4061 root@203.0.113.10 "cat &gt;&gt; ~/.ssh/authorized_keys"
+ssh -o BatchMode=yes -p 4061 root@203.0.113.10 true   # 这一步成功再继续</code></pre>
+<div class="bad"><b>不要在密钥登录验证通过之前关闭密码登录。</b>顺序颠倒会同时失去两种登录方式，此时只能走云控制台。</div>
+
+<h2>检查本机状态</h2>
+<pre><code>bash ssh-client.sh --check</code></pre>
+
+<p style="margin-top:24px"><a href="01-server.html">← 服务端加固</a>　·　<a href="03-verify.html">验收与排障 →</a></p>

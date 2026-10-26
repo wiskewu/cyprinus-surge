@@ -1,72 +1,54 @@
 <h1>SSH 加固</h1>
-<p class="lede">用 fwknop 的单包授权（SPA）把 22 端口关到互联网上不可达。配好之后 <code>ssh server1</code> 用法不变，敲门发生在 <code>ProxyCommand</code> 里。</p>
+<p class="lede">主读者：维护单台 VPS 的运维者。本页说明为什么采用「仅公钥登录」这条路线，以及它在本环境里解决了什么问题、放弃了什么。操作步骤见 <a href="01-server.html">服务端加固</a> 与 <a href="02-client.html">客户端配置</a>。</p>
 
-<div class="note"><b>三句话：</b>① 免密登录挡的是「连上了也登不进」，SPA 挡的是「根本连不上」：<b>两层叠加</b>，先跑 <a href="../deploy/01-init.html">部署第 1 步</a>拿掉密码，再用本手册挡门。② 一台设备一把密钥，删一行就是吊销那台。③ <b>关公网 22 放最后做</b>，确认客户端能进来再做。</div>
+<h2>结论</h2>
+<p>管理入口收敛为一条路径：<b>公钥认证的 SSH</b>。密码登录关闭，root 只接受密钥，端口加速率限制，失败尝试由 fail2ban 封禁。客户端使用系统自带 OpenSSH，不安装任何第三方组件，不分发证书。</p>
 
-<h2>它和部署手册的关系</h2>
-<p><a href="../deploy/index.html">部署手册</a>的 6 步<b>全程不关 SSH 端口</b>，它只放行端口（第 1 步自动探测真实端口，不假设是 22）并关掉密码登录。本手册是它之后<b>可选的第 7 步</b>，不做也完全能用。</p>
+<h2>为什么不用 SPA</h2>
+<p>单包授权（SPA）能把端口从扫描结果里藏起来，代价是每台客户端都要跑一个专用程序。实测两条都走不通：</p>
 <div class="tw">
 <table>
-<thead><tr><th>阶段</th><th>做什么</th><th>公网 SSH 端口</th><th>密码登录</th><th>谁能进来</th></tr></thead>
+<thead><tr><th>路线</th><th>实测结论</th></tr></thead>
 <tbody>
-<tr><td>0 拿到机器</td><td>厂商分配的端口（可能是随机的）</td><td><span class="tag warn">开</span></td><td>看厂商设置</td><td>你</td></tr>
-<tr><td>1 装公钥</td><td><a href="../deploy/01-init.html">部署第 1 步</a></td><td><span class="tag warn">开</span></td><td><span class="tag ok">关</span></td><td>持钥者</td></tr>
-<tr><td>2 部署节点</td><td><a href="../deploy/index.html">部署第 2–6 步</a></td><td><span class="tag warn">开</span></td><td><span class="tag ok">关</span></td><td>持钥者</td></tr>
-<tr><td>3 上 SPA</td><td>本手册第 1–3 步（可选）</td><td><span class="tag warn">开</span></td><td><span class="tag ok">关</span></td><td>持钥者 + 持 SPA 密钥者</td></tr>
-<tr><td>4 收口</td><td>本手册第 4 步</td><td><span class="tag bad">关</span></td><td><span class="tag ok">关</span></td><td>只剩 SPA 密钥者</td></tr>
+<tr><td>fwknop</td><td>Windows 没有官方构建，收口后那台机器无法登录；服务端 <code>62201/udp</code> 长期对外</td></tr>
+<tr><td>WireGuard 管理内网</td><td>服务端在受控环境下可用，但当前宽带对目标地址的 UDP 全端口丢弃，握手都发不出去；换端口、停代理软件均无效</td></tr>
 </tbody>
 </table>
 </div>
-<p>一句话记法：<b>先关密码，再部署节点，最后（可选）关端口。</b>拿不到公钥时部署第 1 步会自动跳过加固并提示，不会把你锁在门外。</p>
+<p>两条路线的共同前提是「客户端能主动发包到服务器的某个非 TCP 端口」。当这个前提不成立时，再精巧的授权协议也无法落地。相比之下，SSH 走 TCP，而 TCP 在该环境下正常。</p>
+
+<h2>放弃了什么</h2>
+<ul>
+<li>端口对扫描器可见。代价用三层补偿：仅公钥、速率限制、失败封禁。</li>
+<li>不需要分发证书或密钥文件。客户端只做一次 <code>ssh-keygen</code> 与一次公钥安装。</li>
+<li>不引入常驻守护进程与内核模块，10 亿字节级内存的机器上零额外负担。</li>
+</ul>
 
 <h2>四步</h2>
 <div class="tw">
 <table>
 <thead><tr><th>#</th><th>在哪台机器</th><th>做什么</th><th>命令</th></tr></thead>
 <tbody>
-<tr><td>1</td><td>你的安全机器</td><td>生成密钥包</td><td><code>bash 00-gen-keys.sh --hosts "server1=1.2.3.4" --clients "laptop phone"</code></td></tr>
-<tr><td>2</td><td>服务器</td><td>装 fwknopd、放行 SPA 端口（<b>SSH 端口仍开着</b>）</td><td><code>sudo bash 10-server.sh --keys spa-keys.env</code></td></tr>
-<tr><td>3</td><td>每台客户端</td><td>写 <code>~/.fwknoprc</code> 与 <code>~/.ssh/config</code></td><td><code>bash 20-client.sh --keys clients/laptop.env</code></td></tr>
-<tr><td>4</td><td>服务器</td><td>确认能进之后，<b>才</b>关公网 SSH 端口</td><td><code>sudo bash 10-server.sh --keys spa-keys.env --close-ssh</code></td></tr>
-<tr><td>退</td><td>服务器 + 客户端</td><td>不想要了：先开回公网 SSH，再拆 SPA，步骤见<a href="06-rollback.html">第 6 页</a></td><td><code>sudo bash 90-uninstall.sh</code> / <code>bash 90-uninstall.sh --client</code></td></tr>
+<tr><td>1</td><td>客户端</td><td>生成或复用 Ed25519 密钥</td><td><code>bash ssh-client.sh --host &lt;地址&gt; --port &lt;端口&gt; --install-server</code></td></tr>
+<tr><td>2</td><td>客户端</td><td>验证密钥能登录</td><td><code>ssh -o BatchMode=yes &lt;别名&gt; true</code></td></tr>
+<tr><td>3</td><td>服务器</td><td>关密码登录、加速率限制与封禁</td><td><code>sudo bash ssh-server.sh</code></td></tr>
+<tr><td>4</td><td>客户端</td><td>独立验收</td><td><code>bash ssh-audit.sh --alias &lt;别名&gt;</code></td></tr>
 </tbody>
 </table>
 </div>
+<div class="bad"><b>第 3 步之前必须完成第 2 步。</b>脚本会检查当前会话是否经公钥认证，读不到证据就拒绝执行。这是为了防止把「密钥不可用」和「密码已关闭」同时成立。</div>
 
-<div class="bad"><b>顺序反了会把自己锁在门外。</b>第 4 步必须等第 3 步验证通过。脚本默认不收口，且会在收口前检查 <code>fwknopd</code> 是否真的起来、<code>FWKNOP_INPUT</code> 跳转是否真的插上、最近 30 分钟是否有成功敲门记录，任一不满足就退出，此时防火墙还没动。没检测到并行的接入通道（<code>tailscale0</code> / <code>wg0</code>）时会提醒你：收口后只剩云控制台 VNC 能回来。</div>
-
-<p>这一步<b>完全可以不做</b>。不做的话 22 端口对全网开着，只是无法爆破（有密码登录被关着）。多数人的止步于此也够用。</p>
-
-<h2>开始前确认</h2>
-<ul>
-<li>已跑完 <a href="../deploy/01-init.html">部署第 1 步</a>（<code>sshd -T | grep -i passwordauthentication</code> 输出 <code>no</code>）</li>
-<li>云厂商安全组里放行 <code>62201/udp</code>（<b>外层防火墙，脚本碰不到</b>）</li>
-<li>系统：Debian 12/13 或 Ubuntu 22.04/24.04</li>
-</ul>
-
-<h2>产物</h2>
+<h2>页面</h2>
 <div class="tw">
 <table>
-<thead><tr><th>文件</th><th>在哪</th><th>注意</th></tr></thead>
+<thead><tr><th>页面</th><th>内容</th></tr></thead>
 <tbody>
-<tr><td><code>spa-keys.env</code></td><td>你的机器</td><td>含<b>全部</b>设备密钥，别给任何一台客户端</td></tr>
-<tr><td><code>clients/&lt;名字&gt;.env</code></td><td>对应设备</td><td>每台只拿自己那一份</td></tr>
-<tr><td><code>/etc/fwknop/access.conf</code></td><td>服务器</td><td>每个 stanza 一台设备，脚本渲染的</td></tr>
-<tr><td><code>~/.fwknoprc</code></td><td>每台客户端</td><td>每个主机一个 stanza，脚本渲染的</td></tr>
+<tr><td><a href="01-server.html">服务端加固</a></td><td>四步的服务端部分，脚本参数、回滚方式、生效值核对</td></tr>
+<tr><td><a href="02-client.html">客户端配置</a></td><td>密钥生成、公钥安装、<code>~/.ssh/config</code> 写法、免密验证</td></tr>
+<tr><td><a href="03-verify.html">验收与排障</a></td><td>独立验收输出、失败项对照、锁死前的自救顺序</td></tr>
+<tr><td><a href="04-reference.html">参数与取舍</a></td><td>脚本参数默认值、<code>ufw limit</code> 行为、fail2ban 规则、可选的双因子</td></tr>
 </tbody>
 </table>
 </div>
 
-<h2>图</h2>
-<div class="tw">
-<table>
-<thead><tr><th>图</th><th>回答</th><th>页面</th></tr></thead>
-<tbody>
-<tr><td>1 拓扑</td><td>多客户端怎么共用一台服务器</td><td><a href="diagrams/01-spa-topology.html">独立交互版 →</a></td></tr>
-<tr><td>2 时序</td><td><code>ssh server1</code> 背后发生了什么</td><td><a href="diagrams/02-spa-access-sequence.html">独立交互版 →</a></td></tr>
-<tr><td>3 生命周期</td><td>22 端口什么时候开着</td><td><a href="diagrams/03-spa-rule-lifecycle.html">独立交互版 →</a></td></tr>
-</tbody>
-</table>
-</div>
-
-<p style="margin-top:24px"><a href="01-how.html">下一步：工作原理 →</a></p>
+<p style="margin-top:24px"><a href="../deploy/index.html">节点部署手册</a>　·　<a href="../index.html">方案总览</a></p>

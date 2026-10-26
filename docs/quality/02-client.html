@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>客户端配置 · SSH 加固手册</title>
+<style>
+:root{--ink:#161a21;--ink2:#4a5361;--ink3:#6f7886;--line:#e4e8ee;--line2:#f0f3f7;--bg:#f7f8fa;--card:#fff;--acc:#0d6b58;--acc2:#e9f5f2;--warn:#9a5608;--warn2:#fdf4e7;--bad:#a21f36;--bad2:#fdeef1;--info:#1d4ed8;--info2:#eef2ff;--r:10px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.75 "PingFang SC","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1040px;margin:0 auto;padding:0 20px}
+a{color:var(--acc);text-decoration:none;border-bottom:1px solid rgba(13,107,88,.28)}
+a:hover{border-bottom-color:var(--acc)}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.88em;background:var(--line2);border:1px solid var(--line);border-radius:4px;padding:.05em .35em;overflow-wrap:anywhere}
+.top{background:#fff;border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;align-items:baseline;gap:12px;padding:12px 20px}
+.top .home{font-weight:700;border:0}
+.top .crumb{color:var(--ink3);font-size:13px}
+.nav{background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:9}
+.nav .wrap{display:flex;gap:6px;overflow-x:auto;padding:8px 20px;font-size:13.5px}
+.nav a{padding:4px 10px;border-radius:999px;border:0;color:var(--ink2);white-space:nowrap}
+.nav a:hover{background:var(--line2)}
+.nav a[aria-current="page"]{background:var(--acc);color:#fff}
+main{padding:28px 0 60px}
+h1{font-size:26px;margin:6px 0 10px;letter-spacing:-.01em}
+h2{font-size:20px;margin:34px 0 10px;padding-top:10px;border-top:1px solid var(--line)}
+h2:first-of-type{border-top:0;padding-top:0}
+h3{font-size:16px;margin:22px 0 8px}
+p{margin:8px 0}
+.lede{color:var(--ink2);font-size:15.5px;margin-bottom:16px}
+ul,ol{margin:8px 0;padding-left:22px}
+li{margin:4px 0}
+pre{position:relative;background:#0f172a;color:#e2e8f0;border-radius:var(--r);padding:14px 16px;overflow-x:auto;font:13px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;margin:10px 0}
+pre code{background:none;border:0;padding:0;color:inherit;font-size:inherit;overflow-wrap:normal}
+pre .copy{position:absolute;top:8px;right:8px;background:#1e293b;color:#cbd5e1;border:1px solid #334155;border-radius:6px;font-size:12px;padding:2px 8px;cursor:pointer}
+pre .copy:hover{background:#334155}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;margin:12px 0}
+.card h3{margin-top:0}
+.note,.warn,.bad{border-radius:0 var(--r) var(--r) 0;padding:11px 15px;margin:12px 0;font-size:14px;border-left:3px solid}
+.note{background:var(--acc2);border-color:var(--acc);color:#0a4a3d}
+.warn{background:var(--warn2);border-color:#d79a3f;color:#6b3d06}
+.bad{background:var(--bad2);border-color:#cf5b70;color:#7c1a2c}
+.note b,.warn b,.bad b{font-weight:650}
+table{border-collapse:collapse;width:100%;font-size:13.8px;background:#fff;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line2);vertical-align:top}
+th{background:#f8fafb;font-size:12.4px;color:var(--ink3);text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+.tw{overflow-x:auto;margin:12px 0}
+.tag{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:5px;background:var(--line2);color:var(--ink2)}
+.tag.ok{background:var(--acc2);color:var(--acc)}
+.tag.warn{background:var(--warn2);color:var(--warn)}
+.tag.bad{background:var(--bad2);color:var(--bad)}
+.tag.info{background:var(--info2);color:var(--info)}
+.steps{counter-reset:s;list-style:none;padding:0}
+.steps>li{counter-increment:s;position:relative;padding-left:38px;margin:14px 0}
+.steps>li::before{content:counter(s);position:absolute;left:0;top:1px;width:24px;height:24px;border-radius:50%;background:var(--acc);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.kv{display:grid;grid-template-columns:140px 1fr;gap:2px 12px;font-size:14px;margin:8px 0}
+.kv dt{color:var(--ink3)}
+.kv dd{margin:0}
+details{margin:10px 0;border:1px solid var(--line);border-radius:var(--r);background:#fff}
+details>summary{cursor:pointer;padding:10px 14px;font-weight:600;font-size:14px;color:var(--acc)}
+details[open]>summary{border-bottom:1px solid var(--line)}
+details .body{padding:4px 14px 14px}
+.fig{background:#fff;border:1px solid var(--line);border-radius:var(--r);margin:14px 0;overflow:hidden}
+.fig .bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 14px;border-bottom:1px solid var(--line);font-size:13px;color:var(--ink3);background:#fbfcfd}
+.fig .bar b{color:var(--ink);font-weight:600}
+.fig iframe{display:block;width:100%;height:640px;border:0}
+.foot{border-top:1px solid var(--line);background:#fff;padding:20px 0 40px;font-size:13px;color:var(--ink3)}
+@media(max-width:640px){h1{font-size:22px}.kv{grid-template-columns:1fr}.fig iframe{height:520px}}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap"><a class="home" href="index.html">SSH 加固手册</a><span class="crumb">2 · 客户端配置</span></div></header>
+<nav class="nav"><div class="wrap"><a href="index.html">0 · 总览</a><a href="01-server.html">1 · 服务端加固</a><a href="02-client.html" aria-current="page">2 · 客户端配置</a><a href="03-verify.html">3 · 验收与排障</a><a href="04-reference.html">4 · 参数与取舍</a></div></nav>
+<main class="wrap">
+<h1>客户端配置</h1>
+<p class="lede">主读者：在 macOS、Linux 或 Windows 上准备免密登录的运维者。本页只做一件事：让 <code>ssh &lt;别名&gt;</code> 一条命令进服务器。</p>
+
+<h2>一条命令完成</h2>
+<pre><code>bash ssh-client.sh --host 203.0.113.10 --port 4061 --install-server</code></pre>
+<p>脚本做四件事，每件都幂等：</p>
+<div class="tw">
+<table>
+<thead><tr><th>动作</th><th>细节</th></tr></thead>
+<tbody>
+<tr><td>生成或复用密钥</td><td>已有 <code>~/.ssh/id_ed25519</code> 就用它，没有则生成 Ed25519，不设口令</td></tr>
+<tr><td>安装公钥</td><td>先查服务器上是否已存在同一把公钥，避免重复追加；只追加，不改动其他行</td></tr>
+<tr><td>写 <code>~/.ssh/config</code></td><td>已有同名 <code>Host</code> 时保持原样</td></tr>
+<tr><td>验证</td><td>用 <code>BatchMode=yes</code> 连一次，失败即以非零退出</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>生成的配置</h2>
+<pre><code>Host vps
+  HostName 203.0.113.10
+  Port 4061
+  User root
+  IdentityFile ~/.ssh/id_ed25519
+  IdentitiesOnly yes</code></pre>
+<p><code>IdentitiesOnly yes</code> 让客户端只尝试这一把密钥。服务器 <code>MaxAuthTries 3</code> 时，客户端若挨个试代理里的密钥，几次就会耗尽配额。</p>
+
+<h2>分平台说明</h2>
+<div class="tw">
+<table>
+<thead><tr><th>平台</th><th>OpenSSH 来源</th><th>注意</th></tr></thead>
+<tbody>
+<tr><td>macOS</td><td>系统自带</td><td>钥匙串可用 <code>ssh-add --apple-use-keychain</code>，但本方案不需要保管口令</td></tr>
+<tr><td>Linux</td><td>发行版自带</td><td>无额外依赖</td></tr>
+<tr><td>Windows 10/11</td><td>系统自带 OpenSSH Client</td><td>路径为 <code>%USERPROFILE%\.ssh</code>；脚本在 Git Bash 或 WSL 中执行</td></tr>
+</tbody>
+</table>
+</div>
+<p>不安装任何第三方客户端，也不使用图形工具。图形化 SSH 客户端如 WinSCP 读取同一份 <code>~/.ssh/config</code> 与同一把密钥即可。</p>
+
+<h2>密钥的几个决定</h2>
+<ul>
+<li><b>算法用 Ed25519。</b>密钥短、签名快、无参数需要挑选。</li>
+<li><b>不设口令。</b>免密登录的前提是密钥无口令；密钥文件权限设为 <code>600</code>。需要额外保护时用系统登录密码与全盘加密，而不是给密钥加口令后再依赖 ssh-agent。</li>
+<li><b>一台设备一把密钥。</b>吊销时删掉服务器上对应那一行，不影响其他设备。</li>
+</ul>
+
+<h2>手工做法</h2>
+<pre><code>ssh-keygen -t ed25519 -C "laptop"
+ssh-copy-id -p 4061 root@203.0.113.10      # Windows 无 ssh-copy-id，用下面的写法
+type %USERPROFILE%\.ssh\id_ed25519.pub | ssh -p 4061 root@203.0.113.10 "cat &gt;&gt; ~/.ssh/authorized_keys"
+ssh -o BatchMode=yes -p 4061 root@203.0.113.10 true   # 这一步成功再继续</code></pre>
+<div class="bad"><b>不要在密钥登录验证通过之前关闭密码登录。</b>顺序颠倒会同时失去两种登录方式，此时只能走云控制台。</div>
+
+<h2>检查本机状态</h2>
+<pre><code>bash ssh-client.sh --check</code></pre>
+
+<p style="margin-top:24px"><a href="01-server.html">← 服务端加固</a>　·　<a href="03-verify.html">验收与排障 →</a></p>
+
+</main>
+<footer class="foot"><div class="wrap">
+本手册与 <a href="../deploy/index.html">节点部署手册</a> · <a href="../index.html">方案总览</a> 配套。服务端命令在 Debian 12/13、Ubuntu 22.04/24.04 上验证；<code>fwknop-server</code> 与 <code>fwknop-client</code> 均来自 Debian 官方源。仅限本人自用科研学习，遵守所在地法律法规与服务条款。
+</div></footer>
+<script>
+document.querySelectorAll('pre').forEach(function(pre){
+  var b=document.createElement('button');b.className='copy';b.type='button';b.textContent='复制';
+  b.onclick=function(){
+    var t=pre.innerText.replace(/复制$|已复制$/,'');
+    var done=function(){b.textContent='已复制';setTimeout(function(){b.textContent='复制'},1200)};
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(done,function(){fallback(t,done)})}
+    else{fallback(t,done)}
+  };
+  function fallback(t,cb){var ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');cb()}catch(e){}document.body.removeChild(ta)}
+  pre.appendChild(b);
+});
+</script>
+</body>
+</html>

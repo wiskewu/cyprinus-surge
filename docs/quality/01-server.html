@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>服务端加固 · SSH 加固手册</title>
+<style>
+:root{--ink:#161a21;--ink2:#4a5361;--ink3:#6f7886;--line:#e4e8ee;--line2:#f0f3f7;--bg:#f7f8fa;--card:#fff;--acc:#0d6b58;--acc2:#e9f5f2;--warn:#9a5608;--warn2:#fdf4e7;--bad:#a21f36;--bad2:#fdeef1;--info:#1d4ed8;--info2:#eef2ff;--r:10px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.75 "PingFang SC","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1040px;margin:0 auto;padding:0 20px}
+a{color:var(--acc);text-decoration:none;border-bottom:1px solid rgba(13,107,88,.28)}
+a:hover{border-bottom-color:var(--acc)}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.88em;background:var(--line2);border:1px solid var(--line);border-radius:4px;padding:.05em .35em;overflow-wrap:anywhere}
+.top{background:#fff;border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;align-items:baseline;gap:12px;padding:12px 20px}
+.top .home{font-weight:700;border:0}
+.top .crumb{color:var(--ink3);font-size:13px}
+.nav{background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:9}
+.nav .wrap{display:flex;gap:6px;overflow-x:auto;padding:8px 20px;font-size:13.5px}
+.nav a{padding:4px 10px;border-radius:999px;border:0;color:var(--ink2);white-space:nowrap}
+.nav a:hover{background:var(--line2)}
+.nav a[aria-current="page"]{background:var(--acc);color:#fff}
+main{padding:28px 0 60px}
+h1{font-size:26px;margin:6px 0 10px;letter-spacing:-.01em}
+h2{font-size:20px;margin:34px 0 10px;padding-top:10px;border-top:1px solid var(--line)}
+h2:first-of-type{border-top:0;padding-top:0}
+h3{font-size:16px;margin:22px 0 8px}
+p{margin:8px 0}
+.lede{color:var(--ink2);font-size:15.5px;margin-bottom:16px}
+ul,ol{margin:8px 0;padding-left:22px}
+li{margin:4px 0}
+pre{position:relative;background:#0f172a;color:#e2e8f0;border-radius:var(--r);padding:14px 16px;overflow-x:auto;font:13px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;margin:10px 0}
+pre code{background:none;border:0;padding:0;color:inherit;font-size:inherit;overflow-wrap:normal}
+pre .copy{position:absolute;top:8px;right:8px;background:#1e293b;color:#cbd5e1;border:1px solid #334155;border-radius:6px;font-size:12px;padding:2px 8px;cursor:pointer}
+pre .copy:hover{background:#334155}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;margin:12px 0}
+.card h3{margin-top:0}
+.note,.warn,.bad{border-radius:0 var(--r) var(--r) 0;padding:11px 15px;margin:12px 0;font-size:14px;border-left:3px solid}
+.note{background:var(--acc2);border-color:var(--acc);color:#0a4a3d}
+.warn{background:var(--warn2);border-color:#d79a3f;color:#6b3d06}
+.bad{background:var(--bad2);border-color:#cf5b70;color:#7c1a2c}
+.note b,.warn b,.bad b{font-weight:650}
+table{border-collapse:collapse;width:100%;font-size:13.8px;background:#fff;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line2);vertical-align:top}
+th{background:#f8fafb;font-size:12.4px;color:var(--ink3);text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+.tw{overflow-x:auto;margin:12px 0}
+.tag{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:5px;background:var(--line2);color:var(--ink2)}
+.tag.ok{background:var(--acc2);color:var(--acc)}
+.tag.warn{background:var(--warn2);color:var(--warn)}
+.tag.bad{background:var(--bad2);color:var(--bad)}
+.tag.info{background:var(--info2);color:var(--info)}
+.steps{counter-reset:s;list-style:none;padding:0}
+.steps>li{counter-increment:s;position:relative;padding-left:38px;margin:14px 0}
+.steps>li::before{content:counter(s);position:absolute;left:0;top:1px;width:24px;height:24px;border-radius:50%;background:var(--acc);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.kv{display:grid;grid-template-columns:140px 1fr;gap:2px 12px;font-size:14px;margin:8px 0}
+.kv dt{color:var(--ink3)}
+.kv dd{margin:0}
+details{margin:10px 0;border:1px solid var(--line);border-radius:var(--r);background:#fff}
+details>summary{cursor:pointer;padding:10px 14px;font-weight:600;font-size:14px;color:var(--acc)}
+details[open]>summary{border-bottom:1px solid var(--line)}
+details .body{padding:4px 14px 14px}
+.fig{background:#fff;border:1px solid var(--line);border-radius:var(--r);margin:14px 0;overflow:hidden}
+.fig .bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 14px;border-bottom:1px solid var(--line);font-size:13px;color:var(--ink3);background:#fbfcfd}
+.fig .bar b{color:var(--ink);font-weight:600}
+.fig iframe{display:block;width:100%;height:640px;border:0}
+.foot{border-top:1px solid var(--line);background:#fff;padding:20px 0 40px;font-size:13px;color:var(--ink3)}
+@media(max-width:640px){h1{font-size:22px}.kv{grid-template-columns:1fr}.fig iframe{height:520px}}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap"><a class="home" href="index.html">SSH 加固手册</a><span class="crumb">1 · 服务端加固</span></div></header>
+<nav class="nav"><div class="wrap"><a href="index.html">0 · 总览</a><a href="01-server.html" aria-current="page">1 · 服务端加固</a><a href="02-client.html">2 · 客户端配置</a><a href="03-verify.html">3 · 验收与排障</a><a href="04-reference.html">4 · 参数与取舍</a></div></nav>
+<main class="wrap">
+<h1>服务端加固</h1>
+<p class="lede">主读者：在服务器上执行加固的运维者。本页只做一件事：把 <code>ssh-server.sh</code> 跑对，并能随时回滚。</p>
+
+<h2>前置条件</h2>
+<ul>
+<li>已按 <a href="02-client.html">客户端配置</a> 装好公钥，并且用密钥成功登录过一次。</li>
+<li>当前会话保持打开，另开一个终端用于验证。</li>
+<li>云控制台的 VNC 或串口可用，作为最终兜底。</li>
+</ul>
+
+<h2>先看现状</h2>
+<pre><code>sudo bash ssh-server.sh --check</code></pre>
+<p>输出示例，端口取自 <code>sshd -T</code>，不假设是 22：</p>
+<pre><code>sshd 端口          : 4061
+密码登录           : yes
+root 登录          : yes
+键盘交互           : no
+MaxAuthTries       : 6
+MaxStartups        : 10:30:100
+可用公钥数         : 1
+本次会话公钥登录   : 是
+加固片段           : 不存在</code></pre>
+<p><code>本次会话公钥登录</code> 为「否」时不要继续。脚本依赖这一项判断是否可以安全关闭密码登录。</p>
+
+<h2>应用</h2>
+<pre><code>sudo bash ssh-server.sh
+sudo bash ssh-server.sh --whitelist 198.51.100.20   # 顺手把常用出口加入 fail2ban 白名单</code></pre>
+<p>脚本按下面的顺序执行，任何一步失败都不会让 SSH 不可用：</p>
+<ol class="steps">
+<li>检查 <code>authorized_keys</code> 至少有可用公钥，并确认当前会话经公钥认证。</li>
+<li>备份 <code>sshd_config</code>、drop-in 目录与 <code>ufw status</code> 到 <code>/root/ssh-hardening/&lt;时间戳&gt;</code>。</li>
+<li>写 <code>/etc/ssh/sshd_config.d/99-ssh-hardening.conf</code>。若有排序更靠前的文件写了同一关键字，就地改掉，因为 sshd 取第一个出现的值。</li>
+<li><code>sshd -t</code> 校验，不通过则删除新建片段并且不 reload。</li>
+<li><code>systemctl reload ssh</code>，再回读 <code>sshd -T</code> 确认生效。</li>
+<li><code>ufw limit &lt;端口&gt;/tcp</code>，并删除同端口的 <code>allow</code> 规则。</li>
+<li>写 fail2ban 的 <code>sshd</code> jail 与白名单，reload 并确认运行。</li>
+</ol>
+<div class="note"><b>只 reload，不 restart。</b>reload 保留现有会话，restart 会短暂拒绝新连接。脚本不重启 sshd。</div>
+
+<h2>写入的配置</h2>
+<div class="tw">
+<table>
+<thead><tr><th>项</th><th>值</th><th>作用</th></tr></thead>
+<tbody>
+<tr><td><code>PasswordAuthentication</code></td><td><code>no</code></td><td>关闭密码认证，消除爆破面</td></tr>
+<tr><td><code>KbdInteractiveAuthentication</code></td><td><code>no</code></td><td>键盘交互同样能送密码，一并关闭</td></tr>
+<tr><td><code>PermitRootLogin</code></td><td><code>prohibit-password</code></td><td>root 只能用密钥</td></tr>
+<tr><td><code>MaxAuthTries</code></td><td><code>3</code></td><td>单连接最多三次认证机会</td></tr>
+<tr><td><code>LoginGraceTime</code></td><td><code>20</code></td><td>未认证连接 20 秒断开</td></tr>
+<tr><td><code>MaxStartups</code></td><td><code>5:30:10</code></td><td>未认证并发超过 5 个开始随机丢弃，达到 10 个全拒</td></tr>
+<tr><td><code>ClientAliveInterval</code></td><td><code>300</code></td><td>空闲会话保活探测</td></tr>
+<tr><td><code>ClientAliveCountMax</code></td><td><code>2</code></td><td>连续两次无响应即断开，空闲约 10 分钟释放</td></tr>
+<tr><td><code>X11Forwarding</code></td><td><code>no</code></td><td>不需要图形转发</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>MaxStartups</code> 与 <code>LoginGraceTime</code> 在小内存机器上是实收益：每个未认证连接都占一个 sshd 进程。空闲会话 10 分钟断开意味着长任务要用 <code>tmux</code> 或 <code>nohup</code>。</p>
+
+<h2>回滚</h2>
+<pre><code>sudo bash ssh-server.sh --uninstall</code></pre>
+<p>删除加固片段，从 <code>/root/ssh-hardening/latest</code> 还原被就地改写的文件，恢复 <code>PasswordAuthentication yes</code> 与 <code>ufw allow</code>，然后 reload。回滚后应立刻用密码登录验证一次，再关闭当前会话。</p>
+<div class="warn"><b>回滚会重新打开密码登录。</b>只在确认能登录的前提下使用，并在处理完问题后再次执行加固。</div>
+
+<p style="margin-top:24px"><a href="index.html">← 总览</a>　·　<a href="02-client.html">客户端配置 →</a></p>
+
+</main>
+<footer class="foot"><div class="wrap">
+本手册与 <a href="../deploy/index.html">节点部署手册</a> · <a href="../index.html">方案总览</a> 配套。服务端命令在 Debian 12/13、Ubuntu 22.04/24.04 上验证；<code>fwknop-server</code> 与 <code>fwknop-client</code> 均来自 Debian 官方源。仅限本人自用科研学习，遵守所在地法律法规与服务条款。
+</div></footer>
+<script>
+document.querySelectorAll('pre').forEach(function(pre){
+  var b=document.createElement('button');b.className='copy';b.type='button';b.textContent='复制';
+  b.onclick=function(){
+    var t=pre.innerText.replace(/复制$|已复制$/,'');
+    var done=function(){b.textContent='已复制';setTimeout(function(){b.textContent='复制'},1200)};
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(done,function(){fallback(t,done)})}
+    else{fallback(t,done)}
+  };
+  function fallback(t,cb){var ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');cb()}catch(e){}document.body.removeChild(ta)}
+  pre.appendChild(b);
+});
+</script>
+</body>
+</html>

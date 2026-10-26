@@ -8,13 +8,11 @@ const PAGES_SRC = path.join(ROOT, '.build/quality/pages');
 const LAYOUT = fs.readFileSync(path.join(ROOT, '.build/quality/_layout.html'), 'utf8');
 
 const pages = [
-  { file: 'index.html', title: '总览', crumb: '0 · 总览' },
-  { file: '01-how.html', title: '工作原理', crumb: '1 · 工作原理' },
-  { file: '02-keys.html', title: '多客户端密钥', crumb: '2 · 多客户端密钥' },
-  { file: '03-deploy.html', title: '部署', crumb: '3 · 部署' },
-  { file: '04-verify.html', title: '验收与运维', crumb: '4 · 验收与运维' },
-  { file: '05-ops.html', title: '排查', crumb: '5 · 排查' },
-  { file: '06-rollback.html', title: '卸载与回退', crumb: '6 · 卸载与回退' },
+  { file: 'index.html', title: 'SSH 加固', crumb: '0 · 总览' },
+  { file: '01-server.html', title: '服务端加固', crumb: '1 · 服务端加固' },
+  { file: '02-client.html', title: '客户端配置', crumb: '2 · 客户端配置' },
+  { file: '03-verify.html', title: '验收与排障', crumb: '3 · 验收与排障' },
+  { file: '04-reference.html', title: '参数与取舍', crumb: '4 · 参数与取舍' },
 ];
 
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

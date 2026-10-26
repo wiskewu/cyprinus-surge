@@ -1,0 +1,89 @@
+<h1>参数与取舍</h1>
+<p class="lede">主读者：需要修改默认值或评估额外加固项的人。本页是参考页，只给事实、默认值与副作用。</p>
+
+<h2>脚本参数</h2>
+<div class="tw">
+<table>
+<thead><tr><th>脚本</th><th>参数</th><th>默认</th><th>副作用</th></tr></thead>
+<tbody>
+<tr><td rowspan="4"><code>ssh-server.sh</code></td><td><code>--check</code></td><td>不加则为应用</td><td>无，只读</td></tr>
+<tr><td><code>--uninstall</code></td><td>否</td><td>恢复密码登录与 <code>ufw allow</code></td></tr>
+<tr><td><code>--whitelist IP[,IP]</code></td><td>仅 127.0.0.1 与 ::1</td><td>写入 fail2ban 的 <code>ignoreip</code></td></tr>
+<tr><td><code>--force</code></td><td>否</td><td>跳过「当前会话必须公钥登录」的检查</td></tr>
+<tr><td rowspan="5"><code>ssh-client.sh</code></td><td><code>--host</code></td><td>必填</td><td>无</td></tr>
+<tr><td><code>--port</code></td><td>读取 <code>~/.ssh/config</code> 同名 Host，否则 22</td><td>无</td></tr>
+<tr><td><code>--user</code></td><td><code>root</code></td><td>无</td></tr>
+<tr><td><code>--alias</code></td><td><code>vps</code></td><td>写入 <code>~/.ssh/config</code></td></tr>
+<tr><td><code>--install-server</code></td><td>否</td><td>向服务器 <code>authorized_keys</code> 追加一行</td></tr>
+<tr><td><code>ssh-audit.sh</code></td><td><code>--alias</code> 或 <code>--host</code></td><td><code>vps</code></td><td>无，只读</td></tr>
+</tbody>
+</table>
+</div>
+<p>三个脚本都幂等，重复执行只补齐缺失部分。</p>
+
+<h2>ufw limit 的行为</h2>
+<div class="tw">
+<table>
+<thead><tr><th>项</th><th>值</th></tr></thead>
+<tbody>
+<tr><td>限制粒度</td><td>按来源 IP，对新建连接计数</td></tr>
+<tr><td>阈值</td><td>30 秒内 6 次，超出即丢弃新连接</td></tr>
+<tr><td>恢复方式</td><td>等待窗口滑过后自动恢复，不需要人工干预</td></tr>
+<tr><td>副作用</td><td>批量脚本、并发终端、验收脚本都可能触发；<code>ssh-audit.sh</code> 因此把远程检查合并为一次连接</td></tr>
+</tbody>
+</table>
+</div>
+<p>若并发需求高于该阈值，把 <code>ufw limit</code> 换成 <code>ufw allow</code> 并保留 fail2ban，封禁由 fail2ban 承担。</p>
+
+<h2>fail2ban 规则</h2>
+<pre><code>[DEFAULT]
+ignoreip = 127.0.0.1/8 ::1
+bantime = 1h
+findtime = 10m
+maxretry = 4
+
+[sshd]
+enabled = true</code></pre>
+<div class="tw">
+<table>
+<thead><tr><th>键</th><th>含义</th></tr></thead>
+<tbody>
+<tr><td><code>bantime</code></td><td>封禁时长</td></tr>
+<tr><td><code>findtime</code></td><td>统计窗口</td></tr>
+<tr><td><code>maxretry</code></td><td>窗口内失败次数阈值</td></tr>
+<tr><td><code>ignoreip</code></td><td>永不封禁的地址，用于固定出口</td></tr>
+</tbody>
+</table>
+</div>
+<p>出口 IP 会变化的网络不要写 <code>ignoreip</code>，否则规则失效；改用密钥登录本来也不会产生失败尝试。</p>
+
+<h2>可选：双因子</h2>
+<p>TOTP 能在密钥泄露后仍然拦住登录，代价是必须打开 <code>KbdInteractiveAuthentication</code>，而本方案刻意关闭了它。</p>
+<div class="tw">
+<table>
+<thead><tr><th>项</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>依赖</td><td><code>libpam-google-authenticator</code>，Debian 13 源内有</td></tr>
+<tr><td>配置</td><td><code>AuthenticationMethods publickey,keyboard-interactive:pam</code>，配合 PAM 里的 <code>pam_google_authenticator.so</code></td></tr>
+<tr><td>风险</td><td>手机丢失、时钟漂移、PAM 顺序写错都会导致完全无法登录</td></tr>
+<tr><td>前置</td><td>先保存恢复码，并确认云控制台可用</td></tr>
+</tbody>
+</table>
+</div>
+<p>启用顺序：先在现有会话里改配置，再用另一个终端完整验证一次密码加动态码登录，最后才关闭验证会话。</p>
+
+<h2>不建议的加固项</h2>
+<div class="tw">
+<table>
+<thead><tr><th>项</th><th>原因</th></tr></thead>
+<tbody>
+<tr><td><code>authorized_keys</code> 的 <code>from="IP"</code></td><td>出口 IP 变化即失效，与免密登录的便利性直接冲突</td></tr>
+<tr><td>CrowdSec 替代 fail2ban</td><td>多两个常驻进程，默认向社区 API 上报攻击者信息</td></tr>
+<tr><td>AIDE 每日基线比对</td><td>每次升级都改 <code>/usr/bin</code>，告警噪音高于收益；按需 <code>dpkg --verify</code> 更实用</td></tr>
+<tr><td>全量 auditd</td><td>小盘上日志增长快，规则需要长期维护</td></tr>
+<tr><td>SPA 单包授权</td><td>依赖 UDP 单包，链路或网络策略阻断 UDP 时完全不可用</td></tr>
+</tbody>
+</table>
+</div>
+
+<p style="margin-top:24px"><a href="03-verify.html">← 验收与排障</a>　·　<a href="index.html">总览 →</a></p>
