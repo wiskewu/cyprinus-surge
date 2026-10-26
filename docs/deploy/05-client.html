@@ -77,6 +77,24 @@ details .body{padding:4px 14px 14px}
 <pre><code># 你的电脑上
 scp root@你的服务器IP:/etc/sing-box/client.env ./client.env</code></pre>
 
+<h2>没有 CLI 时怎么验收</h2>
+<p>图形客户端把核心装在扩展或 App 里，本机没有 <code>sing-box</code> 可执行文件。这时用免 CLI 子集：</p>
+<pre><code>bash bin/deploy/client/verify.sh --no-cli --proxy socks5h://127.0.0.1:7890</code></pre>
+<div class="tw">
+<table>
+<thead><tr><th>检查项</th><th>免 CLI 子集</th><th>完整验收</th></tr></thead>
+<tbody>
+<tr><td>代理可用与境外出口</td><td>有</td><td>有</td></tr>
+<tr><td>分流：国内站点是否直连</td><td>有</td><td>有</td></tr>
+<tr><td>AI 站点可达性</td><td>有</td><td>有</td></tr>
+<tr><td>出口是否稳定</td><td>有</td><td>有</td></tr>
+<tr><td>延迟分解</td><td>跳过，需要读配置</td><td>有</td></tr>
+<tr><td>握手质量</td><td>跳过，需要 <code>SERVER_IP</code> 与 <code>mtr</code></td><td>有</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note"><b>这是子集，不是完整验收。</b>跳过项与 <code>SERVER_IP</code> 缺失都会明确打印，不会被当成通过。反向代理整机都走隧道时，「国内直连」一项会判失败，那是环境决定的结果，不代表客户端有问题。</div>
+
 <div class="note"><b>多台设备用 <code>bin/deploy/device.sh</code>，不要用本页的方式。</b>本页的 <code>client.env</code> 里只有一台设备的凭据（<code>bin/deploy/one/secrets.sh</code> 写的 <code>main</code>），多台共用同一个 uuid 就没法单独吊销。服务端跑 <code>sudo bash bin/deploy/device.sh add laptop</code> 会直接生成那台的配置，你只管 scp 过去。见 <a href="03-server.html#devices">第 3 页</a>。验收那一步同样不需要 <code>client.env</code>：<code>SERVER_IP=... bash bin/deploy/client/verify.sh</code>（见 <a href="06-ops.html">第 6 页</a>）。</div>
 
 <h3>一次生成三端</h3>

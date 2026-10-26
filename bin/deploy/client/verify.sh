@@ -13,12 +13,47 @@
 #   4) 走 SOCKS 时 time_connect 只是到本地代理的几毫秒，不能当路径指标
 #   5) HY2_ONLY=1：只拿 Hysteria2 出站跑一遍，用来证明第二入口真的能用
 set -uo pipefail # 验收脚本要跑完全部检查项，故不启用 -e
-CLIENT_ENV_FILE="${1:-./client.env}"
+CLIENT_ENV_FILE="./client.env"
 ENVFILE="${CLIENT_ENV_FILE}"
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=SCRIPTDIR/../lib.sh
 . "${SELF_DIR}/../lib.sh"
 PROXY="${PROXY:-socks5h://127.0.0.1:2080}"
+# --no-cli：只跑不需要 sing-box 可执行文件的子集：代理可用、分流、AI 可达、出口稳定。
+# 图形客户端把核心装在扩展里，没有 CLI 时用这个模式，再加 --proxy 指定它的本地端口。
+NO_CLI=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --no-cli) NO_CLI=1 ;;
+    --proxy)
+      shift
+      PROXY="${1:?--proxy 需要地址，例如 socks5h://127.0.0.1:7890}"
+      ;;
+    --proxy=*) PROXY="${1#*=}" ;;
+    -h | --help)
+      cat <<'EOF'
+用法：bash bin/deploy/client/verify.sh [client.env] [选项]
+
+  --no-cli          免 CLI 子集：只查代理可用、分流、AI 可达、出口稳定
+  --proxy URL       本地代理地址，例如 socks5h://127.0.0.1:7890
+                    默认 socks5h://127.0.0.1:2080
+
+环境变量：HY2_ONLY=1|emit、CONFIG、SERVER_IP、VLESS_PORT、SING_BOX_BIN
+EOF
+      exit 0
+      ;;
+    -*) usage_error "未知参数：$1" ;;
+    *)
+      CLIENT_ENV_FILE="$1"
+      ENVFILE="$1"
+      ;;
+  esac
+  shift
+done
+# HY2_ONLY 需要本地 sing-box，与免 CLI 子集互斥
+if [[ "${NO_CLI}" == 1 && "${HY2_ONLY:-0}" != 0 ]]; then
+  usage_error "--no-cli 与 HY2_ONLY 互斥：前者不跑本地实例"
+fi
 # HY2_ONLY=1：不改手上那份配置，从 CONFIG 派生一份只留 Hysteria2 出站的副本，
 # 用临时 mixed 端口前台跑起来再验收。端口与 tag 都能改。
 HY2_ONLY="${HY2_ONLY:-0}"
@@ -33,7 +68,11 @@ HY2_OUT="${HY2_OUT:-}"
 # 环境文件可有可无：脚本真正用到的只有 SERVER_IP / VLESS_PORT。
 # 用 device.sh 管设备时，客户端手上只有一份 JSON，没必要（也不应该）把 client.env 发过去，
 # 这时直接给变量：SERVER_IP=1.2.3.4 VLESS_PORT=443 bash bin/deploy/client/verify.sh
-if [[ "${HY2_ONLY}" == "emit" ]] && [[ ! -f "${ENVFILE}" ]] && [[ -z "${SERVER_IP:-}" ]]; then
+# 环境文件可有可无：脚本真正用到的只有 SERVER_IP / VLESS_PORT。
+# 免 CLI 子集与 emit 模式都不需要它。
+if [[ "${NO_CLI}" == 1 ]]; then
+  :
+elif [[ "${HY2_ONLY}" == "emit" ]] && [[ ! -f "${ENVFILE}" ]] && [[ -z "${SERVER_IP:-}" ]]; then
   # 只生成配置、不联网，SERVER_IP / client.env 都用不到
   printf '\033[33m[!]\033[0m HY2_ONLY=emit 只写文件、不联网，跳过 %s\n' "${ENVFILE}" >&2
 elif [[ -f "${ENVFILE}" ]]; then
@@ -215,6 +254,11 @@ if [[ "${HY2_ONLY}" == "1" ]]; then
   start_hy2_only
 fi
 
+if [[ "${NO_CLI}" == 1 ]]; then
+  say "免 CLI 子集：只查代理可用、分流、AI 可达、出口稳定"
+  note "延迟分解、DNS 接管、握手质量需要配置或 CLI，本模式跳过；完整验收见 05-client.html"
+fi
+
 say "0. 本地代理是否可用（${PROXY}）"
 first="$(body https://api.ipify.org 12)"
 if [[ -z "${first}" ]]; then
@@ -231,7 +275,9 @@ EOF
   exit 2
 fi
 ok "代理可用，境外出口 ${first}"
-if [[ "${first}" == "${SERVER_IP}" ]]; then
+if [[ -z "${SERVER_IP}" ]]; then
+  note "未提供 SERVER_IP，跳过出口与服务器的比对（免 CLI 模式常见）"
+elif [[ "${first}" == "${SERVER_IP}" ]]; then
   ok "境外流量确实走 VPS（${SERVER_IP}）"
 else
   no "境外出口是 ${first}，不是 SERVER_IP=${SERVER_IP}（检查 client.env 与配置是否同源）"
@@ -270,41 +316,46 @@ for host in https://www.baidu.com https://www.qq.com; do
 done
 note "100% 确认：看连接列表的 chains（GUI「连接」页，或 Clash API /connections，见 06-ops）"
 
-say "2. 延迟分解（冷启动 vs 复用连接）"
-note "同一个 URL 请求两次：第 1 次冷启动，第 2 次复用连接（后者才是浏览体感）"
-for host in https://www.google.com https://www.youtube.com; do
-  out="$(probe "${host}")"
-  cold="$(printf '%s\n' "${out}" | sed -n '1p')"
-  warm="$(printf '%s\n' "${out}" | sed -n '2p')"
-  read -r c_code c_dns c_local c_tls c_ttfb c_total <<<"${cold}"
-  w_ttfb="$(printf '%s\n' "${warm}" | awk '{print $5}')"
-  c_code="${c_code:-000}"
-  c_dns="$(num "${c_dns}")"
-  c_local="$(num "${c_local}")"
-  c_tls="$(num "${c_tls}")"
-  c_ttfb="$(num "${c_ttfb}")"
-  c_total="$(num "${c_total}")"
-  w_ttfb="$(num "${w_ttfb}")"
-  if [[ "${c_code}" == "000" ]] || [[ "${c_ttfb}" == "0" ]]; then
-    no "${host} 请求失败（连不上或 TLS 未完成）"
-    continue
-  fi
-  printf '    \033[2m冷启动 dns=%.3fs 本地=%.3fs TLS完成=%.3fs ttfb=%.3fs total=%.3fs\033[0m\n' \
-    "${c_dns}" "${c_local}" "${c_tls}" "${c_ttfb}" "${c_total}"
-  printf '    \033[2m复用连接 ttfb=%.3fs\033[0m\n' "${w_ttfb}"
-  if awk -v w="${w_ttfb}" 'BEGIN{exit !(w>0 && w<0.5)}' && awk -v c="${c_ttfb}" 'BEGIN{exit !(c<1.2)}'; then
-    ok "$(printf '%-26s' "${host}") 复用 ${w_ttfb}s，冷启动 ${c_ttfb}s，HTTP ${c_code}"
-  else
-    no "$(printf '%-26s' "${host}") 复用 ${w_ttfb}s / 冷启动 ${c_ttfb}s（预期 <0.5s / <1.2s）"
-    # 走 SOCKS 时“本地连接”只是到 127.0.0.1 的几毫秒；有意义的是 TLS 完成时间。
-    awk -v a="${c_tls}" -v t="${c_ttfb}" 'BEGIN{
+if [[ "${NO_CLI}" == 1 ]]; then
+  note "跳过延迟分解：需要读取客户端配置里的 DNS 与出站结构"
+else
+  say "2. 延迟分解（冷启动 vs 复用连接）"
+  note "同一个 URL 请求两次：第 1 次冷启动，第 2 次复用连接（后者才是浏览体感）"
+  for host in https://www.google.com https://www.youtube.com; do
+    out="$(probe "${host}")"
+    cold="$(printf '%s\n' "${out}" | sed -n '1p')"
+    warm="$(printf '%s\n' "${out}" | sed -n '2p')"
+    read -r c_code c_dns c_local c_tls c_ttfb c_total <<<"${cold}"
+    w_ttfb="$(printf '%s\n' "${warm}" | awk '{print $5}')"
+    c_code="${c_code:-000}"
+    c_dns="$(num "${c_dns}")"
+    c_local="$(num "${c_local}")"
+    c_tls="$(num "${c_tls}")"
+    c_ttfb="$(num "${c_ttfb}")"
+    c_total="$(num "${c_total}")"
+    w_ttfb="$(num "${w_ttfb}")"
+    if [[ "${c_code}" == "000" ]] || [[ "${c_ttfb}" == "0" ]]; then
+      no "${host} 请求失败（连不上或 TLS 未完成）"
+      continue
+    fi
+    printf '    \033[2m冷启动 dns=%.3fs 本地=%.3fs TLS完成=%.3fs ttfb=%.3fs total=%.3fs\033[0m\n' \
+      "${c_dns}" "${c_local}" "${c_tls}" "${c_ttfb}" "${c_total}"
+    printf '    \033[2m复用连接 ttfb=%.3fs\033[0m\n' "${w_ttfb}"
+    if awk -v w="${w_ttfb}" 'BEGIN{exit !(w>0 && w<0.5)}' && awk -v c="${c_ttfb}" 'BEGIN{exit !(c<1.2)}'; then
+      ok "$(printf '%-26s' "${host}") 复用 ${w_ttfb}s，冷启动 ${c_ttfb}s，HTTP ${c_code}"
+    else
+      no "$(printf '%-26s' "${host}") 复用 ${w_ttfb}s / 冷启动 ${c_ttfb}s（预期 <0.5s / <1.2s）"
+      # 走 SOCKS 时“本地连接”只是到 127.0.0.1 的几毫秒；有意义的是 TLS 完成时间。
+      awk -v a="${c_tls}" -v t="${c_ttfb}" 'BEGIN{
       printf "      定位：TLS 完成 %.0fms（含隧道内 DNS+TCP+TLS），首包再 %.0fms\n", a*1000, (t-a)*1000
       if (a > 0.70) print "      → TLS 阶段偏长：多半是丢包重传或晚高峰拥塞（RTT 130ms 时正常应在 260–520ms）"
       else if ((t-a) > 0.45) print "      → TLS 正常、首包慢：是目标站点或 VPS 出口的问题，不是你的线路"
       else print "      → 两段都正常：冷启动被 DNS+新建连接放大，看复用行即可"
     }'
-  fi
-done
+    fi
+  done
+
+fi
 
 say "3. DNS 是否被接管"
 note "mixed 模式下 DNS 由配置里的 dns 段接管，命令行测不准；请用浏览器打开 dnsleaktest.com 复验"
@@ -314,9 +365,10 @@ say "4. AI 站点可达性"
 read -r code _ <<<"$(one https://chatgpt.com)"
 code="${code:-000}"
 if [[ "${code}" == "000" ]]; then
-  no "chatgpt.com 请求失败（根本不是 HTTP 错误，而是没连上）"
-elif [[ "${code}" == "403" ]] || [[ "${code}" == "401" ]] || [[ "${code}" == "429" ]]; then
-  no "chatgpt.com 返回 ${code}，连接成功但被风控，需更换 AI 出口"
+  no "chatgpt.com 请求失败：连不上，不是 HTTP 错误"
+elif [[ "${code}" == "403" || "${code}" == "401" || "${code}" == "429" ]]; then
+  # 403/401/429 属于「连上了、但被风控」；可达性仍在，不能当作不可用
+  note "chatgpt.com 返回 ${code}：连接与 TLS 正常，只是被风控；是否需要换 AI 出口另行判断"
 else
   ok "chatgpt.com 返回 ${code}"
 fi
@@ -324,28 +376,33 @@ read -r code _ <<<"$(one https://www.youtube.com)"
 code="${code:-000}"
 if [[ "${code}" == "200" ]]; then ok "youtube.com 200"; else no "youtube.com 返回 ${code}"; fi
 
-say "5. 到服务器的握手质量（客户端 → VPS）"
-# Windows 上的 mtr/ping 可能 "exit 0 但只打一行报错"，所以只能看输出里有没有真实数据
-lat_ok=0
-try_out=""
-if command -v mtr >/dev/null 2>&1; then
-  try_out="$(mtr -rwzc 20 -P "${VLESS_PORT:-443}" "${SERVER_IP}" 2>&1 || true)"
-  if printf '%s' "${try_out}" | grep -q 'Loss%'; then
-    printf '%s\n' "${try_out}" | tail -3 | sed 's/^/  /'
-    lat_ok=1
-  fi
-fi
-if [[ "${lat_ok}" == 0 ]]; then
-  for flag in -c -n; do # -c 用于 GNU/macOS，-n 用于 Windows ping
-    try_out="$(ping "${flag}" 10 "${SERVER_IP}" 2>&1 || true)"
-    if printf '%s' "${try_out}" | grep -qiE 'ttl=|rtt'; then
-      printf '%s\n' "${try_out}" | tail -2 | sed 's/^/  /'
+if [[ "${NO_CLI}" == 1 ]]; then
+  note "跳过握手质量：需要 SERVER_IP 与 mtr，免 CLI 模式下不保证两者都具备"
+else
+  say "5. 到服务器的握手质量（客户端 → VPS）"
+  # Windows 上的 mtr/ping 可能 "exit 0 但只打一行报错"，所以只能看输出里有没有真实数据
+  lat_ok=0
+  try_out=""
+  if command -v mtr >/dev/null 2>&1; then
+    try_out="$(mtr -rwzc 20 -P "${VLESS_PORT:-443}" "${SERVER_IP}" 2>&1 || true)"
+    if printf '%s' "${try_out}" | grep -q 'Loss%'; then
+      printf '%s\n' "${try_out}" | tail -3 | sed 's/^/  /'
       lat_ok=1
-      break
     fi
-  done
+  fi
+  if [[ "${lat_ok}" == 0 ]]; then
+    for flag in -c -n; do # -c 用于 GNU/macOS，-n 用于 Windows ping
+      try_out="$(ping "${flag}" 10 "${SERVER_IP}" 2>&1 || true)"
+      if printf '%s' "${try_out}" | grep -qiE 'ttl=|rtt'; then
+        printf '%s\n' "${try_out}" | tail -2 | sed 's/^/  /'
+        lat_ok=1
+        break
+      fi
+    done
+  fi
+  [[ "${lat_ok}" == 0 ]] && note "本机没有可用的 mtr / ping（Windows 上常见，不影响其它验收）"
+
 fi
-[[ "${lat_ok}" == 0 ]] && note "本机没有可用的 mtr / ping（Windows 上常见，不影响其它验收）"
 
 say "6. 出口是否稳定（连测 5 次）"
 ips=""
