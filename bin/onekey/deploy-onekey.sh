@@ -2,8 +2,6 @@
 # shellcheck disable=SC2034  # 步骤元数据与跨文件变量由间接展开读取
 # ===========================================================================
 # deploy.sh，一键脚本。自动生成，勿手改。
-#   生成时间：2026-10-26T08:45:17Z
-#   来源：bin/deploy/lib.sh + bin/deploy/steps/*.sh + fragments/onekey/deploy-driver.sh
 #   重新生成：bash fragments/build/build-onekey.sh
 # ===========================================================================
 set -o pipefail

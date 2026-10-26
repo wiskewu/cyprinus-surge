@@ -20,8 +20,7 @@ done
   printf '%s\n' '# shellcheck disable=SC2034  # 步骤元数据与跨文件变量由间接展开读取'
   printf '%s\n' '# ==========================================================================='
   printf '# deploy.sh，一键脚本。自动生成，勿手改。\n'
-  printf '#   生成时间：%s\n' "$(date -u +%FT%TZ)"
-  printf '%s\n' '#   来源：bin/deploy/lib.sh + bin/deploy/steps/*.sh + fragments/onekey/deploy-driver.sh'
+  # 不写生成时间：每次构建都改一行会把 diff 弄成噪声，也看不出真正的改动
   printf '%s\n' '#   重新生成：bash fragments/build/build-onekey.sh'
   printf '%s\n' '# ==========================================================================='
   printf '%s\n' 'set -o pipefail'
