@@ -2,13 +2,7 @@
 <p class="lede">目标：确认节点真的可用，并留下能恢复的备份。验收命令在客户端机器执行，备份与日常检查在服务器执行。</p>
 
 <h2>验收（客户端机器）</h2>
-<pre><code>bash bin/deploy/client/verify.sh ./client.env</code></pre>
-<p>退出码：<code>0</code> 全过 / <code>1</code> 有失败项 / <code>2</code> 本地代理没起来（后面的检查已跳过）。<br>
-用 GUI.for.SingBox 时端口不同，要显式指定：<code>PROXY=socks5h://127.0.0.1:GUI端口 bash ...</code></p>
-
-<h3>用 <code>bin/deploy/device.sh</code> 管设备时：不传 <code>client.env</code></h3>
-<p>走 <a href="03-server.html#devices">第 3 页的设备流程</a>时，客户端拿到的只有服务器发过去的那份 JSON。<b><code>client.env</code> 不要发过去</b>：里面是 <code>main</code> 的凭据加密钥包，与“一台设备一份凭据”相背。
-验收脚本真正读的只有 <code>SERVER_IP</code> 与 <code>VLESS_PORT</code>，直接给变量就行：</p>
+<p>客户端手上只有服务器发来的那份 JSON，没有 <code>client.env</code>。验收脚本真正读的只有 <code>SERVER_IP</code> 与 <code>VLESS_PORT</code>，直接给变量：</p>
 <pre><code>SERVER_IP=你的服务器IP VLESS_PORT=443 bash bin/deploy/client/verify.sh
 
 # 用 GUI.for.SingBox 且端口不同时，两个变量一起给
@@ -80,9 +74,9 @@ sudo bash bin/deploy/device.sh export laptop
 scp vps:/etc/sing-box/clients/dist/laptop-*.tar.gz* /tmp/
 cd /tmp && sha256sum -c laptop-*.tar.gz.sha256 && tar -xzf laptop-*.tar.gz</code></pre>
 <p>包内只有这一台设备的配置和 <code>SHA256SUMS</code>，不含其他设备的凭据，也不含 <code>client.env</code>。</p>
-<p>客户端每次重新渲染前会把现有配置存进 <code>data/previous/&lt;时间戳&gt;/</code>，只保留最近三版。新配置跑不起来时一条命令退回上一版：</p>
-<pre><code>bash bin/deploy/client/install.sh --rollback</code></pre>
-<div class="tip">回滚只替换 <code>data/</code> 下的配置文件，不碰 SSH 免密，也不重跑验收。</div>
+<p>客户端不解包后立即删除旧包：<code>clients/dist/</code> 下每台设备都留着历史版本，文件名带 UTC 时间戳，按名字倒序就是版本序。</p>
+<pre><code>ls -1 /etc/sing-box/clients/dist/laptop-*.tar.gz | sort | tail -3</code></pre>
+<div class="tip"><b>回退分两种情况。</b>凭据没轮换时，客户端重新导入上一版包即可；已经 <code>rotate</code> 过，旧包里的凭据在服务端已作废，回退要重新 <code>export</code> 当前版本，不能拿旧包顶。</div>
 
 <h2>备份与加密</h2>
 <p>备份默认加密：优先 <code>gpg --symmetric</code>，没有 gpg 时退回 <code>openssl enc</code>。两者都缺失时脚本拒绝生成明文包。</p>

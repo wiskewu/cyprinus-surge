@@ -109,11 +109,9 @@ jq -r '.route.final' client.json          # ENABLE_HY2=1 时应为 auto</code></
 
 <h3>3. 一条命令验证：<code>HY2_ONLY=1</code></h3>
 <p>验收脚本会从你手上的配置派生一份副本：所有指向其它代理出站的引用改写成 <code>proxy-hy2</code>，出站裁到只剩 <code>proxy-hy2</code> 与 <code>direct</code>，入站换成一个本地 mixed 端口，然后前台跑起来验收、跑完自动清理。不改你原来那份配置，也不用 root。</p>
-<pre><code>HY2_ONLY=1 CONFIG=./client.json bash bin/deploy/client/verify.sh ./client.env
-
-# 只给变量、没有 client.env 时
-HY2_ONLY=1 CONFIG=./client.json SERVER_IP=你的服务器IP VLESS_PORT=443 \
+<pre><code>HY2_ONLY=1 CONFIG=./sing-box-client-laptop-desktop.json SERVER_IP=你的服务器IP VLESS_PORT=443 \
   bash bin/deploy/client/verify.sh</code></pre>
+<p><code>CONFIG</code> 指服务器发来的那份 JSON，不需要 <code>client.env</code>。</p>
 <div class="tw">
 <table>
 <thead><tr><th>变量</th><th>默认</th><th>作用</th></tr></thead>
@@ -149,7 +147,7 @@ HY2_ONLY=1 CONFIG=./client.json SERVER_IP=你的服务器IP VLESS_PORT=443 \
 <p>导入后按客户端分配到的本地端口跑普通验收，所有检查都会经由 hy2：</p>
 <pre><code>PROXY=socks5h://127.0.0.1:&lt;客户端端口&gt; SERVER_IP=&lt;服务器IP&gt; \
   bash bin/deploy/client/verify.sh</code></pre>
-<p><code>emit</code> 不读 <code>client.env</code>、也不联网，所以没有那份文件也能用。两种模式的分工：<code>emit</code> 只落到文件，<code>HY2_ONLY=1</code> 自己起进程跑，后者需要本机有 <code>sing-box</code> 二进制，前者不需要。</p>
+<p><code>emit</code> 只读 <code>CONFIG</code>、不联网，因此不需要 <code>client.env</code>。两种模式的分工：<code>emit</code> 只落到文件，<code>HY2_ONLY=1</code> 自己起进程跑，后者需要本机有 <code>sing-box</code> 二进制，前者不需要。</p>
 <div class="note"><b>图形客户端的 TUN 会抢路由。</b>验收走的是客户端自己的本地端口，与 TUN 是否开启无关；但 TUN 在跑时命令行测出来的延迟会被它接管，看 <code>route -n get 8.8.8.8 | grep interface</code> 确认。</div>
 
 <h3>4. 抓包确认走的是哪一个</h3>

@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # bin/deploy/client/verify.sh —— 在【客户端机器】做验收测试（用本地 mixed 入站，不需要 TUN）。
-# 用法： bash bin/deploy/client/verify.sh client.env
-#       PROXY=socks5h://127.0.0.1:20122 bash bin/deploy/client/verify.sh client.env   # GUI 的端口
-#       SERVER_IP=1.2.3.4 VLESS_PORT=443 bash bin/deploy/client/verify.sh             # 没 client.env（device.sh 流程）
-#       HY2_ONLY=1 CONFIG=client.json bash bin/deploy/client/verify.sh client.env     # 只测 Hysteria2 出站
+# 用法： SERVER_IP=1.2.3.4 VLESS_PORT=443 bash bin/deploy/client/verify.sh             # device.sh 流程：只有 JSON，没有 client.env
+#       SERVER_IP=1.2.3.4 PROXY=socks5h://127.0.0.1:20122 bash bin/deploy/client/verify.sh  # GUI 的端口
+#       HY2_ONLY=1 CONFIG=client.json SERVER_IP=1.2.3.4 bash bin/deploy/client/verify.sh   # 只测 Hysteria2 出站
 #       HY2_ONLY=emit CONFIG=client.json HY2_OUT=hy2.json bash bin/deploy/client/verify.sh  # 只生成配置给图形客户端导入
 #
 # 设计原则：
@@ -66,10 +65,8 @@ SING_BOX_BIN="${SING_BOX_BIN:-sing-box}"
 # HY2_ONLY=emit 时写出的文件；留空则落在当前目录 hy2-only.json
 HY2_OUT="${HY2_OUT:-}"
 # 环境文件可有可无：脚本真正用到的只有 SERVER_IP / VLESS_PORT。
-# 用 device.sh 管设备时，客户端手上只有一份 JSON，没必要（也不应该）把 client.env 发过去，
-# 这时直接给变量：SERVER_IP=1.2.3.4 VLESS_PORT=443 bash bin/deploy/client/verify.sh
-# 环境文件可有可无：脚本真正用到的只有 SERVER_IP / VLESS_PORT。
-# 免 CLI 子集与 emit 模式都不需要它。
+# 用 device.sh 发设备配置时，客户端手上只有一份 JSON，不该把 client.env 发过去，
+# 免 CLI 子集与 emit 模式同样不需要它。
 if [[ "${NO_CLI}" == 1 ]]; then
   :
 elif [[ "${HY2_ONLY}" == "emit" ]] && [[ ! -f "${ENVFILE}" ]] && [[ -z "${SERVER_IP:-}" ]]; then
@@ -80,7 +77,7 @@ elif [[ -f "${ENVFILE}" ]]; then
 elif [[ -n "${SERVER_IP:-}" ]]; then
   printf '\033[33m[!]\033[0m 没有 %s，按命令行给的 SERVER_IP / VLESS_PORT 继续\n' "${ENVFILE}" >&2
 else
-  die "找不到 ${ENVFILE}，从服务器 /etc/sing-box/client.env 复制一份，或用 SERVER_IP= VLESS_PORT= 直接给"
+  die "缺少 SERVER_IP：按 device.sh 流程直接给变量 SERVER_IP=你的服务器IP VLESS_PORT=443；旧流程的 ${ENVFILE} 也认"
 fi
 SERVER_IP="${SERVER_IP:-}"
 VLESS_PORT="${VLESS_PORT:-443}"
@@ -269,8 +266,8 @@ if [[ -z "${first}" ]]; then
     1) 客户端核心启动了吗？报 missing tags / duplicate outbound tag 就是没起来
     2) 端口对吗？GUI.for.SingBox 默认 20122，我们自己生成的配置是 2080
     3) 配置里有 mixed 入站吗？手机配置（CLIENT_MIXED=0）只有 TUN，没有本地端口
-    4) 换端口跑：PROXY=socks5h://127.0.0.1:端口 bash bin/deploy/client/verify.sh client.env
-    5) 用 device.sh 管设备时根本没 client.env：SERVER_IP=服务器IP VLESS_PORT=443 bash bin/deploy/client/verify.sh
+    4) 换端口跑：PROXY=socks5h://127.0.0.1:端口 SERVER_IP=你的服务器IP bash bin/deploy/client/verify.sh
+    5) 记得带上服务器地址：SERVER_IP=服务器IP VLESS_PORT=443（device.sh 流程没有 client.env，全靠这两个变量）
 EOF
   exit 2
 fi
@@ -280,7 +277,7 @@ if [[ -z "${SERVER_IP}" ]]; then
 elif [[ "${first}" == "${SERVER_IP}" ]]; then
   ok "境外流量确实走 VPS（${SERVER_IP}）"
 else
-  no "境外出口是 ${first}，不是 SERVER_IP=${SERVER_IP}（检查 client.env 与配置是否同源）"
+  no "境外出口是 ${first}，不是 SERVER_IP=${SERVER_IP}：确认这个 IP 就是配置里那台服务器"
 fi
 
 say "1. 分流：国内站点是否直连（A/B 对照，不依赖第三方）"

@@ -168,8 +168,9 @@ sudo bash bin/deploy/device.sh export laptop                       # 渲染并�
 见 <a href="06-ops.html">第 6 页</a>。</li>
 <li><b>以后要换/要删</b>：<code>rotate</code> → 重新 <code>scp</code> → 客户端重新导入（旧 JSON 的凭据当场失效）；<code>revoke</code> 之后需删除对方机器上的那份 JSON。换设备不改名单时，客户端那份旧 JSON 照样能用。</li>
 </ol>
-<p>一台设备要出<b>多份</b>（比如笔记本同时要桌面与安卓版）：<code>bin/deploy/device.sh</code> 只按名单里记的那个平台出一份，多份直接用渲染脚本，在服务器上跑，<code>--device</code> 会替它自己取凭据：</p>
-<pre><code>sudo OUTDIR=/etc/sing-box/clients bash bin/deploy/client/render.sh /etc/sing-box/client.env --device laptop desktop android</code></pre>
+<p>一台机器要出<b>多份</b>（比如笔记本同时要桌面与安卓版）：凭据按名字算，建两条各管一个平台，各自能单独吊销。</p>
+<pre><code>sudo bash bin/deploy/device.sh add laptop desktop
+sudo bash bin/deploy/device.sh add laptop-android android</code></pre>
 
 <p style="margin-top:24px"><a href="02-install.html">← 上一步</a>　·　<a href="04-hy2.html">下一步（可选）→</a>　·　<a href="05-client.html">跳过 Hysteria2 →</a></p>
 

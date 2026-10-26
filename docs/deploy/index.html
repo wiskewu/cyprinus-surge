@@ -83,7 +83,7 @@ details .body{padding:4px 14px 14px}
 <tr><td>2</td><td>装 sing-box + 生成密钥</td><td><code>bash bin/deploy/one/install-singbox.sh</code><br><code>bash bin/deploy/one/secrets.sh</code></td><td><code>deploy.env</code> / <code>client.env</code> / <code>devices.list</code></td></tr>
 <tr><td>3</td><td>服务端配置 + 自检</td><td><code>bash bin/deploy/one/server.sh</code><br><code>bash bin/deploy/check/server.sh</code></td><td>可连的节点</td></tr>
 <tr><td>4</td><td>Hysteria2 第二入口 <span class="tag">可选</span></td><td><code>bash bin/deploy/one/hy2.sh</code></td><td>证书，<code>ENABLE_HY2=1</code></td></tr>
-<tr><td>5</td><td>客户端配置（在客户端机器）</td><td><code>bash bin/deploy/client/render.sh</code></td><td><code>data/sing-box-client.json</code></td></tr>
+<tr><td>5</td><td>导出该设备的配置（服务器）</td><td><code>bash bin/deploy/device.sh export laptop</code></td><td>带校验和的 tar.gz，客户端解包后导入</td></tr>
 <tr><td>6</td><td>验收 + 备份</td><td><code>bash bin/deploy/client/verify.sh</code><br><code>bash bin/deploy/ops/backup.sh</code></td><td>验收记录</td></tr>
 </tbody>
 </table>

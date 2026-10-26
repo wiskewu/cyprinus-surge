@@ -71,49 +71,48 @@ details .body{padding:4px 14px 14px}
 <nav class="nav"><div class="wrap"><a href="index.html">0 · 总览与准备</a><a href="01-init.html">1 · 系统初始化</a><a href="02-install.html">2 · 安装与密钥</a><a href="03-server.html">3 · 服务端配置</a><a href="04-hy2.html">4 · 可选 Hysteria2</a><a href="05-client.html" aria-current="page">5 · 客户端</a><a href="06-ops.html">6 · 验收与备份</a><a href="onekey.html">一键</a><a href="07-subscription.html">7 · 订阅与用量</a><a href="troubleshooting.html">排查</a></div></nav>
 <main class="wrap">
 <h1>5 · 客户端</h1>
-<p class="lede">目标：在客户端机器上拿到一份可导入的配置，并让它以 TUN 或本地端口工作。读者是自己设备的用户；需要的东西只有服务器发来的那一份 JSON。</p>
+<p class="lede">目标：拿到属于这台设备的那一份配置，导入客户端并跑起来。凭据由服务器按设备发放，一台设备一份；客户端机器不需要 <code>client.env</code>、不需要密钥包，也不需要仓库里的脚本。</p>
 
-<h2>取参数并渲染</h2>
-<pre><code># 你的电脑上
-scp root@你的服务器IP:/etc/sing-box/client.env ./client.env</code></pre>
+<h2 id="get">取配置</h2>
+<p>配置在服务器上渲染与打包，客户端只负责接收、校验、导入。</p>
+<pre><code># 服务器：名单里没有这台时先建凭据，再打包
+sudo bash bin/deploy/device.sh add laptop
+sudo bash bin/deploy/device.sh export laptop
 
-<h2>一条命令复位客户端</h2>
-<pre><code>bash bin/deploy/client/install.sh --keys client.env --device main   --ssh-host 203.0.113.10 --ssh-port 4061</code></pre>
+# 客户端：先校验再解包
+scp vps:/etc/sing-box/clients/dist/laptop-*.tar.gz* /tmp/
+cd /tmp &amp;&amp; sha256sum -c laptop-*.tar.gz.sha256 &amp;&amp; tar -xzf laptop-*.tar.gz</code></pre>
+<p>解出来的文件名形如 <code>sing-box-client-laptop-desktop.json</code>：中间是设备名，末尾是平台。包里只有这一台设备的配置与 <code>SHA256SUMS</code>。</p>
 <div class="tw">
 <table>
-<thead><tr><th>步骤</th><th>做什么</th><th>跳过</th></tr></thead>
+<thead><tr><th>平台</th><th>产物</th><th>入站</th><th>适合</th></tr></thead>
 <tbody>
-<tr><td>1 SSH 免密</td><td>沿用 <code>bin/harden/client.sh</code>：生成或复用 Ed25519、装公钥、写 <code>~/.ssh/config</code></td><td><code>--skip-ssh</code> 或不给 <code>--ssh-host</code></td></tr>
-<tr><td>2 渲染配置</td><td>调用 <code>bin/deploy/client/render.sh</code>，产物在 <code>data/</code></td><td>不可跳过</td></tr>
-<tr><td>3 验收</td><td>调用 <code>bin/deploy/client/verify.sh</code>，图形客户端加 <code>--no-cli</code></td><td><code>--skip-verify</code></td></tr>
+<tr><td><code>desktop</code></td><td><code>-desktop.json</code></td><td>tun + mixed:2080</td><td>Windows / macOS / Linux，命令行也能直接验收</td></tr>
+<tr><td><code>android</code></td><td><code>-android.json</code></td><td>tun</td><td>sing-box 官方 App</td></tr>
+<tr><td><code>ios</code></td><td><code>-ios.json</code></td><td>tun</td><td>SFM 等 iOS 客户端</td></tr>
 </tbody>
 </table>
 </div>
-<p>不需要 root。依赖只有 <code>curl</code> 与 <code>jq</code>，缺 jq 直接停并给出安装命令；<code>--check</code> 只报告本机依赖与文件状态。</p>
-<div class="note"><b>验收失败不等于配置不可用。</b>脚本会停止但不删除已渲染的配置，因为多数失败来自代理没启动或端口不对；按提示先导入客户端再复测。</div>
+<p>平台在 <code>add</code> 时决定：<code>sudo bash bin/deploy/device.sh add phone android</code>。同一台机器要用两个平台，就按两个名字建两条凭据，各自能单独吊销。</p>
 
-<h3>退回上一版</h3>
-<p>每次渲染前，<code>data/</code> 下的现有配置会被复制到 <code>data/previous/&lt;时间戳&gt;/</code>，只留最近三版。新配置跑不起来时：</p>
-<pre><code>bash bin/deploy/client/install.sh --rollback</code></pre>
-<p>回滚只替换配置文件，不碰 SSH 免密，也不重跑验收。要跨机器搬配置用服务器上的 <code>device.sh export</code>，见<a href="06-ops.html">第 6 页</a>。</p>
-
-<h2 id="rules">规则集缓存</h2>
-<p>分流依赖三个远程规则集。渲染时写入 <code>experimental.cache_file</code>，下载结果与编译结果落盘，重启不再整份重下；规则集自身的 <code>update_interval</code> 是 3 天，到期由 sing-box 自行刷新。</p>
+<h2 id="import">导入</h2>
 <div class="tw">
 <table>
-<thead><tr><th>项</th><th>服务端</th><th>客户端</th></tr></thead>
+<thead><tr><th>平台</th><th>客户端</th><th>注意</th></tr></thead>
 <tbody>
-<tr><td>缓存路径</td><td><code>/var/lib/sing-box/cache.db</code></td><td><code>~/.cache/sing-box/cache.db</code></td></tr>
-<tr><td>覆盖方式</td><td><code>SING_BOX_CACHE_FILE</code></td><td><code>SING_BOX_CACHE_FILE</code></td></tr>
-<tr><td>刷新周期</td><td>规则集 <code>update_interval</code> 3 天</td><td>同左</td></tr>
+<tr><td>Windows</td><td>GUI.for.SingBox / sing-box 命令行</td><td>开 TUN 需要管理员</td></tr>
+<tr><td>macOS</td><td>SFM</td><td>首次启动要授权系统扩展，见下方<a href="#macos">只留一个客户端</a></td></tr>
+<tr><td>Android</td><td>sing-box 官方 App</td><td>用 <code>-android.json</code></td></tr>
+<tr><td>iOS</td><td>sing-box 系客户端</td><td>用 <code>-ios.json</code></td></tr>
 </tbody>
 </table>
 </div>
-<div class="note"><b>写法有版本要求。</b>1.13 起顶层 <code>cache_file</code> 被移除，必须写在 <code>experimental.cache_file</code> 里且为对象形式 <code>{"enabled": true, "path": "..."}</code>；写成字符串会被 sing-box 拒绝启动。</div>
+<div class="note"><b>GUI 客户端导入的是副本。</b>服务器重新导出后必须<b>重新导入</b>，直接改手里那个 JSON 对已经导入的配置无效。SFM 的副本在 <code>~/Library/Group Containers/P8XK3KHB48.io.nekohasekai.sfamt/configs/</code>。</div>
+<p>桌面那份配置的本地端口是 <code>127.0.0.1:2080</code>，验收脚本默认就用它。图形客户端自带端口设置时以界面为准，验收时显式传 <code>--proxy</code>。</p>
 
-<h2 id="ncli">没有 CLI 时怎么验收</h2>
-<p>图形客户端把核心装在扩展或 App 里，本机没有 <code>sing-box</code> 可执行文件。这时用免 CLI 子集：</p>
-<pre><code>bash bin/deploy/client/verify.sh --no-cli --proxy socks5h://127.0.0.1:7890</code></pre>
+<h2 id="ncli">验收</h2>
+<p>图形客户端把核心装在扩展或 App 里，本机没有 <code>sing-box</code> 可执行文件。免 CLI 子集只借客户端已经开好的本地端口：</p>
+<pre><code>SERVER_IP=你的服务器IP bash bin/deploy/client/verify.sh --no-cli --proxy socks5h://127.0.0.1:2080</code></pre>
 <div class="tw">
 <table>
 <thead><tr><th>检查项</th><th>免 CLI 子集</th><th>完整验收</th></tr></thead>
@@ -127,55 +126,18 @@ scp root@你的服务器IP:/etc/sing-box/client.env ./client.env</code></pre>
 </tbody>
 </table>
 </div>
-<div class="note"><b>这是子集，不是完整验收。</b>跳过项与 <code>SERVER_IP</code> 缺失都会明确打印，不会被当成通过。反向代理整机都走隧道时，「国内直连」一项会判失败，那是环境决定的结果，不代表客户端有问题。</div>
+<div class="note"><b>这是子集，不是完整验收。</b>跳过项与 <code>SERVER_IP</code> 缺失都会明确打印，不会被当成通过。整机都走隧道时「国内直连」一项会判失败，那是环境决定的，不代表客户端有问题。</div>
 
-<div class="note"><b>多台设备用 <code>bin/deploy/device.sh</code>，不要用本页的方式。</b>本页的 <code>client.env</code> 里只有一台设备的凭据（<code>bin/deploy/one/secrets.sh</code> 写的 <code>main</code>），多台共用同一个 uuid 就没法单独吊销。服务端跑 <code>sudo bash bin/deploy/device.sh add laptop</code> 会直接生成那台的配置，你只管 scp 过去。见 <a href="03-server.html#devices">第 3 页</a>。验收那一步同样不需要 <code>client.env</code>：<code>SERVER_IP=... bash bin/deploy/client/verify.sh</code>（见 <a href="06-ops.html">第 6 页</a>）。</div>
+<h2 id="rules">规则集缓存</h2>
+<p>分流依赖远程规则集，配置里已写入 <code>experimental.cache_file</code>：下载与编译结果落盘，重启不再整份重下；规则集自身的 <code>update_interval</code> 是 3 天，到期由 sing-box 自行刷新。</p>
+<p>发给客户端的配置里，缓存路径是相对路径 <code>cache.db</code>，由客户端解析到自己的运行目录。要固定位置，在服务器渲染前给 <code>SING_BOX_CACHE_FILE</code> 指一个客户端上存在的路径。</p>
+<div class="note"><b>写法有版本要求。</b>1.13 起顶层 <code>cache_file</code> 被移除，必须写在 <code>experimental.cache_file</code> 里且为对象形式 <code>{"enabled": true, "path": "..."}</code>；写成字符串会被 sing-box 拒绝启动。服务器模板已按新写法生成，客户端不用改。</div>
 
-<h3>一次生成三端</h3>
-<pre><code>bash bin/deploy/client/render.sh ./client.env --all   # 默认输出到 ./data</code></pre>
-<div class="tw">
-<table>
-<thead><tr><th>产出（在 <code>data/</code>）</th><th>入站</th><th>预设覆盖</th></tr></thead>
-<tbody>
-<tr><td><code>sing-box-client-desktop.json</code></td><td>tun + mixed:2080</td><td>无（沿用 client.env）</td></tr>
-<tr><td><code>sing-box-client-android.json</code></td><td>tun</td><td><code>CLIENT_MIXED=0</code>、<code>auto_detect_interface=true</code></td></tr>
-<tr><td><code>sing-box-client-ios.json</code></td><td>tun</td><td>同上</td></tr>
-</tbody>
-</table>
-</div>
-<p>多端模式只覆盖这两项「平台相关」的值，其余（节点、DNS、AI 出口、规则）都来自 <code>client.env</code>，所以三份配置的规则完全一致。</p>
-<div class="note"><b>规则第一条是「服务器自己的 IP 直连」。</b>这是必须的：开着 TUN 时，<i>连服务器的流量</i>，包括 SSH也会被送进隧道，从隧道出口又绕回这台 VPS（hairpin），表现为「<code>nc</code> 能通但 <code>ssh</code> 立刻被关」。脚本会读 <code>client.env</code> 里的 <code>SERVER_IP</code> 自动生成这条规则；拿不到 IP 就只警告不写。</div>
-
-<div class="warn"><b>桌面报 <code>not valid in its context</code></b>（多网卡 / 虚拟网卡的 Windows 常见）：用两个变量一起关掉自动探测、并显式指定物理网卡：<br>
-<code>AUTO_DETECT_INTERFACE=false DEFAULT_INTERFACE=en0 bash bin/deploy/client/render.sh ./client.env desktop</code><br>
-<b>只关不绑 = 直连会打环</b>：<code>auto_detect_interface=false</code> 之后出站不再绑物理网卡，<code>direct</code> 出站会按默认路由又走回 tun，表现为“能连上、立刻被断”。脚本会渲染成 <code>route.default_interface</code>，并在你忘了给网卡名时把本机物理网卡打印出来提醒。默认值是 <code>true</code>，TUN 下它顺手把环也挡掉了。</div>
-<div class="note"><b>GUI 客户端（SFM / Clash Verge / GUI.for.SingBox）导入的是副本。</b>重新渲染后必须<b>重新导入</b>，或者手动把新 JSON 贴进去，直接改仓库里那份或改 <code>data/</code> 下的文件对已经导入的配置无效。SFM 的导入副本在 <code>~/Library/Group Containers/P8XK3KHB48.io.nekohasekai.sfamt/configs/</code>。</div>
-
-<h3>只生成某一份 / 完全自定义</h3>
-<pre><code># 只生成安卓
-bash bin/deploy/client/render.sh ./client.env android
-
-# 单份模式：完全按 client.env 与命令行变量
-OUT=./me.json bash bin/deploy/client/render.sh ./client.env
-
-# 换输出目录
-OUTDIR=/tmp/x bash bin/deploy/client/render.sh ./client.env --all</code></pre>
-<p>产物一律落在 <code>OUTDIR</code>（默认 <code>./data</code>，已在 <code>.gitignore</code> 里），不会往脚本目录写。改完 <code>client.env</code> 后重跑即可覆盖同名文件。</p>
-
-<h2 id="import">导入</h2>
-<div class="tw">
-<table>
-<thead><tr><th>平台</th><th>客户端</th><th>注意</th></tr></thead>
-<tbody>
-<tr><td>Windows</td><td>GUI.for.SingBox / sing-box 命令行</td><td>开 TUN 需要管理员</td></tr>
-<tr><td>macOS</td><td>sing-box 系 GUI</td><td>首次要授权系统扩展</td></tr>
-<tr><td>Android</td><td>sing-box 官方 App</td><td>用 <code>--all</code> 生成的 <code>-android.json</code></td></tr>
-<tr><td>Windows（多网卡/虚拟网卡）</td><td>同上</td><td>日志出现 <code>not valid in its context</code> 时，渲染加 <code>AUTO_DETECT_INTERFACE=false</code>（见上方）</td></tr>
-</tbody>
-</table>
-</div>
-
-<p>本脚本生成的配置本地测试端口是 <code>127.0.0.1:2080</code>。如果用 GUI.for.SingBox 自己的配置，端口以它的界面为准。</p>
+<h2>配置里已经处理好的两件事</h2>
+<ul>
+<li><b>服务器 IP 直连。</b>开着 TUN 时，连服务器的流量同样会被送进隧道，从隧道出口绕回这台 VPS，表现为「<code>nc</code> 能通但 <code>ssh</code> 立刻被关」。服务器渲染时按 <code>SERVER_IP</code> 写死了这条规则，客户端不用动。</li>
+<li><b>接口绑定。</b>多网卡或虚拟网卡的 Windows 若在日志里看到 <code>not valid in its context</code>，说明这台机器需要显式绑网卡。把这个情况告诉服务器端，重渲染该设备时带 <code>AUTO_DETECT_INTERFACE=false DEFAULT_INTERFACE=网卡名</code>，再重新导出。只关探测不绑网卡会让直连打环，两者必须一起给。</li>
+</ul>
 
 <h2 id="macos">macOS 只留一个客户端</h2>
 <p>两台代理客户端同时接管流量时，症状无法归因：断流、DNS 泄漏、TUN 抢路由三者互相掩盖。macOS 上统一用 SFM，其余客户端全部退出并停用系统代理。</p>
@@ -198,8 +160,7 @@ route -n get default | grep -E 'interface|gateway'
 
 # 5. 确认默认路由进了 SFM 的 utun，且能出网
 route -n get default | grep interface
-curl -s -o /dev/null -w '%{http_code}
-' https://www.gstatic.com/generate_204</code></pre>
+curl -s -o /dev/null -w '%{http_code}\n' https://www.gstatic.com/generate_204</code></pre>
 
 <h3>症状对照</h3>
 <div class="tw">
@@ -207,13 +168,26 @@ curl -s -o /dev/null -w '%{http_code}
 <thead><tr><th>现象</th><th>原因</th><th>处理</th></tr></thead>
 <tbody>
 <tr><td>时通时断，抓包看到两个 utun</td><td>两个客户端都在跑 TUN</td><td>退出其中一个，只留 SFM</td></tr>
-<tr><td>浏览器走代理，命令行不走</td><td>只有系统代理没有 TUN</td><td>SFM 里打开 TUN，或按 <a href="#import">导入</a>一节确认配置起了 TUN 入站</td></tr>
-<tr><td>国内站点很慢或走境外</td><td>规则集没加载，全部走代理</td><td>看<a href="#rules">规则集缓存</a>一节的缓存路径是否存在</td></tr>
-<tr><td>SSH 连服务器被立刻断开</td><td>服务器 IP 未直连，流量绕回本机</td><td>用脚本渲染，不要手改 JSON</td></tr>
+<tr><td>浏览器走代理，命令行不走</td><td>只有系统代理没有 TUN</td><td>SFM 里打开 TUN，或按<a href="#import">导入</a>一节确认配置起了 TUN 入站</td></tr>
+<tr><td>国内站点很慢或走境外</td><td>规则集没加载，全部走代理</td><td>看<a href="#rules">规则集缓存</a>一节的缓存文件是否生成</td></tr>
+<tr><td>SSH 连服务器被立刻断开</td><td>服务器 IP 未直连，流量绕回本机</td><td>重新导出该设备的配置，不要手改 JSON</td></tr>
 </tbody>
 </table>
 </div>
-<div class="note">SFM 没有命令行核心，验收用 <a href="#ncli">没有 CLI 时怎么验收</a>的免 CLI 子集，代理地址填 SFM 界面里的混合端口。</div>
+<div class="note">SFM 没有命令行核心，验收用<a href="#ncli">验收</a>一节的免 CLI 子集，代理地址填 SFM 界面里的混合端口。</div>
+
+<h2>换凭据与退回上一版</h2>
+<div class="tw">
+<table>
+<thead><tr><th>场景</th><th>服务器</th><th>客户端</th></tr></thead>
+<tbody>
+<tr><td>凭据泄露或定期轮换</td><td><code>bin/deploy/device.sh rotate laptop</code>，再 <code>export</code></td><td>重新导入新包，旧包立即失效</td></tr>
+<tr><td>设备退役</td><td><code>bin/deploy/device.sh revoke laptop</code></td><td>删掉机器上的 JSON 与已导入的副本</td></tr>
+<tr><td>新配置跑不起来</td><td>不动</td><td>重新导入手里上一版的包；旧包只在凭据未轮换时还能用</td></tr>
+</tbody>
+</table>
+</div>
+<p>轮换与吊销的完整流程见<a href="06-ops.html">第 6 页</a>，设备名单的维护见<a href="03-server.html#devices">第 3 页</a>。</p>
 
 <p>导入失败、国内站点打不开、要独立 AI 出口 → <a href="troubleshooting.html">排查手册</a>。</p>
 

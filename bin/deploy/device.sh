@@ -81,6 +81,9 @@ render_client() {
   [[ -n "${plat}" ]] || plat=desktop
   mkdir -p "${CLIENT_OUT}"
   log_="$(mktemp)"
+  # 这份 JSON 要在别的机器上跑，缓存路径不能带本机 HOME：写成相对路径，
+  # 由客户端自己解析到运行目录。要固定位置就在渲染前给 SING_BOX_CACHE_FILE。
+  export SING_BOX_CACHE_FILE="${SING_BOX_CACHE_FILE:-cache.db}"
   if ! OUTDIR="${CLIENT_OUT}" bash "${SELF_DIR}/client/render.sh" "${CLIENT_ENV}" --device "${dev}" >"${log_}" 2>&1; then
     cat "${log_}" >&2
     rm -f "${log_}"

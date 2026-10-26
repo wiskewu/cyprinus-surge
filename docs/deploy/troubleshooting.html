@@ -106,7 +106,7 @@ details .body{padding:4px 14px 14px}
 </tbody>
 </table>
 </div>
-<p>桌面要覆盖成 false：<code>AUTO_DETECT_INTERFACE=false bash bin/deploy/client/render.sh client.env</code>（命令行优先于 client.env）。</p>
+<p>桌面要覆盖成 false，在服务器重渲染这台设备时给变量，再重新导出：<code>AUTO_DETECT_INTERFACE=false DEFAULT_INTERFACE=网卡名 sudo -E bash bin/deploy/device.sh export laptop</code>。只关探测不绑网卡会让直连打环，两个变量必须一起给。</p>
 
 
 <p>Windows 多宿主 / 网卡驱动环境下，直连的 socket 会被绑到无效的本地地址，解析国内域名直接失败：</p>
