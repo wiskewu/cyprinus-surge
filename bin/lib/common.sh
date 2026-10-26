@@ -89,8 +89,17 @@ ui_confirm() {
 # ---- 临时目录 ----
 _TMP_DIRS=()
 mktemp_dir() { # $1=变量名
-  local d
-  d="$(mktemp -d)"
+  local d base
+  [[ -n "${1:-}" ]] || die "mktemp_dir 需要一个变量名"
+  # 每个 shell 一个基准目录，trap 里写死路径：数组可能被重设，值不会
+  base="${_TMP_BASE:-}"
+  if [[ -z "${base}" ]]; then
+    base="$(mktemp -d "${TMPDIR:-/tmp}/cs.XXXXXXXX")"
+    _TMP_BASE="${base}"
+    # shellcheck disable=SC2064  # 有意在设置时展开：后面重设变量也不影响清理
+    trap "rm -rf '${base}'" EXIT
+  fi
+  d="$(mktemp -d -p "${base}")"
   _TMP_DIRS+=("${d}")
   printf -v "$1" '%s' "${d}"
 }

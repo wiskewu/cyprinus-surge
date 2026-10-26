@@ -149,6 +149,23 @@ vps · 3.6G/1T ⚠       最近一次探针发现服务、端口、AI 出口或�
 sudo bash bin/deploy/ops/monitor.sh --alert-check    # 只评估，不发探针</code></pre>
 <p>两种推送都没配时，异常只写进 <code>probe.log</code>，不影响探针本身。</p>
 
+<h2>推送通道</h2>
+<p><code>alert_send</code> 支持同时配置多个通道，任一成功即算送达。下列通道在大陆可直连：</p>
+<div class="tw">
+<table>
+<thead><tr><th>通道</th><th>变量</th><th>费用与限制</th></tr></thead>
+<tbody>
+<tr><td>企业微信 / 钉钉 / 飞书群机器人</td><td><code>ALERT_WECOM_WEBHOOK</code></td><td>免费，需建群并加机器人，每分钟约 20 条</td></tr>
+<tr><td>Server酱</td><td><code>ALERT_SERVERCHAN_KEY</code></td><td>免费每天 5 条，落到微信；付费约 39 元每年可到每天 1000 条</td></tr>
+<tr><td>Bark</td><td><code>ALERT_BARK_URL</code></td><td>免费，仅 iPhone；可用公共 <code>api.day.app</code> 或自建 bark-server</td></tr>
+<tr><td>SMTP 邮件</td><td><code>ALERT_SMTP_URL</code> / <code>ALERT_SMTP_USER</code> / <code>ALERT_SMTP_PASS</code> / <code>ALERT_MAIL_TO</code></td><td>用邮箱服务商的授权码即可，如 <code>smtps://smtp.qq.com:465</code></td></tr>
+<tr><td>通用 webhook</td><td><code>ALERT_WEBHOOK</code></td><td>POST JSON <code>{"text": "..."}</code>，可对接自建服务</td></tr>
+<tr><td>Telegram</td><td><code>ALERT_TG_TOKEN</code> / <code>ALERT_TG_CHAT</code></td><td>服务器通常需要代理，不建议作为主通道</td></tr>
+</tbody>
+</table>
+</div>
+<p>告警量小，任选其一即可；建议至少配两个通道，避免单通道故障时告警变成聋子。</p>
+
 <h2>改走标准订阅的代价</h2>
 <p>要显示实时用量与到期，需要独立的 HTTP 服务：读取 <code>vnstat</code> 与配额，生成配置正文并附上响应头。代价是三处新增：</p>
 <ul>

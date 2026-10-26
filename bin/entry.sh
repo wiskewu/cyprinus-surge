@@ -18,6 +18,7 @@ usage() {
   harden    SSH 加固                                  → bin/harden/harden.sh
   client    客户端密钥与免密登录                      → bin/harden/client.sh
   audit     验收：加固验收、服务端自检、客户端验收     → bin/harden/audit.sh 等
+  rotate    凭据轮换：short_id、obfs、设备              → bin/deploy/rotate.sh
   ops       备份、监控、端口跳跃                      → bin/deploy/ops/*.sh
   -h        显示本帮助
 

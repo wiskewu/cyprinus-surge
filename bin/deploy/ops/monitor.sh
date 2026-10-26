@@ -98,16 +98,25 @@ rtt_of() { # 从 ping 输出里取 "丢包率 平均延迟"
   printf '%s %s\n' "${loss:--}" "${avg:--}"
 }
 
-ai_of() { # 输出 "状态码 loc"
-  local out code loc
-  out="$(curl -sS -m 10 -w '\n%{http_code}' https://chatgpt.com/cdn-cgi/trace 2>/dev/null || true)"
+# AI 出口判定：用 Cloudflare trace 拿状态码与机房。
+# 403/429 表示「连上了但被拦」，可访问性仍然存在；拿不到任何响应才算不可达。
+ai_of() { # 输出 "状态码 loc 可达性"
+  local out code loc rc reach
+  out="$(curl -sS -m 10 -w '\n%{http_code}' https://chatgpt.com/cdn-cgi/trace 2>/dev/null)"
+  rc=$?
   code="$(printf '%s' "${out}" | tail -n1)"
   loc="$(printf '%s' "${out}" | awk -F= '$1=="loc"{print $2}')"
-  printf '%s %s\n' "${code:--}" "${loc:--}"
+  case "${code}" in
+    2?? | 4??) reach=ok ;;
+    *) reach=fail ;;
+  esac
+  # curl 非零说明 TCP 或 TLS 就没走通
+  [[ "${rc}" == 0 ]] || reach=fail
+  printf '%s %s %s\n' "${code:--}" "${loc:--}" "${reach}"
 }
 
 probe_once() {
-  local ts svc tcp udp ip ai_code ai_loc loss avg
+  local ts svc tcp udp ip ai_code ai_loc ai_reach loss avg
   ts="$(date -u +%FT%TZ)"
   svc="$(systemctl is-active sing-box 2>/dev/null || printf 'down')"
   port_listening tcp "${VLESS_PORT}" && tcp=up || tcp=down
@@ -117,10 +126,10 @@ probe_once() {
     udp="n/a"
   fi
   ip="$(curl -fsS -m 8 https://api.ipify.org 2>/dev/null || printf '-')"
-  read -r ai_code ai_loc <<<"$(ai_of)"
+  read -r ai_code ai_loc ai_reach <<<"$(ai_of)"
   read -r loss avg <<<"$(rtt_of)"
-  printf '%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
-    "${ts}" "${svc}" "${tcp}" "${udp}" "${ip}" "${ai_code}" "${ai_loc}" "${loss}" "${avg}"
+  printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
+    "${ts}" "${svc}" "${tcp}" "${udp}" "${ip}" "${ai_code}" "${ai_loc}" "${ai_reach}" "${loss}" "${avg}"
 }
 
 log_is_writable() { mkdir -p "${STATE_DIR}" && chmod 750 "${STATE_DIR}"; }
@@ -136,7 +145,7 @@ trim_log() {
 run_probe() {
   need_root
   log_is_writable
-  [[ -f "${PROBE_LOG}" ]] || printf 'ts,service,tcp,udp,egress,ai_code,ai_loc,loss_pct,rtt_avg_ms\n' >"${PROBE_LOG}"
+  [[ -f "${PROBE_LOG}" ]] || printf 'ts,service,tcp,udp,egress,ai_code,ai_loc,ai_reach,loss_pct,rtt_avg_ms\n' >"${PROBE_LOG}"
   probe_once >>"${PROBE_LOG}"
   trim_log
   alert_check || true
@@ -264,26 +273,68 @@ remove_timer() {
 # 阈值都可用环境变量覆盖；推送支持 Telegram 与通用 webhook，都没有则只写日志。
 ALERT_STATE="${STATE_DIR}/alert.state"
 
+# 推送：多个通道可以同时配，任一成功即算送达。
+# 大陆可直连的选项：企业微信/钉钉群机器人、Server酱、Bark、SMTP 邮件；
+# Telegram 需要代理，服务器上通常不可达，保留但不建议作为主通道。
 alert_send() { # $1=正文
-  local text="$1" resp
+  local text="$1" resp ok=0 title
+  title="$(hostname) 告警"
+  if [[ -n "${ALERT_WECOM_WEBHOOK:-}" ]]; then
+    if resp="$(jq -n --arg t "${text}" '{msgtype: "text", text: {content: $t}}' \
+      | curl -fsS -m 10 -H 'Content-Type: application/json' --data-binary @- "${ALERT_WECOM_WEBHOOK}" 2>&1)"; then
+      ok=1
+    else
+      warn "企业微信推送失败：${resp}"
+    fi
+  fi
+  if [[ -n "${ALERT_SERVERCHAN_KEY:-}" ]]; then
+    if resp="$(curl -fsS -m 10 --data-urlencode "title=${title}" --data-urlencode "desp=${text}" \
+      "https://sctapi.ftqq.com/${ALERT_SERVERCHAN_KEY}.send" 2>&1)"; then
+      ok=1
+    else
+      warn "Server酱推送失败：${resp}"
+    fi
+  fi
+  if [[ -n "${ALERT_BARK_URL:-}" ]]; then
+    if resp="$(jq -n --arg t "${title}" --arg b "${text}" '{title: $t, body: $b}' \
+      | curl -fsS -m 10 -H 'Content-Type: application/json' --data-binary @- "${ALERT_BARK_URL}" 2>&1)"; then
+      ok=1
+    else
+      warn "Bark 推送失败：${resp}"
+    fi
+  fi
+  if [[ -n "${ALERT_SMTP_URL:-}" && -n "${ALERT_MAIL_TO:-}" ]]; then
+    if resp="$(printf 'From: %s\nTo: %s\nSubject: %s\n\n%s\n' \
+      "${ALERT_SMTP_USER:-alert@localhost}" "${ALERT_MAIL_TO}" "${title}" "${text}" \
+      | curl -fsS -m 15 "${ALERT_SMTP_URL}" --mail-from "${ALERT_SMTP_USER:-alert@localhost}" \
+        --mail-rcpt "${ALERT_MAIL_TO}" --user "${ALERT_SMTP_USER:-}:${ALERT_SMTP_PASS:-}" \
+        --upload-file - 2>&1)"; then
+      ok=1
+    else
+      warn "邮件推送失败：${resp}"
+    fi
+  fi
   if [[ -n "${ALERT_TG_TOKEN:-}" && -n "${ALERT_TG_CHAT:-}" ]]; then
-    resp="$(curl -fsS -m 10 "https://api.telegram.org/bot${ALERT_TG_TOKEN}/sendMessage" \
-      --data-urlencode "chat_id=${ALERT_TG_CHAT}" --data-urlencode "text=${text}" 2>&1)" || {
+    if resp="$(curl -fsS -m 10 "https://api.telegram.org/bot${ALERT_TG_TOKEN}/sendMessage" \
+      --data-urlencode "chat_id=${ALERT_TG_CHAT}" --data-urlencode "text=${text}" 2>&1)"; then
+      ok=1
+    else
       warn "Telegram 推送失败：${resp}"
-      return 1
-    }
-    return 0
+    fi
   fi
   if [[ -n "${ALERT_WEBHOOK:-}" ]]; then
-    resp="$(printf '%s' "${text}" | jq -Rs '{text: .}' \
-      | curl -fsS -m 10 -H 'Content-Type: application/json' --data-binary @- "${ALERT_WEBHOOK}" 2>&1)" || {
+    if resp="$(jq -n --arg t "${text}" '{text: $t}' \
+      | curl -fsS -m 10 -H 'Content-Type: application/json' --data-binary @- "${ALERT_WEBHOOK}" 2>&1)"; then
+      ok=1
+    else
       warn "webhook 推送失败：${resp}"
-      return 1
-    }
-    return 0
+    fi
   fi
-  warn "未配置 ALERT_TG_TOKEN/ALERT_TG_CHAT 或 ALERT_WEBHOOK，告警只写日志"
-  return 1
+  if [[ "${ok}" == 0 ]]; then
+    warn "未配置任何推送通道，告警只写日志"
+    return 1
+  fi
+  return 0
 }
 
 alert_check() {
@@ -298,9 +349,9 @@ alert_check() {
   if printf '%s' "${last}" | grep -q ',down'; then
     problems="${problems}- 服务或端口异常：${last}%NL%"
   fi
-  # 2) AI 出口被风控
-  if printf '%s' "${last}" | grep -qE ',(403|429),'; then
-    problems="${problems}- AI 出口返回 $(printf '%s' "${last}" | cut -d, -f6)%NL%"
+  # 2) AI 出口不可达：403/429 属「连上了但被拦」，不算不可达
+  if printf '%s' "${last}" | cut -d, -f8 | grep -qx 'fail'; then
+    problems="${problems}- AI 出口不可达：code $(printf '%s' "${last}" | cut -d, -f6)%NL%"
   fi
 
   # 3) 月流量占比

@@ -72,12 +72,20 @@ install_service_file() { # $1=源文件 $2=目标路径
   return 0
 }
 
-mktemp_dir() {
-  local _d
+mktemp_dir() { # $1=变量名
+  local d base
   [[ -n "${1:-}" ]] || die "mktemp_dir 需要一个变量名"
-  _d="$(mktemp -d)"
-  _TMP_DIRS+=("${_d}")
-  printf -v "$1" '%s' "${_d}"
+  # 每个 shell 一个基准目录，trap 里写死路径：数组可能被重设，值不会
+  base="${_TMP_BASE:-}"
+  if [[ -z "${base}" ]]; then
+    base="$(mktemp -d "${TMPDIR:-/tmp}/cs.XXXXXXXX")"
+    _TMP_BASE="${base}"
+    # shellcheck disable=SC2064  # 有意在设置时展开：后面重设变量也不影响清理
+    trap "rm -rf '${base}'" EXIT
+  fi
+  d="$(mktemp -d -p "${base}")"
+  _TMP_DIRS+=("${d}")
+  printf -v "$1" '%s' "${d}"
 }
 
 # 读取 KEY=VALUE 环境文件（不执行其中的命令）

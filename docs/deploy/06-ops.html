@@ -143,6 +143,36 @@ sudo bash bin/deploy/ops/monitor.sh --uninstall</code></pre>
 <div class="bad"><b>不要把它绑到 0.0.0.0。</b>面板能看到全部连接与规则命中，暴露公网等于把控制面交出去；本脚本固定写回环地址。</div>
 <div class="note">要按出口看连接数：<code>curl -s http://127.0.0.1:9090/connections | jq '[.connections[].chains[-1]] | group_by(.) | map({(.[0]): length}) | add'</code>。<code>--status</code> 已经做了这一步，没装 <code>jq</code> 时退回原始输出。</div>
 
+<h2>备份与加密</h2>
+<p>备份默认加密：优先 <code>gpg --symmetric</code>，没有 gpg 时退回 <code>openssl enc</code>。两者都缺失时脚本拒绝生成明文包。</p>
+<pre><code>sudo bash bin/deploy/ops/backup.sh key      # 首次：生成备份口令，打印一次
+sudo bash bin/deploy/ops/backup.sh backup   # 加密备份
+sudo bash bin/deploy/ops/backup.sh list     # 列出，标注明文还是加密
+sudo bash bin/deploy/ops/backup.sh restore /root/backups/sing-box-xxx.tgz.gpg
+sudo bash bin/deploy/ops/backup.sh backup --insecure   # 明确要明文时才用</code></pre>
+<div class="tw">
+<table>
+<thead><tr><th>项</th><th>值</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>口令文件</td><td><code>/root/.backup-passphrase</code></td><td>权限 600，可用 <code>BACKUP_PASSPHRASE_FILE</code> 改</td></tr>
+<tr><td>产物</td><td><code>sing-box-&lt;时间&gt;.tgz.gpg</code> 或 <code>.enc</code></td><td>扩展名区分加密方式，恢复时自动识别</td></tr>
+<tr><td>备份范围</td><td><code>/etc/sing-box</code> 与 systemd 单元</td><td>面板文件在运行目录，不进备份</td></tr>
+</tbody>
+</table>
+</div>
+<div class="bad"><b>口令与备份必须分开存放。</b>口令丢失时加密包无法恢复：它们互为唯一打开条件，放在同一处等于没加密。</div>
+
+<h2>凭据轮换</h2>
+<p>轮换会立刻让旧客户端配置失效，脚本在动作前要求确认，非交互环境必须显式给 <code>--yes</code>。</p>
+<pre><code>sudo bash bin/deploy/rotate.sh short-id        # 换 REALITY short_id
+sudo bash bin/deploy/rotate.sh obfs            # 换 Hysteria2 obfs 密码，需 ENABLE_HY2=1
+sudo bash bin/deploy/rotate.sh device main     # 换单台设备
+sudo bash bin/deploy/rotate.sh devices         # 换全部设备
+sudo bash bin/deploy/rotate.sh all             # 三项依次执行
+sudo bash bin/deploy/rotate.sh all --dry-run   # 只打印计划</code></pre>
+<p>每次轮换都会重渲染服务端配置并重启 sing-box。收尾三步由脚本打印：重渲染客户端、让对方删除旧配置后重新导入、清理旧凭据所在的备份与聊天记录。</p>
+<div class="warn"><b>轮换不是吊销。</b>只把凭据换掉，旧设备上的配置仍能读到旧凭据；确认作废要同时删除对应设备行或用 <code>bin/deploy/device.sh revoke</code>。</div>
+
 <h2>升级 / 回滚</h2>
 <pre><code>sudo SING_BOX_VERSION=1.15.0 bash bin/deploy/one/install-singbox.sh
 bash bin/deploy/one/server.sh &amp;&amp; bash bin/deploy/check/server.sh
