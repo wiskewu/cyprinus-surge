@@ -142,14 +142,16 @@ NODE_EOF
 
 printf '\n输出：%s\n' "${OUT}"
 
+# 依次在配置目录、输出目录、当前目录与 PATH 里找可执行文件。找得到就校验，
+# 同时把它的位置带进下面的启动命令，下一步可以直接复制执行。
+if [[ -z "${SING_BOX}" ]]; then
+  for cand in "${SRC_DIR}/sing-box.exe" "$(dirname "${OUT}")/sing-box.exe" "./sing-box.exe"; do
+    [[ -x "${cand}" ]] && SING_BOX="${cand}" && break
+  done
+fi
+if [[ -z "${SING_BOX}" ]] && command -v sing-box >/dev/null 2>&1; then SING_BOX="sing-box"; fi
+
 if [[ "${DO_CHECK}" == 1 ]]; then
-  # 依次在配置目录、当前目录与 PATH 里找可执行文件
-  if [[ -z "${SING_BOX}" ]]; then
-    for cand in "${SRC_DIR}/sing-box.exe" "$(dirname "${OUT}")/sing-box.exe" "./sing-box.exe"; do
-      [[ -x "${cand}" ]] && SING_BOX="${cand}" && break
-    done
-  fi
-  if [[ -z "${SING_BOX}" ]] && command -v sing-box >/dev/null 2>&1; then SING_BOX="sing-box"; fi
   if [[ -n "${SING_BOX}" ]]; then
     "${SING_BOX}" check -c "${OUT}" && log "校验通过：${OUT}"
   else
@@ -157,4 +159,9 @@ if [[ "${DO_CHECK}" == 1 ]]; then
   fi
 fi
 
-log "启动：bash ${SELF_DIR}/run.sh ${OUT}"
+# 启动命令带上可执行文件：PATH 里找到的写 sing-box，其余写绝对路径
+printf '\n启动：bash %s/run.sh "%s"' "${SELF_DIR}" "${OUT}"
+if [[ -n "${SING_BOX}" && "${SING_BOX}" != "sing-box" ]]; then
+  printf ' --sing-box "%s"' "${SING_BOX}"
+fi
+printf '\n'
