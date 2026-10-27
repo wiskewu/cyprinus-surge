@@ -1,0 +1,708 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>自建跨境科研网络方案（2026-10）· 可视化呈现</title>
+<meta name="description" content="自建跨境科研网络完整方案：服务器选型、双协议入口、全平台 sing-box、分流与 DNS、IP 纯净度与 AI 出口解耦、稳定性运维、实施与验收。">
+<style>/*ARCHIFY_CSS*/</style>
+<style>
+  :root {
+    --p-bg: #f6f7f9;
+    --p-surface: #ffffff;
+    --p-ink: #14181f;
+    --p-ink-2: #47505f;
+    --p-ink-3: #6b7482;
+    --p-line: #e3e7ed;
+    --p-line-2: #eef1f5;
+    --p-accent: #0f6f5c;
+    --p-accent-soft: #e8f4f1;
+    --p-warn: #a1590a;
+    --p-warn-soft: #fdf3e6;
+    --p-danger: #a32036;
+    --p-danger-soft: #fdeef0;
+    --p-info: #1d4ed8;
+    --p-info-soft: #eef2ff;
+    --p-radius: 12px;
+    --p-shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 8px 24px -16px rgba(16, 24, 40, .18);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--p-bg);
+    color: var(--p-ink);
+    font-family: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 15px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+  .p-shell { max-width: 1440px; margin: 0 auto; padding: 0 24px; }
+  .p-prose { max-width: 1000px; }
+  code, .p-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .88em; }
+  code { background: var(--p-line-2); border: 1px solid var(--p-line); border-radius: 5px; padding: .1em .38em; }
+  a { color: var(--p-accent); text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--p-accent) 30%, transparent); }
+  a:hover { border-bottom-color: var(--p-accent); }
+
+  /* ---------- hero ---------- */
+  .p-hero { background: linear-gradient(180deg, #ffffff 0%, #f1f5f4 100%); border-bottom: 1px solid var(--p-line); }
+  .p-hero-in { padding: 44px 0 30px; }
+  .p-kicker { font-size: 12.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--p-accent); font-weight: 600; }
+  .p-hero h1 { font-size: 34px; line-height: 1.25; margin: 10px 0 8px; letter-spacing: -.01em; }
+  .p-hero p.p-lede { font-size: 16.5px; color: var(--p-ink-2); max-width: 900px; margin: 0 0 18px; }
+  .p-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
+  .p-chip { font-size: 12.5px; padding: 4px 10px; border-radius: 999px; background: #fff; border: 1px solid var(--p-line); color: var(--p-ink-2); }
+  .p-chip b { color: var(--p-ink); font-weight: 600; }
+  .p-chip.is-ok { background: var(--p-accent-soft); border-color: #cfe7e1; color: #0b5c4c; }
+  .p-chip.is-warn { background: var(--p-warn-soft); border-color: #f2dfc4; color: #7a4408; }
+
+  .p-concl { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+  .p-concl-card { background: #fff; border: 1px solid var(--p-line); border-radius: var(--p-radius); padding: 16px 18px; box-shadow: var(--p-shadow); }
+  .p-concl-card h3 { margin: 0 0 4px; font-size: 13px; letter-spacing: .04em; color: var(--p-ink-3); font-weight: 600; text-transform: uppercase; }
+  .p-concl-card .p-big { font-size: 19px; font-weight: 650; line-height: 1.35; }
+  .p-concl-card p { margin: 6px 0 0; font-size: 13.5px; color: var(--p-ink-2); }
+
+  /* ---------- nav ---------- */
+  nav.p-toc { position: sticky; top: 0; z-index: 20; background: rgba(255, 255, 255, .92); backdrop-filter: blur(8px); border-bottom: 1px solid var(--p-line); }
+  nav.p-toc ol { display: flex; flex-wrap: wrap; gap: 4px 18px; list-style: none; margin: 0; padding: 11px 0; font-size: 13.5px; }
+  nav.p-toc a { border: 0; color: var(--p-ink-2); }
+  nav.p-toc a:hover { color: var(--p-accent); }
+
+  /* ---------- sections ---------- */
+  section.p-sec { padding: 46px 0 8px; }
+  section.p-sec > .p-shell > header { max-width: 1000px; }
+  .p-sec h2 { font-size: 24px; margin: 0 0 6px; letter-spacing: -.01em; }
+  .p-sec h2 .p-num { color: var(--p-accent); font-variant-numeric: tabular-nums; margin-right: 10px; }
+  .p-sec h3 { font-size: 17px; margin: 28px 0 10px; }
+  .p-sub { color: var(--p-ink-3); font-size: 14px; margin: 0 0 18px; }
+
+  /* ---------- cards / grids ---------- */
+  .p-grid { display: grid; gap: 14px; }
+  .p-grid.c2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+  .p-grid.c3 { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .p-card { background: var(--p-surface); border: 1px solid var(--p-line); border-radius: var(--p-radius); padding: 18px 20px; box-shadow: var(--p-shadow); }
+  .p-card h4 { margin: 0 0 8px; font-size: 15.5px; }
+  .p-card p { margin: 0 0 8px; font-size: 14px; color: var(--p-ink-2); }
+  .p-card ul { margin: 6px 0 0; padding-left: 18px; font-size: 14px; color: var(--p-ink-2); }
+  .p-card li { margin: 4px 0; }
+  .p-card.is-ok { border-left: 3px solid var(--p-accent); }
+  .p-card.is-warn { border-left: 3px solid #d99a3c; background: linear-gradient(180deg, #fffdf9, #fff); }
+  .p-card.is-danger { border-left: 3px solid #cf5b70; background: linear-gradient(180deg, #fffbfc, #fff); }
+  .p-card.is-info { border-left: 3px solid #6b8afd; background: linear-gradient(180deg, #fbfcff, #fff); }
+  .p-tag { display: inline-block; font-size: 11.5px; padding: 1px 7px; border-radius: 5px; margin-left: 6px; vertical-align: 2px; font-weight: 600; letter-spacing: .02em; }
+  .p-tag.official { background: var(--p-info-soft); color: var(--p-info); }
+  .p-tag.research { background: #f0eaff; color: #6d28d9; }
+  .p-tag.community { background: var(--p-warn-soft); color: var(--p-warn); }
+  .p-tag.infer { background: #eef1f5; color: var(--p-ink-2); }
+
+  /* ---------- tables ---------- */
+  .p-tablewrap { overflow-x: auto; border: 1px solid var(--p-line); border-radius: var(--p-radius); background: #fff; box-shadow: var(--p-shadow); }
+  table.p-t { border-collapse: collapse; width: 100%; font-size: 13.8px; }
+  table.p-t th, table.p-t td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--p-line-2); vertical-align: top; }
+  table.p-t thead th { background: #f8fafb; font-size: 12.5px; letter-spacing: .03em; color: var(--p-ink-3); text-transform: uppercase; font-weight: 600; white-space: nowrap; }
+  table.p-t tbody tr:last-child td { border-bottom: 0; }
+  table.p-t tbody tr:hover { background: #fcfdfd; }
+  table.p-t b { font-weight: 650; }
+  table.p-t .p-pass { color: var(--p-accent); font-weight: 600; white-space: nowrap; }
+
+  ul.p-check { list-style: none; padding: 0; margin: 6px 0 0; font-size: 14px; color: var(--p-ink-2); }
+  ul.p-check li { position: relative; padding-left: 26px; margin: 6px 0; }
+  ul.p-check li::before { content: "☐"; position: absolute; left: 4px; top: -1px; color: var(--p-ink-3); font-size: 15px; }
+
+  /* ---------- diagram ---------- */
+  figure.p-fig { margin: 6px 0 6px; background: #fff; border: 1px solid var(--p-line); border-radius: var(--p-radius); padding: 10px 10px 2px; box-shadow: var(--p-shadow); overflow: hidden; }
+  figure.p-fig .p-fig-svg { overflow-x: auto; }
+  figure.p-fig svg { display: block; width: 100%; height: auto; min-width: 720px; }
+  figcaption.p-cap { font-size: 13px; color: var(--p-ink-3); padding: 8px 6px 10px; border-top: 1px solid var(--p-line-2); margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: baseline; }
+  figcaption.p-cap b { color: var(--p-ink-2); font-weight: 600; }
+  .p-fig-actions { display: flex; gap: 14px; font-size: 13px; }
+
+  .p-note { border-left: 3px solid var(--p-accent); background: var(--p-accent-soft); padding: 12px 16px; border-radius: 0 var(--p-radius) var(--p-radius) 0; font-size: 14px; color: #0b4b3f; margin: 14px 0; }
+  .p-note.is-warn { border-color: #d99a3c; background: var(--p-warn-soft); color: #6f3f08; }
+  .p-note.is-danger { border-color: #cf5b70; background: var(--p-danger-soft); color: #7d1a2c; }
+  .p-note b { font-weight: 650; }
+
+  .p-flow { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; margin: 14px 0; }
+  .p-step { flex: 1 1 150px; background: #fff; border: 1px solid var(--p-line); border-radius: 10px; padding: 10px 12px; font-size: 13.5px; box-shadow: var(--p-shadow); }
+  .p-step b { display: block; font-size: 13px; color: var(--p-accent); letter-spacing: .04em; }
+  .p-step span { color: var(--p-ink-2); }
+  .p-step.is-gate { border-color: #f0cdb0; background: var(--p-warn-soft); }
+  .p-step.is-gate b { color: #8a4a06; }
+
+  footer.p-foot { margin-top: 54px; border-top: 1px solid var(--p-line); background: #fff; padding: 26px 0 40px; font-size: 13.5px; color: var(--p-ink-2); }
+  .p-files { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin-top: 12px; }
+  .p-files div { border: 1px solid var(--p-line); border-radius: 10px; padding: 10px 12px; background: #fcfdfd; }
+
+  @media (max-width: 720px) {
+    .p-hero h1 { font-size: 26px; }
+    .p-shell { padding: 0 14px; }
+    figure.p-fig svg { min-width: 640px; }
+  }
+  @media print {
+    nav.p-toc { position: static; }
+    body { background: #fff; }
+    section.p-sec { padding: 18px 0 0; page-break-inside: avoid; }
+    .p-card, .p-tablewrap, figure.p-fig { box-shadow: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="p-hero">
+  <div class="p-shell p-hero-in">
+    <div class="p-kicker">自建跨境科研网络 · 方案可视化</div>
+    <h1>一台优化线路 VPS + sing-box 全平台 + 双协议入口 + AI 出口解耦</h1>
+    <p class="p-lede">面向「稳定性优先、延迟 ≤500ms、IP 纯净度 Fraud Score ≤20、可规则/全局分流、能正常使用 ChatGPT/Google/YouTube」的自建方案。本页按 2026 年的实际封锁态势与 sing-box 现状校对，并把每条需求写成可测量的验收条件。</p>
+    <div class="p-chips">
+      <span class="p-chip">版本 <b>2026-10</b></span>
+      <span class="p-chip">证据等级 <b>官方 / 研究 / 社区 / 推断</b></span>
+      <span class="p-chip is-ok">主入口 <b>REALITY TCP/443</b></span>
+      <span class="p-chip is-ok">备入口 <b>Hysteria2 UDP</b></span>
+      <span class="p-chip is-warn">AI 出口 <b>固定干净落地</b>，WARP 仅兜底</span>
+    </div>
+    <div class="p-concl">
+      <div class="p-concl-card">
+        <h3>服务器</h3>
+        <div class="p-big">CN2 GIA / AS9929 级别</div>
+        <p>1 核 1G 足够。延迟由线路决定，不由配置决定；优先选<b>可换 IP</b>的厂商。</p>
+      </div>
+      <div class="p-concl-card">
+        <h3>入口协议</h3>
+        <div class="p-big">REALITY 主 + Hysteria2 备</div>
+        <p>2026 年 UDP 出境被大范围干扰，默认以 TCP/443 为主；最终以你自己网络的实测为准。</p>
+      </div>
+      <div class="p-concl-card">
+        <h3>客户端</h3>
+        <div class="p-big">sing-box 1.14.x 一份 JSON</div>
+        <p>Windows / macOS / Android 三端 TUN 通用，规则完全一致。</p>
+      </div>
+      <div class="p-concl-card">
+        <h3>AI 出口</h3>
+        <div class="p-big">与主线路解耦</div>
+        <p>AI 域名单独走固定干净出口；E1/E2 互不影响，WARP 只做临时兜底。</p>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="p-toc">
+  <div class="p-shell">
+    <ol>
+      <li><a href="#goals">1 验收指标</a></li>
+      <li><a href="#prereq">2 2026 关键前提</a></li>
+      <li><a href="#arch">3 总体架构</a></li>
+      <li><a href="#server">4 服务器选型</a></li>
+      <li><a href="#protocol">5 协议与入口</a></li>
+      <li><a href="#path">6 AI 请求链路</a></li>
+      <li><a href="#ip">7 IP 纯净度与 AI 出口</a></li>
+      <li><a href="#ops">8 降级与运维</a></li>
+      <li><a href="#rollout">9 实施与验收</a></li>
+      <li><a href="#cost">10 成本</a></li>
+      <li><a href="#risk">11 风险</a></li>
+      <li><a href="#refs">12 参考来源</a></li>
+    </ol>
+  </div>
+</nav>
+
+<main>
+
+<!-- 1 -->
+<section class="p-sec" id="goals">
+  <div class="p-shell">
+    <header class="p-prose">
+      <h2><span class="p-num">01</span>把需求变成可验收的指标</h2>
+      <p class="p-sub">「稳定」「干净」无法验收。下表是本方案的验收基线：每条需求都给出可测量指标、通过标准和测试方法。</p>
+    </header>
+    <div class="p-tablewrap">
+      <table class="p-t">
+        <thead>
+          <tr><th>#</th><th>需求</th><th>可测量指标</th><th>通过标准</th><th>工具 / 方法</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>1</td><td><b>全平台可用</b></td><td>三端同一份配置可用</td><td class="p-pass">Win 10+ / macOS 12+ / Android 10+ 均可导入并 TUN 生效</td><td>各端客户端 + <code>sing-box check -c config.json</code></td></tr>
+          <tr><td>2</td><td><b>服务器选项</b></td><td>规格 + 线路 + 可换 IP</td><td class="p-pass">1C1G、月流量 ≥500GB、优化线路、支持换 IP 或按小时计费</td><td>厂商面板 + <code>iperf3</code></td></tr>
+          <tr><td>3</td><td><b>延迟 ≤500ms</b></td><td>到 VPS 的 TCP 握手 RTT；代理后 google.com 首字节 TTFB</td><td class="p-pass">RTT ≤200ms（美西）/ ≤80ms（亚洲）；<b>TTFB ≤500ms</b></td><td><code>mtr</code> / <code>tcping</code> / <code>curl -w '%{time_starttransfer}'</code></td></tr>
+          <tr><td>3b</td><td><b>抖动与丢包</b><br><span class="p-tag infer">决定「稳」</span></td><td>晚高峰 jitter / 丢包率</td><td class="p-pass">jitter ≤30ms、丢包 ≤1%</td><td>200 次 <code>mtr</code> 统计，20:00–23:00 各测一轮</td></tr>
+          <tr><td>4</td><td><b>IP 纯净度</b></td><td>IPQS Fraud Score</td><td class="p-pass">≤20，且 proxy / vpn / tor / recent_abuse 均为 false</td><td>IPQS 免费检测页（见第 7 节）</td></tr>
+          <tr><td>4b</td><td><b>AI 可用性</b><br><span class="p-tag infer">分数之外</span></td><td>ChatGPT 可登录并对话；无 1020 / 无限 challenge</td><td class="p-pass">连续 3 天、每天 3 次人工验证通过</td><td>浏览器手动 + 清 cookie 复测</td></tr>
+          <tr><td>5</td><td><b>可分流</b></td><td>国内直连；AI 域名独立出口；可切全局</td><td class="p-pass">国内站点不出境；AI 出口 IP ≠ 主出口 IP；全局配置可切换</td><td>Clash API 面板看连接走势 / <code>ifconfig.me</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="p-note"><b>为什么把抖动单列：</b>500ms 是很宽松的预算，中美优化线路 Reality/Hysteria2 的典型值是 150–220ms。真正影响体验的是<b>晚高峰的抖动和丢包</b>，所以 3b 与 3 同等重要。</div>
+  </div>
+</section>
+
+<!-- 2 -->
+<section class="p-sec" id="prereq">
+  <div class="p-shell">
+    <header class="p-prose">
+      <h2><span class="p-num">02</span>2026 年的三个关键前提（相对原稿的修正）</h2>
+      <p class="p-sub">这三条决定了后面所有取舍，先看它们。</p>
+    </header>
+    <div class="p-grid c3">
+      <div class="p-card is-warn">
+        <h4>前提一：UDP/QUIC 出境被大范围干扰 <span class="p-tag research">研究</span><span class="p-tag community">社区</span></h4>
+        <p>GFW 自 2024-04 起可解密 QUIC Initial 并做 SNI 过滤；2026-04 起社区报告全国性限制 UDP/443 出境，电信骨干网尤为明显。</p>
+        <p><b>结论：</b>Hysteria2 不再默认做主入口，需叠加 <code>obfs salamander</code> + 端口跳跃；<b>REALITY（TCP/443）成为默认主入口</b>，最终以实测为准。</p>
+      </div>
+      <div class="p-card is-danger">
+        <h4>前提二：WARP 出口不能当 AI 主出口 <span class="p-tag community">社区</span></h4>
+        <p>OpenAI 对 <code>SNI(chatgpt.com) + 源 IP(WARP IPv4)</code> 做过定向 TLS 拒绝（例：104.28.x.x）；WARP 出口地区还会漂移，导致账号地区跳变触发风控。</p>
+        <p><b>结论：</b>AI 出口第一原则是<b>「固定、干净、地区稳定」</b>，WARP 只做零成本兜底。</p>
+      </div>
+      <div class="p-card is-info">
+        <h4>前提三：sing-box 破坏性变更 <span class="p-tag official">官方</span></h4>
+        <p>1.12 移除 GeoIP/GeoSite；1.13 移除 WireGuard 出站（改用 <code>endpoints</code>）；1.14 改 DNS 规则写法（直接写 <code>server</code>，不再写 <code>action: route</code>）。</p>
+        <p><b>结论：</b>网上绝大多数老教程的配置在 1.14 上<b>起不来</b>。本方案所有配置按 1.14.x 编写，并用 <code>sing-box check</code> 校验后才上线。</p>
+      </div>
+    </div>
+    <div class="p-note is-warn"><b>不做的承诺：</b>自建不等于「不会被封」。本方案做的是概率工程，把<b>入口抗封锁、出口纯净度、全平台分流</b>拆成三层，任一层失效都能单独替换，而不是把所有需求压在一台机器的单一 IP 上。</div>
+  </div>
+</section>
+
+<!-- 3 -->
+<section class="p-sec" id="arch">
+  <div class="p-shell">
+    <header class="p-prose">
+      <h2><span class="p-num">03</span>总体架构</h2>
+      <p class="p-sub">从左到右是一条完整的数据路径：客户端内完成分流，入口层负责「连得上」，出口层负责「被信任」。AI 流量从一开始就被分流到独立出口。</p>
+    </header>
+    <figure class="p-fig">
+      <div class="p-fig-svg"><!--SVG_ARCH--></div>
+      <figcaption class="p-cap">
+        <span><b>图 1</b> 总体架构（archify 生成，已通过校验与浏览器渲染检查）</span>
+        <span class="p-fig-actions"><a href="diagrams/01-architecture.html">打开独立交互版 →</a><a href="方案.md">阅读完整文字方案 →</a></span>
+      </figcaption>
+    </figure>
+    <div class="p-grid c3" style="margin-top:16px">
+      <div class="p-card">
+        <h4>入口层（抗封锁）</h4>
+        <p>解决「连接能不能建立」。同一台 VPS 上跑两个入站，端口互不冲突：REALITY 走 TCP/443，Hysteria2 走 UDP。</p>
+        <p>失效时的动作：换端口、换 <code>dest</code>、换 <code>short_id</code>：<b>零成本、5 分钟</b>。</p>
+      </div>
+      <div class="p-card">
+        <h4>出口层（纯净度）</h4>
+        <p>解决「目标网站信不信任你」。E1 是 VPS 原生 IP（带宽最大），E2 是专门给 AI 的固定干净落地。</p>
+        <p>两条入口共用同一个本机 IP，这正是 AI 必须绕开 E1 的原因。</p>
+      </div>
+      <div class="p-card">
+        <h4>分流层（体验）</h4>
+        <p>解决「谁走哪条路」。先 <code>sniff</code> 拿域名，再按 <code>rule_set</code> 决策：国内直连、AI 走 E2、其余走 E1。</p>
+        <p>失效时的动作：更新远程规则集、改 <code>final</code>。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 4 -->
+<section class="p-sec" id="server">
+  <div class="p-shell">
+    <header class="p-prose">
+      <h2><span class="p-num">04</span>服务器选型</h2>
+      <p class="p-sub">延迟主要由「中国大陆到 VPS 的物理线路」决定，CPU/内存是次要因素。500ms 预算留有余量，因此要为<b>晚高峰抖动小、可换 IP</b>付费，而不是为「最低延迟」付费。</p>
+    </header>
+    <h3>线路等级</h3>
+    <div class="p-tablewrap">
+      <table class="p-t">
+        <thead><tr><th>线路等级</th><th>中国大陆典型 RTT</th><th>晚高峰</th><th>参考价</th><th>定位</th></tr></thead>
+        <tbody>
+          <tr><td><b>CN2 GIA</b>（AS4809）</td><td>美西 130–180ms / 香港·日本 30–80ms</td><td class="p-pass">抖动通常 &lt;10ms</td><td>≈$50–100/年起</td><td>稳定优先的默认选择</td></tr>
+          <tr><td><b>AS9929 / CMIN2 / 软银</b></td><td>70–130ms</td><td>白天优秀，晚高峰可能波动</td><td>$10–30/月</td><td>性价比甜点</td></tr>
+          <tr><td>普通 163 / 国际 BGP</td><td>130–220ms</td><td>拥堵、丢包上升</td><td>$3–10/月</td><td>备用机 / 试错机</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>厂商选项 <span class="p-tag community">社区口碑，价格会变，下单前复核</span></h3>
+    <div class="p-tablewrap">
+      <table class="p-t">
+        <thead><tr><th>厂商 / 产品</th><th>参考价</th><th>优点</th><th>注意</th></tr></thead>
+        <tbody>
+          <tr><td>搬瓦工 CN2 GIA-E（DC6/DC9）</td><td>特价约 $50/年；常规 $49.99/季 级</td><td>KiwiVM 可<b>自由迁移机房</b>，线路试错成本最低；老牌不易跑路</td><td>特价常年缺货；贵</td></tr>
+          <tr><td>DMIT LAX Pro / HKG Pro</td><td>LAX Pro ≈$100/年起</td><td>AMD EPYC、带宽足、线路稳</td><td>常缺货；香港/日本价格高</td></tr>
+          <tr><td>HostDare</td><td>≈$37.49/年起</td><td>最便宜的 CN2 GIA，适合做<b>备用机</b></td><td>硬件一般</td></tr>
+          <tr><td>按小时计费（Vultr / Linode / Akamai 等）</td><td>按量</td><td>试错、临时落地、被封即销毁重建</td><td>不作长期主线路</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>下单前逐条打勾</h3>    <div class="p-grid c2">
+      <div class="p-card">
+        <ul class="p-check">
+          <li>支持<b>换 IP</b>或按小时计费：IP 整段被封时换协议无效，只能换 IP</li>
+          <li>独立 IPv4（不是 NAT 共享 IP）；有 IPv6 更好，但必须能只走 v4 出站</li>
+          <li>不与被大量代理滥用的热门 IP 段相邻</li>
+        </ul>
+      </div>
+      <div class="p-card">
+        <ul class="p-check">
+          <li>月流量 ≥500GB、带宽满足 4K YouTube</li>
+          <li>机房区域与 AI 出口的目标地区一致或接近（账号地区一致性）</li>
+          <li>能提供重装系统权限（自建必须，托管面板不行）</li>
+        </ul>
+      </div>
+    </div>
+    <div class="p-note"><b>已按本节条件筛好一份采购清单：</b>6 家厂商、8 个入门机型，含价格、线路、支付宝/Visa 支持情况与「按小时 / 换 IP」能力 → <a href="vps-shortlist.html">服务器入门采购清单（2026-10）</a></div>
+  </div>
+</section>
+<section class="p-sec" id="protocol">
+  <div class="p-shell">
+    <header class="p-prose">
+      <h2><span class="p-num">05</span>协议与入口：主备组合</h2>
+      <p class="p-sub">两个协议解决的问题不同，组合使用比押注单一协议更符合「稳定性优先」。两个入站同时跑在同一台 VPS 上，切换只发生在客户端。</p>
+    </header>
+    <div class="p-grid c2">
+      <div class="p-card is-ok">
+        <h4>主入口 · VLESS + XTLS-Vision + REALITY（TCP/443）</h4>
+        <ul>
+          <li>握手伪装成访问真实存在的第三方站点（如 www.apple.com），对 DPI 与主动探测的隐匿性仍是第一梯队</li>
+          <li><b>不需要域名、不需要证书</b>，因此没有「证书过期」这个失效源</li>
+          <li>走 TCP/443，与正常 HTTPS 同端口，不受 UDP 限速策略影响</li>
+          <li>约束：<code>handshake.server</code> 必须与 <code>server_name</code> 一致，且与 VPS 同区域、支持 TLS1.3 + HTTP/2；<code>short_id</code> 随机非空；两端时间同步（<code>max_time_difference</code> 默认 60s）</li>
+        </ul>
+      </div>
+      <div class="p-card is-info">
+        <h4>备入口 · Hysteria2（QUIC/UDP）</h4>
+        <ul>
+          <li>Brutal 拥塞控制<b>不把丢包当拥塞信号</b>，弱网/抖动链路上更容易维持吞吐</li>
+          <li>2026 年必须叠加三件事：<b>obfs salamander</b>（对抗 QUIC 特征识别）、<b>端口跳跃</b>（对抗单端口 QoS）、<b>客户端设置 up/down_mbps</b>（触发 Brutal，不设则退化为普通 BBR）</li>
+          <li>代价：完全依赖 UDP。校园网/公司网/部分运营商可能直接限制 UDP</li>
+        </ul>
+      </div>
+    </div>
+    <h3>谁做主入口：用实测决定，不要照抄</h3>
+    <div class="p-tablewrap">
+      <table class="p-t">
+        <thead><tr><th>你的网络环境</th><th>建议主入口</th><th>依据</th></tr></thead>
+        <tbody>
+          <tr><td>电信固网</td><td><b>REALITY</b></td><td>电信骨干对 UDP 限速最激进 <span class="p-tag community">社区</span></td></tr>
+          <tr><td>联通 / 移动固网、蜂窝网络</td><td><b>Hysteria2</b></td><td>这两张网对 QUIC 相对宽松 <span class="p-tag community">社区</span></td></tr>
+          <tr><td>校园网 / 公司网（疑似封 UDP）</td><td><b>REALITY</b></td><td>只有 TCP/443 能过</td></tr>
+          <tr><td>需要大流量下载 / 4K</td><td><b>Hysteria2</b></td><td>Brutal 抗丢包</td></tr>
+          <tr><td>不确定</td><td><b>REALITY 主 + Hy2 备</b></td><td>双入口本身就是容错，客户端 <code>urltest</code> 自动测速切换</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- 6 -->
+<section class="p-sec" id="path">
+  <div class="p-shell">
+    <header class="p-prose">
+      <h2><span class="p-num">06</span>一次 ChatGPT 请求如何被分流</h2>
+      <p class="p-sub">这张时序图解释了「AI 出口解耦」到底解耦了什么：AI 域名在客户端就被挑出来，走独立落地节点，不经过主出口。</p>
+    </header>
+    <figure class="p-fig">
+      <div class="p-fig-svg"><!--SVG_SEQ--></div>
+      <figcaption class="p-cap">
+        <span><b>图 2</b> 一次 AI 请求的分流链路（archify 生成）</span>
+        <span class="p-fig-actions"><a href="diagrams/02-ai-request-path.html">打开独立交互版 →</a></span>
+      </figcaption>
+    </figure>
+    <div class="p-grid c3" style="margin-top:16px">
+      <div class="p-card">
+        <h4>规则顺序不能错</h4>
+        <p>1 <code>sniff</code> 拿域名 → 2 接管 DNS → 3 私有地址直连 → 4 AI 域名走 E2 → 5 广告拒绝 → 6 <code>geosite-cn</code>/<code>geoip-cn</code> 直连 → 7 其余走 E1。</p>
+        <p><b>不 sniff 就没有域名</b>，规则只能按 IP 判断，CDN 与国内站点会误判。</p>
+      </div>
+      <div class="p-card">
+        <h4>DNS 必须防泄露</h4>
+        <p>国内域名用国内 DoH（走直连出站）；境外域名用远端 DoH（走代理出站）；禁止明文 53 直连境外。</p>
+        <p><code>strategy: ipv4_only</code> 减少一次 AAAA 往返、降低首字节延迟。</p>
+      </div>
+      <div class="p-card">
+        <h4>规则 / 全局双配置</h4>
+        <p>sing-box 不区分「模式」，差别只是规则集与 <code>final</code> 的组合：全局模式即删掉国内直连那一条。</p>
+        <p>维护两份配置比在 GUI 里来回点更可复现。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 7 -->
+<section class="p-sec" id="ip">
+  <div class="p-shell">
+    <header class="p-prose">
+      <h2><span class="p-num">07</span>IP 纯净度与 AI 出口</h2>
+      <p class="p-sub">分数只是门票，实测解锁才是准绳。出口分三级：E1 主出口、E2 AI 出口、E3 兜底。</p>
+    </header>
+
+    <h3>Fraud Score 的口径必须说清 <span class="p-tag official">官方</span><span class="p-tag community">社区</span></h3>
+    <div class="p-grid c2">
+      <div class="p-card">
+        <h4>官方阈值 vs 本方案门槛</h4>
+        <p>IPQS 的 Fraud Score 是 0–100，<b>越高越脏</b>。官方口径是「≥85 高度可疑、≥90 建议直接拦截」；「0–20 干净」属于偏严格的社区口径。</p>
+        <p>本方案采用 <b>≤20</b> 作为自建机的硬门槛，这是<b>主动加严</b>，不是官方标准。</p>
+      </div>
+      <div class="p-card is-warn">
+        <h4>低分不等于 AI 可用</h4>
+        <p>IDC 机房的 IP 即使分数低，也可能因 IP 段属性触发挑战。「原生 IP」也不等于「住宅 IP」，两者都要看。</p>
+        <p>所以门禁必须包含<b>实测解锁</b>这一步。</p>
+      </div>
+    </div>
+
+    <h3>门禁流程：下单后 5 分钟跑完，不过关就不部署</h3>
+    <div class="p-flow">
+      <div class="p-step is-gate"><b>第 1 步</b><span>IPQS：fraud_score、proxy、vpn、tor、recent_abuse、ASN</span></div>
+      <div class="p-step"><b>第 2 步</b><span>ASN 与 IP 类型（ipinfo.io / ip.ping0.cc）：是否原生、是否宿主段</span></div>
+      <div class="p-step"><b>第 3 步</b><span>实测解锁：ChatGPT 登录对话、Gemini、Claude、Google 是否弹验证码</span></div>
+      <div class="p-step is-gate"><b>第 4 步</b><span>不合格直接换 IP 或换机：<b>禁止先部署再发现</b></span></div>
+    </div>
+    <div class="p-tablewrap">
+      <table class="p-t">
+        <thead><tr><th>步骤</th><th>看什么</th><th>通过标准</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>IPQS 免费检测：<code>fraud_score</code>、<code>proxy</code>、<code>vpn</code>、<code>tor</code>、<code>recent_abuse</code>、<code>bot_status</code>、<code>ASN</code></td><td class="p-pass">score ≤20，且 proxy / vpn / tor / recent_abuse 均为 false</td></tr>
+          <tr><td>2</td><td>ASN 与 IP 类型</td><td class="p-pass">ASN 明确；区分「原生 IP」与「住宅 IP」</td></tr>
+          <tr><td>3</td><td>实测解锁（浏览器）</td><td class="p-pass">无 1020、无无限 challenge、可正常对话</td></tr>
+          <tr><td>4</td><td>不合格时</td><td class="p-pass">立即换 IP / 换机，不进入部署阶段</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>出口分级</h3>
+    <div class="p-tablewrap">
+      <table class="p-t">
+        <thead><tr><th>出口</th><th>用途</th><th>选择标准</th><th>成本</th></tr></thead>
+        <tbody>
+          <tr><td><b>E1 主出口</b><br>VPS 原生 IP</td><td>Google / YouTube / 日常</td><td>带宽大、延迟低</td><td>含在 VPS 内</td></tr>
+          <tr><td><b>E2 AI 出口</b><br>固定干净落地</td><td>OpenAI / Anthropic / Gemini</td><td><b>地区与 ASN 固定、Fraud Score ≤20、实测解锁</b>；① 专用落地 VPS（首选）→ ② 合规静态 ISP / 住宅代理（≈10Mbps，成本高）→ ③ WARP（兜底）</td><td>$0–15/月</td></tr>
+          <tr><td><b>E3 兜底</b><br>商用解锁节点</td><td>E2 失效时临时顶上</td><td>可用即可，不作长期依赖</td><td>按量</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>为什么 WARP 只能兜底 <span class="p-tag community">社区</span></h3>
+    <div class="p-tablewrap">
+      <table class="p-t">
+        <thead><tr><th>观察</th><th>结果</th><th>来源</th></tr></thead>
+        <tbody>
+          <tr><td>OpenAI 对 <code>SNI(chatgpt.com) + 源 IP(WARP IPv4)</code> 做定向 TLS 拒绝（例：104.28.x.x）</td><td>ChatGPT 直接 4xx/5xx，换回 VPS 原生 IP 即恢复</td><td>社区实测 2026-08</td></tr>
+          <tr><td>WARP 出口取就近 Cloudflare 接入点，地区会漂移</td><td>账号地区漂移 → 风控 / challenge</td><td>Cloudflare 社区报告</td></tr>
+          <tr><td>WARP 出口 IP 被大量用户共享</td><td>单 IP 信誉随他人行为波动</td><td>工程推断</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="p-note is-danger"><b>与原稿的关键修正：</b>原稿建议「AI 流量优先走 WARP」。按上面的实测，改为 <b>E2 固定干净落地为第一优先，WARP 只在 E2 不可用时临时顶上</b>，并接受它随时可能被拒。</div>
+
+    <h3>出口纪律（比换出口更省事）</h3>
+    <div class="p-grid c2">
+      <div class="p-card"><ul>
+        <li>AI 出口的<b>国家/地区不要频繁变化</b>，浏览器、终端、API 尽量共用同一出口</li>
+        <li>AI 出口不跑 BT / 大流量下载，不与多人共用账号</li>
+      </ul></div>
+      <div class="p-card"><ul>
+        <li>固定用 v4 出站（<code>strategy: ipv4_only</code>），避免「计划走 v4、实际走 v6」</li>
+        <li>每周复测 IPQS + 解锁，记录趋势（分数上升通常是同段 IP 被人滥用）</li>
+      </ul></div>
+    </div>
+  </div>
+</section>
+
+<!-- 8 -->
+<section class="p-sec" id="ops">
+  <div class="p-shell">
+    <header class="p-prose">
+      <h2><span class="p-num">08</span>故障分级与降级切换</h2>
+      <p class="p-sub">「稳定」不是不出故障，而是故障可定位、动作有顺序、成本从低到高。降级顺序：换入口参数 → 换 AI 出口 → 迁移或换机。</p>
+    </header>
+    <figure class="p-fig">
+      <div class="p-fig-svg"><!--SVG_LIFE--></div>
+      <figcaption class="p-cap">
+        <span><b>图 3</b> 连接健康分级与降级切换（archify 生成）</span>
+        <span class="p-fig-actions"><a href="diagrams/03-failover-lifecycle.html">打开独立交互版 →</a></span>
+      </figcaption>
+    </figure>
+
+    <h3>故障手册：先分诊，再动手</h3>
+    <div class="p-tablewrap">
+      <table class="p-t">
+        <thead><tr><th>现象</th><th>最可能的判定</th><th>动作</th></tr></thead>
+        <tbody>
+          <tr><td>三端同时连不上</td><td>服务端进程挂了 / 证书过期 / IP 被封</td><td><code>systemctl status sing-box</code> → 看证书有效期 → 从国内 ping/端口探测</td></tr>
+          <tr><td>REALITY 通、Hy2 不通</td><td>UDP 被限速或阻断</td><td>换高位端口 + 端口跳跃 + 确认 obfs；或直接以 REALITY 为主</td></tr>
+          <tr><td>Hy2 通、REALITY 不通</td><td>TCP/443 被针对</td><td>换端口 / 换 <code>dest</code> 站点 / 换 <code>short_id</code></td></tr>
+          <tr><td>能连但 ChatGPT 报错或无限 challenge</td><td>AI 出口被风控</td><td>换 E2 出口；检查出口国家是否漂移；清 cookie 重登</td></tr>
+          <tr><td>一切正常但很慢</td><td>线路拥塞 / 超售</td><td>分时段测速；搬瓦工可迁移机房，或直接换机</td></tr>
+          <tr><td>国内站点变慢</td><td>分流规则失效或 DNS 误判</td><td>检查 rule_set 是否更新成功；确认 <code>sniff</code> 在前；核对规则顺序</td></tr>
+          <tr><td>突然全部失效且时间异常</td><td>NTP/时区问题（REALITY）</td><td><code>timedatectl</code> + 重启 <code>systemd-timesyncd</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>稳定性兜底清单</h3>
+    <div class="p-grid c3">
+      <div class="p-card">
+        <h4>传输层</h4>
+        <ul>
+          <li><code>net.core.default_qdisc=fq</code> + <code>tcp_congestion_control=bbr</code></li>
+          <li>提高 <code>rmem_max</code> / <code>wmem_max</code>（QUIC 大带宽受益）</li>
+          <li>开启 <code>tcp_fastopen</code></li>
+        </ul>
+      </div>
+      <div class="p-card">
+        <h4>系统与证书</h4>
+        <ul>
+          <li>SSH 仅密钥、改端口、fail2ban、ufw 只放行必需端口</li>
+          <li>Hysteria2 证书用 acme.sh DNS-01 自动续期 + 到期告警</li>
+          <li>NTP 时间同步：REALITY 握手依赖时间窗</li>
+        </ul>
+      </div>
+      <div class="p-card">
+        <h4>观测与备份</h4>
+        <ul>
+          <li>客户端用 Clash API 面板看「走了哪个出站」</li>
+          <li>服务端只看资源与流量，<b>不记录客户端 IP / 访问域名</b></li>
+          <li>配置入私有 Git，变更前备份 + <code>sing-box check</code></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 9 -->
+<section class="p-sec" id="rollout">
+  <div class="p-shell">
+    <header class="p-prose">
+      <h2><span class="p-num">09</span>实施与验收</h2>
+      <p class="p-sub">每个阶段都有明确的出口条件；不满足就不进下一阶段。门禁（IP 检测）放在部署之前，是最省钱的一步。</p>
+    </header>
+    <figure class="p-fig">
+      <div class="p-fig-svg"><!--SVG_FLOW--></div>
+      <figcaption class="p-cap">
+        <span><b>图 4</b> 实施与验收流程（含门禁与回流，archify 生成）</span>
+        <span class="p-fig-actions"><a href="diagrams/04-rollout-workflow.html">打开独立交互版 →</a></span>
+      </figcaption>
+    </figure>
+
+    <div class="p-note"><b>要直接开工？</b>逐步命令 + 12 个可复用脚本（幂等、参数化、已用 sing-box 1.14.3 校验）→ <a href="deploy/index.html">自建节点部署手册（6 步 + 排查）</a>：系统初始化 → 安装与密钥 → 服务端 → 可选 Hysteria2 → 客户端 → 验收运维。</div>
+
+    <div class="p-grid c2" style="margin-top:16px">
+      <div class="p-card">
+        <h4>时间表</h4>
+        <div class="p-tablewrap" style="box-shadow:none;border:0">
+          <table class="p-t">
+            <thead><tr><th>阶段</th><th>时间</th><th>出口条件</th></tr></thead>
+            <tbody>
+              <tr><td>0 选型下单</td><td>Day 0 · 1h</td><td>满足可换 IP / 规格清单</td></tr>
+              <tr><td>1 IP 门禁</td><td>Day 0–1 · 30min</td><td><b>不过关直接换 IP</b></td></tr>
+              <tr><td>2 部署</td><td>Day 1 · 2h</td><td><code>sing-box check</code> 通过、开机自启</td></tr>
+              <tr><td>3 客户端</td><td>Day 1–2 · 1h</td><td>三端均可访问 Google</td></tr>
+              <tr><td>4 验收</td><td>Day 2–3 · 1h</td><td>指标全达标（含晚高峰复测）</td></tr>
+              <tr><td>5 运维</td><td>持续</td><td>告警可达、每周复测</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="p-card">
+        <h4>验收清单（逐项打勾，缺一不算完成）</h4>
+        <ul class="p-check">
+          <li>20:00–23:00 连续 3 天：RTT、TTFB 达标，jitter ≤30ms、丢包 ≤1%</li>
+          <li>IPQS ≤20 且 proxy / vpn / tor / recent_abuse 均为 false</li>
+          <li>ChatGPT 连续 3 天人工验证通过（无 1020、无无限 challenge）</li>
+          <li>国内站点不出境；AI 域名出口 IP ≠ 主出口 IP</li>
+          <li>DNS 泄露测试通过，DNS 归属地与出口地区一致</li>
+          <li>全局模式配置可切换且生效</li>
+          <li>服务端重启后自动恢复；证书续期链路已演练一次</li>
+          <li>人为断开一次，确认告警通道可用</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 10 -->
+<section class="p-sec" id="cost">
+  <div class="p-shell">
+    <header class="p-prose">
+      <h2><span class="p-num">10</span>成本预算</h2>
+      <p class="p-sub">汇率按 1 USD ≈ 7.1 CNY（2026-10，仅供参考）。</p>
+    </header>
+    <div class="p-tablewrap">
+      <table class="p-t">
+        <thead><tr><th>档位</th><th>组成</th><th>月成本</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>经济</td><td>美西 9929 / CN2 GT 小机 $5–10 + WARP 兜底</td><td>≈¥40–80</td><td>白天好，晚高峰可能抖；适合先跑通</td></tr>
+          <tr><td><b>标准（推荐）</b></td><td>搬瓦工 / DMIT CN2 GIA 约 $50–100/年 + 可选静态 ISP 出口</td><td>≈¥60–150</td><td>主力方案，稳定性与成本平衡</td></tr>
+          <tr><td>进阶</td><td>CN2 GIA 主 + 香港/日本备 + 静态 ISP / 住宅 AI 出口</td><td>≈¥200–600</td><td>稳定性最好；AI 出口纯净度最高</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- 11 -->
+<section class="p-sec" id="risk">
+  <div class="p-shell">
+    <header class="p-prose">
+      <h2><span class="p-num">11</span>风险登记</h2>
+      <p class="p-sub">每条风险都有对应的缓解动作；没有缓解动作的风险不应该留在方案里。</p>
+    </header>
+    <div class="p-tablewrap">
+      <table class="p-t">
+        <thead><tr><th>风险</th><th>概率</th><th>影响</th><th>缓解</th></tr></thead>
+        <tbody>
+          <tr><td>GFW 升级导致协议失效</td><td>中</td><td>高</td><td>双协议并行 + 可换端口 / short_id / dest；跟踪 gfw.report</td></tr>
+          <tr><td>VPS IP 被封（整段）</td><td>中</td><td>高</td><td>选可换 IP 厂商 / 按小时计费；保留备用机</td></tr>
+          <tr><td>UDP 被 QoS 或阻断（电信）</td><td>高</td><td>中</td><td>以 REALITY 为主入口；Hy2 端口跳跃 + obfs</td></tr>
+          <tr><td>AI 出口被风控</td><td>中</td><td>中</td><td>固定干净出口 + 实测解锁 + 备选静态 ISP</td></tr>
+          <tr><td>WARP 被定向拒绝</td><td>高</td><td>低</td><td>只做兜底，不作主出口</td></tr>
+          <tr><td>证书过期 / 时间偏差</td><td>低</td><td>高</td><td>自动续期 + NTP + 到期告警</td></tr>
+          <tr><td>规则集误判（CDN、国内站点绕行）</td><td>中</td><td>中</td><td><code>sniff</code> + 远程 rule_set 定期更新 + 直连表校验</td></tr>
+          <tr><td>账号地区漂移触发风控</td><td>中</td><td>中</td><td>出口国家 / ASN 固定、少切换、终端同出口</td></tr>
+          <tr><td>配置语法与内核版本不匹配</td><td>中</td><td>中</td><td>固定 sing-box 大版本；<code>sing-box check</code> 后再上线</td></tr>
+          <tr><td>合规与法律风险</td><td>—</td><td>高</td><td>仅自用科研、遵守当地法律、不分享账号与节点、不对抗性做承诺</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- 12 -->
+<section class="p-sec" id="refs">
+  <div class="p-shell">
+    <header class="p-prose">
+      <h2><span class="p-num">12</span>参考来源</h2>
+      <p class="p-sub">证据等级：<span class="p-tag official">官方</span> 官方文档 / 仓库 · <span class="p-tag research">研究</span> 公开论文或测量报告 · <span class="p-tag community">社区</span> 社区实测（会变，需自测） · <span class="p-tag infer">推断</span> 本方案的工程判断。</p>
+    </header>
+    <div class="p-tablewrap">
+      <table class="p-t">
+        <thead><tr><th>主题</th><th>来源</th><th>等级</th></tr></thead>
+        <tbody>
+          <tr><td>sing-box 废弃项（1.12 移除 GeoIP/GeoSite、1.13 移除 WireGuard 出站、inline ACME 废弃）</td><td><a href="https://sing-box.sagernet.org/deprecated/">sing-box.sagernet.org/deprecated</a></td><td><span class="p-tag official">官方</span></td></tr>
+          <tr><td>sing-box 迁移（DNS 规则 action 变更、TUN <code>stack</code> 废弃）</td><td><a href="https://sing-box.sagernet.org/migration/">sing-box.sagernet.org/migration</a></td><td><span class="p-tag official">官方</span></td></tr>
+          <tr><td>Hysteria2 入站字段与 obfs</td><td><a href="https://sing-box.sagernet.org/configuration/inbound/hysteria2/">configuration/inbound/hysteria2</a></td><td><span class="p-tag official">官方</span></td></tr>
+          <tr><td>WireGuard endpoint 结构</td><td><a href="https://sing-box.sagernet.org/configuration/endpoint/wireguard/">configuration/endpoint/wireguard</a></td><td><span class="p-tag official">官方</span></td></tr>
+          <tr><td>IPQS Fraud Score 字段与官方阈值</td><td><a href="https://www.ipqualityscore.com/documentation/proxy-detection-api/response-parameters">IPQS 文档</a></td><td><span class="p-tag official">官方</span></td></tr>
+          <tr><td>GFW 解密 QUIC Initial 做 SNI 过滤（USENIX Security 2025）</td><td><a href="https://gfw.report/publications/usenixsecurity25/zh/">gfw.report</a></td><td><span class="p-tag research">研究</span></td></tr>
+          <tr><td>2026-04 全国性 UDP/QUIC 出境限制的社区汇总</td><td><a href="https://sunsetbrowser.app/blog/weekly-digest-2026-w16-cn">翻墙圈周报 W16</a></td><td><span class="p-tag community">社区</span></td></tr>
+          <tr><td>Hysteria2 在电信/联通/移动的差异化表现与 obfs + 端口跳跃实践</td><td><a href="https://www.chonglangbiji.com/protocols/hysteria2-tuic-v5-real-world-2026/">2026 实测对照</a></td><td><span class="p-tag community">社区</span></td></tr>
+          <tr><td>OpenAI 对 WARP IPv4 的定向拒绝实测</td><td><a href="https://linux.do/t/topic/2796766">linux.do 实测帖</a></td><td><span class="p-tag community">社区</span></td></tr>
+          <tr><td>WARP 与 AI 站点（Cloudflare 社区报告）</td><td><a href="https://community.cloudflare.com/t/warp-plus-in-hongkong-location-not-working-with-chatgpt/729294">Cloudflare Community</a></td><td><span class="p-tag community">社区</span></td></tr>
+          <tr><td>CN2 GIA 价格段与厂商对比（2026）</td><td><a href="https://vps-craft.com/compare/cn2-gia-vps-price-compare-2026">价格段对比</a></td><td><span class="p-tag community">社区</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="p-foot">
+  <div class="p-shell">
+    <p><b>合规声明：</b>本方案仅面向本人自用的科研与学习场景，需遵守所在地法律法规与相关服务条款；不对「无法被识别」做任何保证；不分享账号、不转售节点。文中的 <span class="p-tag community">社区</span> 数据与价格会随时间变化，落地前请按第 1 节的方法在你自己的网络上复测。</p>
+    <p style="margin-top:16px"><b>配套文档</b></p>
+    <div class="p-files">
+      <div><a href="deploy/index.html"><b>部署手册</b></a><br>六步主流程、一键脚本、排查手册与按设备分发的客户端配置</div>
+      <div><a href="quality/index.html"><b>SSH 加固手册</b></a><br>仅公钥登录、速率限制与 fail2ban；客户端配置、服务端加固、验收与参数取舍</div>
+      <div><a href="issue/index.html"><b>问题记录</b></a><br>真实环境里踩到的坑，含判据、处置命令与验收清单</div>
+      <div><a href="vps-shortlist.html"><b>服务器采购清单</b></a><br>满足下单门槛的 6 家厂商与 8 个机型，含支付方式与换 IP 能力</div>
+      <div><a href="方案.md"><b>完整文字方案</b></a><br>选型、协议、客户端配置骨架、分流与 DNS、运维与故障手册</div>
+      <div><a href="diagrams/01-architecture.html">图 1 总体架构</a> · <a href="diagrams/02-ai-request-path.html">图 2 AI 分流链路</a> · <a href="diagrams/03-failover-lifecycle.html">图 3 降级切换</a> · <a href="diagrams/04-rollout-workflow.html">图 4 实施与验收</a></div>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
