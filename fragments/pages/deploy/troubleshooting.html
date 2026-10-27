@@ -120,20 +120,24 @@ curl -s -H "Authorization: Bearer $S" "http://$C/connections" | grep -o '"chains
 <pre><code>Get-DnsClientServerAddress -AddressFamily IPv4 | Where-Object { $_.ServerAddresses }
 Get-NetAdapterBinding | Where-Object { $_.Enabled -and $_.ComponentID -notlike "ms_*" }</code></pre>
 <p>判据是目标端口：绑定网卡时连公共 DNS 的 443 与 853 立即被拒，53 正常，连节点 IP 的 443 也正常。这种情况来自企业终端策略，禁止用 DoH/DoT 绕过内网 DNS，改服务端参数没有用。</p>
-<p><b>方案一，给直连出站指定源地址。</b>在客户端配置里只给 <code>direct</code> 出站加一项，值填本机在当前网络的 IPv4 地址：</p>
+<p>两种改法都有脚本，不必手改 JSON：</p>
+<pre><code>bash bin/win/convert.sh 客户端配置.json --mode bind    # 方式一
+bash bin/win/convert.sh 客户端配置.json --mode local   # 方式二
+bash bin/win/run.sh 客户端配置-bind.json                # 校验通过后启动</code></pre>
+<p><b>方式一，给直连出站指定源地址。</b>脚本做的事是给 <code>direct</code> 出站加一项，值填本机在当前网络的 IPv4 地址，等价于手写：</p>
 <pre><code>{ "type": "direct", "tag": "direct", "domain_resolver": { "server": "dns-cn" },
   "inet4_bind_address": "192.168.8.150" }</code></pre>
 <p>触发拦截的是按接口绑定 socket，指定源地址走的是另一条路径，实测放行。填之前先用 <code>ipconfig</code> 确认，换网络后这个值要跟着改。</p>
-<p><b>方案二，国内解析交给系统。</b>把国内 DNS 换成系统解析，由操作系统去问内网 DNS：</p>
+<p><b>方式二，国内解析交给系统。</b>把国内 DNS 换成系统解析，由操作系统去问内网 DNS：</p>
 <pre><code>{ "type": "local", "tag": "dns-cn" }</code></pre>
 <p>不再有直连公共 DNS 的 443 出站。系统若启用了 DNS over HTTPS，加密由操作系统承担。</p>
-<p><b>方案三，绑到虚拟网卡。</b>策略绑定在物理网卡上，把出站绑到一块 NAT 出去的虚拟网卡可以避开命中。需要管理员与 Hyper-V，本机未做验证，仅作为前两条都不可行时的备选：</p>
+<p><b>方式三，绑到虚拟网卡。</b>策略绑定在物理网卡上，把出站绑到一块 NAT 出去的虚拟网卡可以避开命中。需要管理员与 Hyper-V，本机未做验证，仅作为前两条都不可行时的备选：</p>
 <pre><code>New-VMSwitch -Name singbox -SwitchType Internal
 New-NetIPAddress -IPAddress 192.168.199.1 -PrefixLength 24 -InterfaceAlias "vEthernet (singbox)"
 New-NetNat -Name singbox-nat -InternalIPInterfaceAddressPrefix 192.168.199.0/24
 # 之后渲染设备配置时指定该网卡
 AUTO_DETECT_INTERFACE=false DEFAULT_INTERFACE="vEthernet (singbox)" sudo bash bin/deploy/device.sh export 设备名</code></pre>
-<p>验收判据与方案一相同：启动不再出现 <code>10049</code>，国内站点仍直连。</p>
+<p>验收判据与方式一相同：启动不再出现 <code>10049</code>，国内站点仍直连。</p>
 <div class="bad"><b>不要用「关掉接口绑定还开着 TUN」来绕。</b><code>auto_detect_interface</code> 关掉又没给 <code>default_interface</code> 时，直连流量会从隧道出口绕回自己，表现为国内站点变慢或走境外。</div>
 
 <h3 id="reality-noise">日志里的 <code>REALITY: processed invalid connection</code></h3>

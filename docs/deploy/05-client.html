@@ -143,6 +143,18 @@ nssm set sing-box AppStdout C:\sing-box\logs\stdout.log
 nssm set sing-box AppStderr C:\sing-box\logs\stderr.log
 nssm start sing-box</code></pre>
 
+<h3>管控机：两种改法</h3>
+<p>受管终端禁止直连公共 DNS 的 443 与 853 时，配置里的国内 DoH 会让启动失败，报 <code>connectex: The requested address is not valid in its context</code>。用 <code>bin/win/convert.sh</code> 就地生成两种可用版本，不改动服务器下发的那份：</p>
+<pre><code># 方式一：给 direct 出站指定源地址，源地址默认取默认路由网卡的 IPv4
+bash bin/win/convert.sh 客户端配置.json --mode bind
+
+# 方式二：国内解析交给系统
+bash bin/win/convert.sh 客户端配置.json --mode local
+
+# 指定源地址或输出路径
+bash bin/win/convert.sh 客户端配置.json --mode bind --bind-address 192.168.8.150 --out .\config.json</code></pre>
+<p>产物默认落在源文件旁边，文件名带 <code>-bind</code> 或 <code>-local</code> 后缀。脚本会依次在配置目录、当前目录与 <code>PATH</code> 里找 <code>sing-box</code> 并校验产物；找不到就跳过，用 <code>--sing-box</code> 指定。两种改法的原因与判据见<a href="troubleshooting.html#corp-doh">排查手册</a>。</p>
+
 <h3>macOS：只留一个客户端</h3>
 <p>两台代理客户端同时接管流量时，症状无法归因：断流、DNS 泄漏、TUN 抢路由三者互相掩盖。统一用 SFM，其余客户端全部退出并停用系统代理。</p>
 <pre><code># 1. 关掉其他客户端的接管，退出 App（含菜单栏图标）
@@ -217,6 +229,10 @@ sudo bash bin/deploy/device.sh export laptop
 sha256sum -c laptop-*.tar.gz.sha256 &amp;&amp; tar -xzf laptop-*.tar.gz
 cd C:sing-box &amp;&amp; .sing-box.exe check -c config.json
 .sing-box.exe run -c config.json
+
+# 管控机：生成可用版本并启动
+bash bin/win/convert.sh 客户端配置.json --mode bind      # 或 --mode local
+bash bin/win/run.sh 客户端配置-bind.json                  # 先校验再前台运行
 
 # 客户端：验收
 SERVER_IP=你的服务器IP bash bin/deploy/client/verify.sh --no-cli --proxy socks5h://127.0.0.1:2080</code></pre>
