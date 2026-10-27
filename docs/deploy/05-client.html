@@ -111,6 +111,45 @@ cd /tmp &amp;&amp; sha256sum -c laptop-*.tar.gz.sha256 &amp;&amp; tar -xzf lapto
 <div class="note"><b>GUI 客户端导入的是副本。</b>服务器重新导出后必须<b>重新导入</b>，直接改手里那个 JSON 对已经导入的配置无效。SFM 的副本在 <code>~/Library/Group Containers/P8XK3KHB48.io.nekohasekai.sfamt/configs/</code>。</div>
 <p>桌面那份配置的本地端口是 <code>127.0.0.1:2080</code>，验收脚本默认就用它。图形客户端自带端口设置时以界面为准，验收时显式传 <code>--proxy</code>。</p>
 
+<h2 id="gui-sfm">GUI.for.SingBox 的订阅与规则</h2>
+<p>GUI.for.SingBox 不把整份配置当订阅：它的订阅只吃 sing-box 的 <code>outbounds</code> 节点数组，路由、DNS、入站都由「配置」页自己生成。两者填错任一处，内核启动即失败。</p>
+
+<h3>订阅填节点，不填配置</h3>
+<p>订阅内容只放真实节点，也就是设备 JSON 的 <code>outbounds</code> 里 <code>type</code> 为 <code>vless</code> 与 <code>hysteria2</code> 的两项。整份配置也能被它读进来，但 <code>urltest</code>、<code>direct</code> 会被 <code>excludeProtocol</code> 丢掉，等于什么都没留下：</p>
+<pre><code>[
+  { "type": "vless", "tag": "vps-reality", "server": "hy2.example.top", "server_port": 443,
+    "uuid": "……", "flow": "xtls-rprx-vision",
+    "tls": { "enabled": true, "server_name": "www.apple.com",
+             "utls": { "enabled": true, "fingerprint": "chrome" },
+             "reality": { "enabled": true, "public_key": "……", "short_id": "……" } } },
+  { "type": "hysteria2", "tag": "vps-hy2", "server": "hy2.example.top", "server_port": 8443,
+    "server_ports": ["8443:8447"], "password": "……",
+    "obfs": { "type": "salamander", "password": "……" },
+    "tls": { "enabled": true, "server_name": "hy2.example.top" } }
+]</code></pre>
+<p>两段内容从设备 JSON 原样拷过来即可，不要改字段名。订阅导入后点「更新」，节点数应为 2。</p>
+
+<h3>规则页三处必须填全</h3>
+<div class="tw">
+<table>
+<thead><tr><th>位置</th><th>必须填</th><th>漏了会怎样</th></tr></thead>
+<tbody>
+<tr><td>出站的分组</td><td>组里加入订阅节点，或填包含关键词；另需一个 <code>direct</code> 出站</td><td>生成 <code>"outbounds": []</code>，内核报 <code>initialize outbound[N]: missing tags</code></td></tr>
+<tr><td>DNS 规则</td><td>每条规则都选「服务器」</td><td>生成缺 <code>server</code> 的规则，内核报 <code>parse dns rule[N]: missing server field</code></td></tr>
+<tr><td>路由规则</td><td>每条 route 规则的出站必须指向存在的出站</td><td>指向已删除的分组时，启动报 <code>dependency[X] not found for outbound[Y]</code>；不指出站则该条不生效，服务器直连规则会失效</td></tr>
+</tbody>
+</table>
+</div>
+<div class="bad"><b>GUI 不校验这些空值。</b>组为空、DNS 规则没选服务器、路由指向已删的出站，界面都能保存并生成 JSON，只有启动内核时才报错。改完规则先用 <code>sing-box check</code> 验一遍再启动。</div>
+
+<h3>用源文件手写时的四个易错点</h3>
+<ol>
+<li>组里写了成员 tag 却忘了把成员出站本身写进 <code>outbounds</code>：内核在连接阶段报 <code>dependency[proxy] not found</code>。</li>
+<li>DNS 规则照抄 <code>{"action": "route", "rule_set": ["geosite-cn"]}</code>：1.12 起 <code>route</code> 动作必须带 <code>server</code>。</li>
+<li>路由规则照抄 <code>{"action": "route", "ip_cidr": ["…/32"]}</code>：不报错，但这条不再指向 <code>direct</code>，服务器 IP 会被送进隧道，SSH 立刻被断。</li>
+<li>节点名里的分隔符在 GBK 环境下可能变字：<code>vps · 4.5G</code> 被转成 <code>vps 路 4.5G</code>，组与成员 tag 就对不上了。跨工具复制时把名字改成纯 ASCII，例如 <code>vps-4.5G</code>。</li>
+</ol>
+
 <h2 id="ncli">验收</h2>
 <p>图形客户端把核心装在扩展或 App 里，本机没有 <code>sing-box</code> 可执行文件。免 CLI 子集只借客户端已经开好的本地端口：</p>
 <pre><code>SERVER_IP=你的服务器IP bash bin/deploy/client/verify.sh --no-cli --proxy socks5h://127.0.0.1:2080</code></pre>

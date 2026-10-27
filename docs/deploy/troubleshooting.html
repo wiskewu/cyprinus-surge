@@ -136,6 +136,9 @@ details .body{padding:4px 14px 14px}
 <thead><tr><th>报错</th><th>原因</th><th>动作</th></tr></thead>
 <tbody>
 <tr><td><code>initialize outbound[N]: missing tags</code></td><td>某个 <code>urltest</code> / <code>selector</code> 分组的 <code>outbounds</code> 是空的</td><td>节点没被登记进分组。用 GUI 的「编辑节点」手动加一次，或改用命令行跑完整配置</td></tr>
+<tr><td><code>parse dns rule[N]: missing server field</code></td><td>DNS 规则没选服务器。1.12 起 <code>action: route</code> 的 DNS 规则必须带 <code>server</code></td><td>GUI 的「配置 → DNS」里给每条规则选一台服务器；手写时补 <code>"server": "dns-cn"</code> 这类字段</td></tr>
+<tr><td><code>start outbound: dependency[X] not found for outbound[Y]</code></td><td>分组里写的成员 tag 在 <code>outbounds</code> 中不存在</td><td>删过节点、或手写时只写了组成员没写成员出站。对齐 tag，或把成员出站补进 <code>outbounds</code></td></tr>
+<tr><td>路由规则加了却不起作用</td><td>规则带了 <code>action: route</code> 却没选 <code>outbound</code></td><td>这种规则不会报错，只在命中后沿用最终出站。服务器直连规则漏了出站，表现就是 SSH 被绕进隧道</td></tr>
 <tr><td><code>duplicate outbound/endpoint tag: direct</code></td><td>订阅文件（或配置）里放了自己的 <code>direct</code> / <code>block</code></td><td>订阅里只放<b>节点</b>（vless / vmess / trojan / hysteria2…），不要放 direct / block / dns</td></tr>
 </tbody>
 </table>
