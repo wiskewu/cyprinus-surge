@@ -44,6 +44,12 @@ cd /tmp &amp;&amp; sha256sum -c laptop-*.tar.gz.sha256 &amp;&amp; tar -xzf lapto
 <p>在 <code>~/.ssh/config</code> 里配好 <code>Host</code> 别名后，第一行可简写为 <code>scp vps:/etc/sing-box/clients/dist/laptop-*.tar.gz* /tmp/</code>。macOS 没有 <code>sha256sum</code>，用 <code>shasum -a 256 -c laptop-*.tar.gz.sha256</code>。</p>
 <p>解出的文件名形如 <code>sing-box-client-laptop-desktop.json</code>，中间是设备名，末尾是平台。包里只有这一台设备的配置与校验和。</p>
 
+<h3>非 sing-box 客户端：用分享链接</h3>
+<p>设备包里除了 JSON 还有一份 <code>URI.txt</code>，是与该 JSON 完全同源的两条分享链接，供只认 URI 的客户端使用。需要单独取某台的链接时在服务器上执行，只读，不改配置也不重启服务：</p>
+<pre><code>sudo bash bin/deploy/share.sh laptop      # 打印这一台的 vless 与 hy2 链接
+sudo bash bin/deploy/share.sh --all       # 打印名单里所有设备的链接</code></pre>
+<p>链接里的主机名、端口、SNI、REALITY 公钥与 short_id、HY2 混淆密码与端口跳跃区间全部取自 <code>deploy.env</code>，凭据取自 <code>devices.list</code>，换凭据后重新执行即可拿到新链接。REALITY 用 <code>pbk</code> + <code>sid</code>，HY2 走真证书因此不带 <code>insecure=1</code>。</p>
+
 <h3>Windows：命令行运行</h3>
 <p>把配置放到 <code>C:\sing-box\config.json</code>，在管理员 PowerShell 里前台运行：</p>
 <pre><code>cd C:\sing-box

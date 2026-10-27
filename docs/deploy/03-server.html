@@ -119,7 +119,8 @@ sudo bash bin/deploy/device.sh add laptop [desktop|android|ios]   # 默认 deskt
 sudo bash bin/deploy/device.sh rotate laptop                       # 换凭据，旧配置立刻失效
 sudo bash bin/deploy/device.sh revoke laptop                       # 删掉，两条入口同时失效
 sudo bash bin/deploy/device.sh render laptop                       # 只重渲染客户端配置
-sudo bash bin/deploy/device.sh export laptop                       # 渲染并打包，附校验和</code></pre>
+sudo bash bin/deploy/device.sh export laptop                       # 渲染并打包，附校验和与 URI.txt
+sudo bash bin/deploy/share.sh laptop                               # 只打印这一台的分享链接</code></pre>
 <p>产品在 <code>/etc/sing-box/clients/sing-box-client-&lt;名字&gt;-&lt;平台&gt;.json</code>，<code>export</code> 的压缩包在 <code>/etc/sing-box/clients/dist/</code>。传输由客户端发起，源在服务器一侧，端口用 <code>-P</code>：</p>
 <pre><code># 在客户端执行
 scp -P 你的SSH端口 root@服务器IP:/etc/sing-box/clients/dist/laptop-*.tar.gz* /tmp/</code></pre>

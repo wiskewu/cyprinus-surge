@@ -188,6 +188,7 @@ sudo bash bin/deploy/ops/backup.sh list</code></pre>
 <tbody>
 <tr><td>验收</td><td><code>SERVER_IP=你的服务器IP bash bin/deploy/client/verify.sh --no-cli --proxy socks5h://127.0.0.1:2080</code></td></tr>
 <tr><td>导出设备包</td><td><code>sudo bash bin/deploy/device.sh export 名字</code></td></tr>
+<tr><td>分享链接</td><td><code>sudo bash bin/deploy/share.sh 名字</code> 或 <code>--all</code></td></tr>
 <tr><td>备份与恢复</td><td><code>sudo bash bin/deploy/ops/backup.sh backup|list|restore 文件</code></td></tr>
 <tr><td>探针</td><td><code>sudo bash bin/deploy/ops/monitor.sh [--probe|--status|--uninstall]</code></td></tr>
 <tr><td>轮换</td><td><code>sudo bash bin/deploy/rotate.sh short-id|obfs|device 名字|devices|all</code></td></tr>
