@@ -15,6 +15,7 @@ usage() {
 
   deploy    建节点：sing-box、REALITY、Hysteria2      → bin/deploy/deploy.sh
   device    设备凭据 add / list / rotate / revoke     → bin/deploy/device.sh
+  share     设备分享链接（vless / hy2）                → bin/deploy/share.sh
   harden    SSH 加固                                  → bin/harden/harden.sh
   client    客户端密钥与免密登录                      → bin/harden/client.sh
   audit     验收：加固验收、服务端自检、客户端验收     → bin/harden/audit.sh 等
@@ -28,6 +29,7 @@ EOF
 
 deploy() { exec bash "${SELF_DIR}/deploy/deploy.sh" "$@"; }
 device() { exec bash "${SELF_DIR}/deploy/device.sh" "$@"; }
+share() { exec bash "${SELF_DIR}/deploy/share.sh" "$@"; }
 harden() { exec bash "${SELF_DIR}/harden/harden.sh" "$@"; }
 client() { exec bash "${SELF_DIR}/harden/client.sh" "$@"; }
 
@@ -107,6 +109,10 @@ case "${1:-}" in
     shift
     device "$@"
     ;;
+  share)
+    shift
+    share "$@"
+    ;;
   harden)
     shift
     harden "$@"
@@ -129,6 +135,7 @@ case "${1:-}" in
       "deploy|部署节点：系统初始化到 Hysteria2" \
       "harden|SSH 加固：仅公钥登录、限速、fail2ban" \
       "device|设备凭据：新增、轮换、吊销、渲染" \
+      "share|设备分享链接：vless / hy2" \
       "audit|验收：加固、服务端、客户端" \
       "ops|运维：备份、监控、端口跳跃" \
       "client|客户端密钥与免密登录"
@@ -136,6 +143,7 @@ case "${1:-}" in
       deploy) deploy ;;
       harden) harden ;;
       device) device ;;
+      share) share ;;
       audit) audit ;;
       ops) ops ;;
       client) client ;;

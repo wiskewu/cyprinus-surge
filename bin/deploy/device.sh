@@ -36,7 +36,8 @@ usage() {
   rotate <名字>             换掉凭据，旧配置立刻失效
   revoke <名字>             删除设备，立刻失效
   render <名字>             只重新渲染该设备的客户端配置，不动服务端
-  export <名字>             渲染并打包成 tar.gz，附 SHA256SUMS，供分发与回滚
+  export <名字>             渲染并打包成 tar.gz，附 SHA256SUMS 与 URI.txt
+  share <名字>              只打印这一台的分享链接（等价于 bin/deploy/share.sh）
 
 环境变量：
   DEVICES_LIST  设备名单路径（默认 /etc/sing-box/devices.list）
@@ -199,6 +200,14 @@ case "${CMD}" in
     log "记得把那台机器上的配置删掉，以及从任何保存了凭据的地方清除"
     ;;
 
+  share)
+    [[ $# -ge 1 ]] || {
+      usage
+      die "share 需要设备名"
+    }
+    device_exists "$1" || die "设备名单里没有 $1"
+    uri_list "$1"
+    ;;
   export)
     [[ $# -ge 1 ]] || {
       usage
@@ -219,7 +228,9 @@ case "${CMD}" in
     stage=""
     mktemp_dir stage
     cp "${src}" "${stage}/"
-    (cd "${stage}" && sha256sum ./*.json >SHA256SUMS)
+    # 同一份凭据的分享链接：供只认 URI 的客户端导入
+    uri_list "${NAME}" >"${stage}/URI.txt"
+    (cd "${stage}" && sha256sum ./*.json ./URI.txt >SHA256SUMS)
     tar -czf "${pkg}" -C "${stage}" .
     (cd "${dist}" && sha256sum "$(basename "${pkg}")" >"$(basename "${pkg}").sha256")
     chmod 600 "${pkg}" "${pkg}.sha256"

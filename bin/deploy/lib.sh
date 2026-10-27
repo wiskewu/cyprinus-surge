@@ -235,6 +235,57 @@ device_get() {
 
 device_exists() { device_get "$1" >/dev/null 2>&1; }
 
+# ---------------------------------- 分享链接
+# 把同一份凭据拼成 URI，供只认分享链接的客户端用（v2rayN、mihomo、手机 App）。
+# 与设备 JSON 出自同一份 devices.list 与 deploy.env，参数必须与之保持一致。
+
+# 百分号编码：密码里可能出现 + / =
+urlenc() {
+  if command -v jq >/dev/null 2>&1; then
+    jq -rn --arg s "$1" '$s|@uri'
+    return 0
+  fi
+  printf '%s' "$1" | sed -e 's/%/%25/g' -e 's/:/%3A/g' -e 's|/|%2F|g' -e 's/+/%2B/g' \
+    -e 's/=/%3D/g' -e 's/@/%40/g' -e 's/ /%20/g'
+}
+
+# 链接里的主机：有域名时用域名（证书与 SNI 都按它签），否则用公网 IP
+uri_host() {
+  if [[ -n "${DOMAIN:-}" ]]; then
+    printf '%s' "${DOMAIN}"
+  else
+    printf '%s' "${SERVER_IP:-}"
+  fi
+}
+
+# VLESS REALITY：uuid 取自该设备的凭据，sni 与 pbk、sid 取自 deploy.env
+uri_vless() { # $1=设备名 $2=凭据
+  printf 'vless://%s@%s:%s?encryption=none&flow=xtls-rprx-vision&security=reality&sni=%s&fp=chrome&pbk=%s&sid=%s&type=tcp#%s\n' \
+    "$2" "$(uri_host)" "${VLESS_PORT:-443}" "${REALITY_SERVER_NAME:-${REALITY_DEST:-}}" \
+    "${REALITY_PUBLIC_KEY}" "${SHORT_ID}" "$(urlenc "$1")"
+}
+
+# Hysteria2：密码与该设备的 uuid 相同，带 salamander 混淆与端口跳跃区间
+uri_hy2() { # $1=设备名 $2=凭据
+  local hop
+  [[ "${ENABLE_HY2:-0}" == "1" ]] || return 0
+  hop="${HY2_HOP_RANGE:-}"
+  printf 'hy2://%s@%s:%s/?sni=%s&alpn=h3&obfs=salamander&obfs-password=%s' \
+    "$(urlenc "$2")" "$(uri_host)" "${HY2_PORT:-8443}" "${DOMAIN}" "$(urlenc "${OBFS_PASSWORD:-}")"
+  # 区间写成 8443:8447，URI 里写 mport=8443-8447
+  [[ -n "${hop}" ]] && printf '&mport=%s' "$(printf '%s' "${hop}" | tr ':' '-')"
+  printf '#%s\n' "$(urlenc "$1-hy2")"
+}
+
+# 一台设备的全部链接：vless 在前，hy2 仅在其启用时输出
+uri_list() { # $1=设备名
+  local cred
+  cred="$(device_get "$1" | awk '{print $1}')"
+  [[ -n "${cred}" ]] || return 1
+  uri_vless "$1" "${cred}"
+  uri_hy2 "$1" "${cred}"
+}
+
 # ---------------------------------------------------------------- 用量与告警
 # 当月已用流量（字节），数据源 vnstat；取不到时输出空，调用方据此省略标签
 month_bytes() {
