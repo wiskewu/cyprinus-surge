@@ -1,16 +1,17 @@
 <h1>服务端加固</h1>
-<p class="lede">主读者：在服务器上执行加固的运维者。本页只做一件事：把 <code>bin/harden/harden.sh</code> 跑对，并能随时回滚。</p>
+<p class="lede">在服务器上执行加固：关闭密码登录、限制认证尝试、启用速率限制与封禁。本页覆盖执行顺序、写入的配置、公钥清点与回滚。</p>
 
-<h2>前置条件</h2>
+<h2>目标</h2>
+<p>加固后服务端只接受公钥认证，root 只能用密钥，端口上有限速规则，失败尝试由 fail2ban 封禁；同时保证任何一步失败都不会让 SSH 变得不可用。</p>
+
+<h2>准备工作</h2>
 <ul>
-<li>已按 <a href="01-client.html">客户端配置</a> 装好公钥，并且用密钥成功登录过一次。</li>
-<li>当前会话保持打开，另开一个终端用于验证。</li>
-<li>云控制台的 VNC 或串口可用，作为最终兜底。</li>
+<li>已按<a href="01-client.html">客户端配置</a>装好公钥，并且用密钥成功登录过一次</li>
+<li>当前会话保持打开，另开一个终端用于验证</li>
+<li>云控制台的 VNC 或串口可用，作为最终兜底</li>
 </ul>
-
-<h2>先看现状</h2>
+<p>先看现状，端口取自 <code>sshd -T</code>，不假设是 22：</p>
 <pre><code>sudo bash bin/harden/harden.sh --check</code></pre>
-<p>输出示例，端口取自 <code>sshd -T</code>，不假设是 22：</p>
 <pre><code>sshd 端口          : 4061
 密码登录           : yes
 root 登录          : yes
@@ -21,9 +22,9 @@ MaxStartups        : 10:30:100
 重复公钥           : 0
 本次会话公钥登录   : 是
 加固片段           : 不存在</code></pre>
-<p><code>本次会话公钥登录</code> 为「否」时不要继续。脚本依赖这一项判断是否可以安全关闭密码登录。</p>
+<div class="bad"><b><code>本次会话公钥登录</code> 为「否」时不要继续。</b>脚本依赖这一项判断是否可以安全关闭密码登录。</div>
 
-<h2>应用</h2>
+<h2>实施步骤</h2>
 <pre><code>sudo bash bin/harden/harden.sh
 sudo bash bin/harden/harden.sh --whitelist 198.51.100.20   # 顺手把常用出口加入 fail2ban 白名单</code></pre>
 <p>脚本按下列顺序执行，任何一步失败都不会让 SSH 不可用：</p>
@@ -36,9 +37,51 @@ sudo bash bin/harden/harden.sh --whitelist 198.51.100.20   # 顺手把常用出�
 <li><code>ufw limit &lt;端口&gt;/tcp</code>，并删除同端口的 <code>allow</code> 规则。</li>
 <li>写 fail2ban 的 <code>sshd</code> jail 与白名单，reload 并确认运行。</li>
 </ol>
-<div class="note"><b>只 reload，不 restart。</b>reload 保留现有会话，restart 会短暂拒绝新连接。脚本不重启 sshd。</div>
+<div class="note"><b>只 reload，不 restart。</b>reload 保留现有会话，restart 会短暂拒绝新连接，脚本不重启 sshd。</div>
 
-<h2>写入的配置</h2>
+<h3>已装公钥的清点与去重</h3>
+<p>重复执行 <code>ssh-copy-id</code> 或从多台机器追加公钥，会让同一把公钥在 <code>authorized_keys</code> 里出现多次。脚本不会自动删，先看清单再决定：</p>
+<pre><code>sudo bash bin/harden/harden.sh --keys      # 指纹、注释、文件:行号，并给出重复数
+sudo bash bin/harden/harden.sh --dedupe    # 同一把公钥只保留第一次出现，改动前备份为 .bak</code></pre>
+<pre><code>文件  指纹与信息：
+  SHA256:bITvBsN003zJLsvkczTKO5IaIPw3fa3sjZuBqNjWzyk  laptop  /root/.ssh/authorized_keys:2
+  SHA256:rwjRtPuv/eKMqaOiFREHT3+uKj+8VltZvP9P4egDMuI  phone   /root/.ssh/authorized_keys:3
+  SHA256:bITvBsN003zJLsvkczTKO5IaIPw3fa3sjZuBqNjWzyk  laptop  /root/.ssh/authorized_keys:4
+
+重复公钥：1 把（sudo bash bin/harden/harden.sh --dedupe 可删掉多余行）</code></pre>
+<p>应用加固时若检测到重复，脚本会先问一次要不要去重；选不去重也能继续，只是回滚与吊销时容易漏。</p>
+<div class="note">吊销某台设备的登录权：在 <code>--keys</code> 里找到那行的指纹与行号，删掉对应行即可。<code>--dedupe</code> 只删同一把公钥的重复行，不会删掉唯一的公钥，因此不会把人关在门外。</div>
+
+<h2>检查与验证</h2>
+<pre><code>sshd -T | grep -iE '^(passwordauthentication|permitrootlogin|maxauthtries|maxstartups)'
+ufw status numbered | grep 4061
+fail2ban-client status sshd</code></pre>
+<p>三条判据：<code>passwordauthentication</code> 为 <code>no</code>、<code>permitrootlogin</code> 为 <code>without-password</code> 或 <code>prohibit-password</code>、<code>maxauthtries</code> 为 <code>3</code>。ufw 里该端口应显示 <code>LIMIT</code>，fail2ban 的 <code>sshd</code> jail 应为运行中。完整验收在客户端侧执行，见<a href="03-verify.html">验收与排障</a>。</p>
+
+<h2>下一步</h2>
+<p>到<a href="03-verify.html">验收与排障</a>做独立验收。要调整默认值或评估额外加固项，见<a href="04-reference.html">参数与取舍</a>。</p>
+
+<h2>回退与卸载</h2>
+<pre><code>sudo bash bin/harden/harden.sh --uninstall</code></pre>
+<p>删除加固片段，从 <code>/root/ssh-hardening/latest</code> 还原被就地改写的文件，恢复 <code>PasswordAuthentication yes</code> 与 <code>ufw allow</code>，然后 reload。回滚后应立刻用密码登录验证一次，再关闭当前会话。</p>
+<div class="warn"><b>回滚会重新打开密码登录。</b>只在确认能登录的前提下使用，并在处理完问题后再次执行加固。</div>
+
+<h2>命令手册</h2>
+<div class="tw">
+<table>
+<thead><tr><th>动作</th><th>命令</th></tr></thead>
+<tbody>
+<tr><td>看现状</td><td><code>sudo bash bin/harden/harden.sh --check</code></td></tr>
+<tr><td>应用加固</td><td><code>sudo bash bin/harden/harden.sh [--whitelist IP]</code></td></tr>
+<tr><td>清点公钥</td><td><code>sudo bash bin/harden/harden.sh --keys</code></td></tr>
+<tr><td>公钥去重</td><td><code>sudo bash bin/harden/harden.sh --dedupe</code></td></tr>
+<tr><td>回滚</td><td><code>sudo bash bin/harden/harden.sh --uninstall</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>参数说明</h2>
+<p>加固片段写入的九项值：</p>
 <div class="tw">
 <table>
 <thead><tr><th>项</th><th>值</th><th>作用</th></tr></thead>
@@ -55,24 +98,19 @@ sudo bash bin/harden/harden.sh --whitelist 198.51.100.20   # 顺手把常用出�
 </tbody>
 </table>
 </div>
-<p><code>MaxStartups</code> 与 <code>LoginGraceTime</code> 在小内存机器上收益明确：每个未认证连接都占一个 sshd 进程。空闲会话 10 分钟断开，长任务要用 <code>tmux</code> 或 <code>nohup</code>。</p>
+<p><code>MaxStartups</code> 与 <code>LoginGraceTime</code> 在小内存机器上收益明确：每个未认证连接都占一个 sshd 进程。空闲会话 10 分钟断开，长任务要用 <code>tmux</code> 或 <code>nohup</code>。<code>--whitelist</code> 写入 fail2ban 的 <code>ignoreip</code>，可重复给多个地址，默认只含回环地址。</p>
 
-<h2>已装公钥的清点与去重</h2>
-<p>重复执行 <code>ssh-copy-id</code> 或从多台机器追加公钥，会让同一把公钥在 <code>authorized_keys</code> 里出现多次。脚本不会自动删，先看清单再决定：</p>
-<pre><code>sudo bash bin/harden/harden.sh --keys      # 指纹、注释、文件:行号，并给出重复数
-sudo bash bin/harden/harden.sh --dedupe    # 同一把公钥只保留第一次出现，改动前备份为 .bak</code></pre>
-<pre><code>文件  指纹与信息：
-  SHA256:bITvBsN003zJLsvkczTKO5IaIPw3fa3sjZuBqNjWzyk  laptop  /root/.ssh/authorized_keys:2
-  SHA256:rwjRtPuv/eKMqaOiFREHT3+uKj+8VltZvP9P4egDMuI  phone   /root/.ssh/authorized_keys:3
-  SHA256:bITvBsN003zJLsvkczTKO5IaIPw3fa3sjZuBqNjWzyk  laptop  /root/.ssh/authorized_keys:4
-
-重复公钥：1 把（sudo bash bin/harden/harden.sh --dedupe 可删掉多余行）</code></pre>
-<p>应用加固时若检测到重复，脚本会先问一次要不要去重；选不去重也能继续，只是回滚与吊销时容易漏。</p>
-<div class="note">吊销某台设备的登录权：在 <code>--keys</code> 里找到那行的指纹与行号，删掉对应行即可。<code>--dedupe</code> 只删「同一把公钥的重复行」，不会删掉唯一的公钥，因此不会把人关在门外。</div>
-
-<h2>回滚</h2>
-<pre><code>sudo bash bin/harden/harden.sh --uninstall</code></pre>
-<p>删除加固片段，从 <code>/root/ssh-hardening/latest</code> 还原被就地改写的文件，恢复 <code>PasswordAuthentication yes</code> 与 <code>ufw allow</code>，然后 reload。回滚后应立刻用密码登录验证一次，再关闭当前会话。</p>
-<div class="warn"><b>回滚会重新打开密码登录。</b>只在确认能登录的前提下使用，并在处理完问题后再次执行加固。</div>
+<h2>常见错误与排查</h2>
+<div class="tw">
+<table>
+<thead><tr><th>现象</th><th>原因</th><th>处理</th></tr></thead>
+<tbody>
+<tr><td>脚本拒绝执行</td><td>当前会话未通过公钥认证</td><td>先用新终端验证密钥登录，再执行</td></tr>
+<tr><td>回读后仍是旧值</td><td>排序更靠前的文件写了同一关键字</td><td><code>grep -rn PasswordAuthentication /etc/ssh/sshd_config*</code>，改靠前那一行后 reload</td></tr>
+<tr><td>登录被拒且没被 fail2ban 封禁</td><td>该来源触发了 <code>ufw limit</code></td><td>等 30 秒重试，或把固定出口加进 <code>--whitelist</code></td></tr>
+<tr><td>公钥数比预期多</td><td>重复追加</td><td><code>--keys</code> 看清楚再用 <code>--dedupe</code></td></tr>
+</tbody>
+</table>
+</div>
 
 <p style="margin-top:24px"><a href="01-client.html">← 客户端配置</a>　·　<a href="03-verify.html">验收与排障 →</a></p>

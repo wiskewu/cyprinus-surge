@@ -62,6 +62,8 @@ details{margin:10px 0;border:1px solid var(--line);border-radius:var(--r);backgr
 details>summary{cursor:pointer;padding:10px 14px;font-weight:600;font-size:14px;color:var(--acc)}
 details[open]>summary{border-bottom:1px solid var(--line)}
 details .body{padding:4px 14px 14px}
+.foot-nav{margin:0 0 6px;display:flex;flex-wrap:wrap;gap:4px 10px}
+.foot p{margin:0 0 6px}
 .foot{border-top:1px solid var(--line);background:#fff;padding:20px 0 40px;font-size:13px;color:var(--ink3)}
 @media(max-width:640px){h1{font-size:22px}.kv{grid-template-columns:1fr}}
 </style>
@@ -70,52 +72,15 @@ details .body{padding:4px 14px 14px}
 <header class="top"><div class="wrap"><a class="home" href="index.html">自建节点部署手册</a><span class="crumb">7 · 订阅与用量</span></div></header>
 <nav class="nav"><div class="wrap"><a href="index.html">0 · 总览与准备</a><a href="01-init.html">1 · 系统初始化</a><a href="02-install.html">2 · 安装与密钥</a><a href="03-server.html">3 · 服务端配置</a><a href="04-hy2.html">4 · 可选 Hysteria2</a><a href="05-client.html">5 · 客户端</a><a href="06-ops.html">6 · 验收与备份</a><a href="onekey.html">一键</a><a href="07-subscription.html" aria-current="page">7 · 订阅与用量</a><a href="troubleshooting.html">排查</a></div></nav>
 <main class="wrap">
-<h1>订阅与用量显示</h1>
-<p class="lede">主读者：需要把服务器用量与探针状态显示到客户端的人。本页是参考资料，记录商用机场的做法与本仓库选取的折中方案。</p>
+<h1>7 · 用量显示与告警</h1>
+<p class="lede">把服务器用量与探针状态反映到客户端，并在异常时收到通知。本页同时说明为什么不引入标准订阅服务。</p>
 
-<h2>商用机场的标准做法</h2>
-<p>订阅链接除了返回配置正文，还会带几个 HTTP 响应头。客户端读头，把用量与到期显示在订阅卡片上。核心是 <code>subscription-userinfo</code>：</p>
-<pre><code>subscription-userinfo: upload=1234; download=2234; total=1099511627776; expire=1798761600
-content-disposition: attachment; filename="vps.yaml"
-profile-update-interval: 24
-profile-web-page-url: https://example.com</code></pre>
-<div class="tw">
-<table>
-<thead><tr><th>头</th><th>含义</th><th>取值</th></tr></thead>
-<tbody>
-<tr><td><code>subscription-userinfo</code></td><td>用量与到期</td><td><code>upload</code> / <code>download</code> / <code>total</code> 为字节，<code>expire</code> 为 Unix 时间戳</td></tr>
-<tr><td><code>content-disposition</code></td><td>配置文件名</td><td><code>attachment; filename="x.yaml"</code>，中文需 UTF-8 百分号编码</td></tr>
-<tr><td><code>profile-update-interval</code></td><td>自动更新间隔</td><td>小时</td></tr>
-<tr><td><code>profile-web-page-url</code></td><td>订阅卡片上的主页入口</td><td>URL</td></tr>
-</tbody>
-</table>
-</div>
+<h2>目标</h2>
+<p>做完后，客户端的节点名上直接显示当月用量，异常时名称后追加一个符号；服务器侧在阈值命中时向指定通道推送。目标是不新增常驻服务、不新增对外端口。</p>
 
-<h2>三个容易踩的坑</h2>
-<div class="tw">
-<table>
-<thead><tr><th>坑</th><th>说明</th></tr></thead>
-<tbody>
-<tr><td>UA 判断</td><td>多数实现只对含 <code>clash</code> 的 UA 返回该头，用浏览器直接打开看不到</td></tr>
-<tr><td><code>proxy-providers</code> 不显示</td><td>用节点源方式引用订阅时，客户端拿不到卡片级元信息，流量与到期不显示；必须用「远程配置文件」方式导入</td></tr>
-<tr><td>sing-box 不支持订阅</td><td>官方以「不在客户端解析代理分享格式」为由关闭了订阅支持，sing-box 系 GUI 不认这些头</td></tr>
-</tbody>
-</table>
-</div>
+<h2>实施步骤</h2>
 
-<h2>客户端支持</h2>
-<div class="tw">
-<table>
-<thead><tr><th>客户端</th><th>订阅 URL</th><th>用量与到期</th></tr></thead>
-<tbody>
-<tr><td>Clash Verge Rev 1.6.0 及以上</td><td>支持</td><td>支持</td></tr>
-<tr><td>Clash Party、Stash、Shadowrocket、Karing</td><td>支持</td><td>支持</td></tr>
-<tr><td>sing-box 系 GUI（SFA / SFM / Windows）</td><td>不支持</td><td>不支持</td></tr>
-</tbody>
-</table>
-</div>
-
-<h2>本仓库的做法</h2>
+<h3>用节点名承载用量</h3>
 <p>客户端里能看到的名称就是出站 tag，所以把用量直接写进 tag，不引入订阅服务：</p>
 <pre><code>vps · 3.6G/1T         正常
 vps · 3.6G/1T ⚠       最近一次探针发现服务、端口、AI 出口或丢包异常</code></pre>
@@ -124,62 +89,89 @@ vps · 3.6G/1T ⚠       最近一次探针发现服务、端口、AI 出口或�
 <thead><tr><th>项</th><th>来源</th><th>说明</th></tr></thead>
 <tbody>
 <tr><td>用量</td><td><code>vnstat --json m</code></td><td>当月收发合计，配额取 <code>MONTHLY_QUOTA</code>，默认 <code>1T</code></td></tr>
-<tr><td>异常标记</td><td><code>probe.log</code> 最后一行，且不早于 <code>PROBE_MAX_AGE_MIN</code> 分钟（默认 15）</td><td>出现 <code>down</code> 或 AI 出口 <code>fail</code> 时追加一个符号，只用单个字符避免名称过长</td></tr>
-<tr><td>刷新时机</td><td>重渲染</td><td>名称是快照，客户端不会自己更新；改用量要重跑客户端渲染并重新分发</td></tr>
+<tr><td>异常标记</td><td><code>probe.log</code> 最后一行，且不早于 <code>PROBE_MAX_AGE_MIN</code> 分钟</td><td>出现 <code>down</code> 或 AI 出口 <code>fail</code> 时追加一个符号，只用单个字符避免名称过长</td></tr>
+<tr><td>刷新时机</td><td>重新导出设备配置</td><td>名称是快照，客户端不会自己更新；要刷新用量就重新 <code>export</code> 并分发</td></tr>
 </tbody>
 </table>
 </div>
-<p>这是快照而非实时。要实时刷新必须走订阅服务，代价见下节。</p>
+<pre><code># 服务器：重新渲染并打包，用量与异常标记随之更新
+sudo bash bin/deploy/device.sh export laptop</code></pre>
 
-<h2>告警</h2>
-<p><code>monitor.sh</code> 在探针之后评估阈值，命中即推送。阈值都可用环境变量覆盖：</p>
+<h3>配置告警</h3>
+<p><code>monitor.sh</code> 在每次探针之后评估阈值，命中即推送。先验证凭据，再交给定时器：</p>
+<pre><code>sudo bash bin/deploy/ops/monitor.sh --alert-test     # 发一条测试消息，验证通道
+sudo bash bin/deploy/ops/monitor.sh --alert-check    # 只评估阈值，不跑探针
+sudo bash bin/deploy/ops/monitor.sh                  # 装定时器，每 5 分钟跑一次</code></pre>
+<p>一个通道都没配时，异常只写进 <code>probe.log</code>，不影响探针本身。通道取值见<a href="#params">参数说明</a>。</p>
+
+<h2>检查与验证</h2>
+<ul>
+<li>客户端导入配置后，节点名应形如 <code>vps · 3.6G/1T</code>，用量与实际 <code>vnstat -m</code> 一致</li>
+<li><code>--alert-test</code> 能在手机或邮箱收到消息</li>
+<li>异常时名称后出现 <code>⚠</code>，且 <code>monitor.sh --status</code> 里能看到对应探针记录</li>
+</ul>
+
+<h2>下一步</h2>
+<p>日常维护与备份见<a href="06-ops.html">第 6 页</a>；节点异常处置见<a href="troubleshooting.html">排查手册</a>。</p>
+
+<h2>参数说明</h2>
+<div id="params"></div>
 <div class="tw">
 <table>
 <thead><tr><th>变量</th><th>默认</th><th>含义</th></tr></thead>
 <tbody>
+<tr><td><code>MONTHLY_QUOTA</code></td><td><code>1T</code></td><td>月流量配额，节点名与告警共用</td></tr>
 <tr><td><code>ALERT_TRAFFIC_PCT</code></td><td><code>80</code></td><td>当月流量占比阈值</td></tr>
 <tr><td><code>ALERT_CERT_DAYS</code></td><td><code>14</code></td><td>证书剩余天数阈值</td></tr>
 <tr><td><code>ALERT_COOLDOWN_H</code></td><td><code>6</code></td><td>同一告警的冷却小时数</td></tr>
-<tr><td><code>ALERT_TG_TOKEN</code> / <code>ALERT_TG_CHAT</code></td><td>空</td><td>Telegram 推送凭据</td></tr>
-<tr><td><code>ALERT_WEBHOOK</code></td><td>空</td><td>通用 webhook，POST JSON 正文 <code>{"text": "..."}</code></td></tr>
+<tr><td><code>PROBE_MAX_AGE_MIN</code></td><td><code>15</code></td><td>异常标记与告警只认这段时间内的记录</td></tr>
 </tbody>
 </table>
 </div>
-<pre><code>sudo bash bin/deploy/ops/monitor.sh --alert-test     # 验证推送凭据
-sudo bash bin/deploy/ops/monitor.sh --alert-check    # 只评估，不发探针</code></pre>
-<p>一个通道都没配时，异常只写进 <code>probe.log</code>，不影响探针本身。</p>
-<div class="warn"><b>探针停摆时不会误报。</b>定时器没跑、文件停在几小时前，最后一行不会自己消失。异常标记与告警检查都只认 <code>PROBE_MAX_AGE_MIN</code> 分钟内的记录，超龄就当没有数据。要调整窗口：<code>PROBE_MAX_AGE_MIN=30 bash bin/deploy/client/render.sh ./client.env</code>。</div>
-
-<h2>推送通道</h2>
-<p><code>alert_send</code> 支持同时配置多个通道，任一成功即算送达。下列通道在大陆可直连：</p>
+<p>推送通道可同时配置多个，任一成功即算送达。下列通道在大陆可直连：</p>
 <div class="tw">
 <table>
 <thead><tr><th>通道</th><th>变量</th><th>费用与限制</th></tr></thead>
 <tbody>
 <tr><td>企业微信 / 钉钉 / 飞书群机器人</td><td><code>ALERT_WECOM_WEBHOOK</code></td><td>免费，需建群并加机器人，每分钟约 20 条</td></tr>
 <tr><td>Server酱</td><td><code>ALERT_SERVERCHAN_KEY</code></td><td>免费每天 5 条，落到微信；付费约 39 元每年可到每天 1000 条</td></tr>
-<tr><td>SMTP 邮件</td><td><code>ALERT_SMTP_URL</code> / <code>ALERT_SMTP_USER</code> / <code>ALERT_SMTP_PASS</code> / <code>ALERT_MAIL_TO</code></td><td>用邮箱服务商的授权码即可，如 <code>smtps://smtp.qq.com:465</code></td></tr>
+<tr><td>SMTP 邮件</td><td><code>ALERT_SMTP_URL</code> / <code>ALERT_SMTP_USER</code> / <code>ALERT_SMTP_PASS</code> / <code>ALERT_MAIL_TO</code></td><td>用邮箱服务商授权码即可，如 <code>smtps://smtp.qq.com:465</code></td></tr>
 <tr><td>通用 webhook</td><td><code>ALERT_WEBHOOK</code></td><td>POST JSON <code>{"text": "..."}</code>，可对接自建服务</td></tr>
 <tr><td>Telegram</td><td><code>ALERT_TG_TOKEN</code> / <code>ALERT_TG_CHAT</code></td><td>服务器通常需要代理，不建议作为主通道</td></tr>
 </tbody>
 </table>
 </div>
 <p>告警量小，配一个通道即可；怕单通道故障时再补一个。</p>
+<div class="note">要调整异常标记的时间窗口，在服务器渲染前给变量：<code>PROBE_MAX_AGE_MIN=30 sudo -E bash bin/deploy/device.sh export laptop</code>。</div>
 
-<h2>改走标准订阅的代价</h2>
-<p>要显示实时用量与到期，需要独立的 HTTP 服务：读取 <code>vnstat</code> 与配额，生成配置正文并附上响应头。代价是三处新增：</p>
-<ul>
-<li>一个常驻服务与一个对外端口。当前 <code>443/tcp</code> 被 REALITY 占用，订阅只能另开端口，并靠 token 保护。</li>
-<li>一套 token 分发与轮换机制，等价于再维护一份凭据。</li>
-<li>Clash 系需要 YAML 格式，现有模板是 sing-box JSON，要另写一份模板。</li>
-</ul>
-<p>设备数量少、只有一两个人使用时，节点名方案覆盖了同样的信息，不值得为此增加一个公开服务。</p>
+<h2>常见错误与排查</h2>
+<div class="tw">
+<table>
+<thead><tr><th>现象</th><th>原因</th><th>处理</th></tr></thead>
+<tbody>
+<tr><td>告警一直没到手机</td><td>通道未配置，或凭据错误</td><td><code>monitor.sh --alert-test</code> 发测试消息；企业微信机器人有频率上限，连续测试会静默失败</td></tr>
+<tr><td>节点名里的用量不更新</td><td>名称是渲染时的快照</td><td>重新 <code>device.sh export</code> 并让客户端重新导入</td></tr>
+<tr><td>探针停摆后仍报异常</td><td>旧记录超龄仍参与判断</td><td>异常标记与告警只认 <code>PROBE_MAX_AGE_MIN</code> 分钟内的记录，超龄视为无数据；确认定时器在跑</td></tr>
+<tr><td>名称过长被客户端截断</td><td>用量与符号叠加后超出显示宽度</td><td>用 <code>NODE_LABEL</code> 缩短前缀，或调低 <code>MONTHLY_QUOTA</code> 之外的显示精度</td></tr>
+</tbody>
+</table>
+</div>
 
-<p style="margin-top:24px"><a href="06-ops.html">← 验收与备份</a>　·　<a href="index.html">总览 →</a></p>
+<h3>为什么不改用标准订阅服务</h3>
+<p>商用机场的订阅链接除返回配置正文外，还带几个响应头，客户端读头即可显示用量与到期。核心是 <code>subscription-userinfo</code>：</p>
+<pre><code>subscription-userinfo: upload=1234; download=2234; total=1099511627776; expire=1798761600
+content-disposition: attachment; filename="vps.yaml"
+profile-update-interval: 24
+profile-web-page-url: https://example.com</code></pre>
+<p>要显示实时用量与到期，需要一个独立的 HTTP 服务：读取 <code>vnstat</code> 与配额，生成配置正文并附上响应头。代价是三处新增：一个常驻服务与一个对外端口（当前 <code>443/tcp</code> 被 REALITY 占用，订阅只能另开端口并靠 token 保护）；一套 token 分发与轮换机制，等价于再维护一份凭据；Clash 系需要 YAML，而现有模板是 sing-box JSON，要另写一份模板。</p>
+<p>设备数量少、只有一两个人使用时，节点名方案覆盖了同样的信息，不值得为此增加一个公开服务。另外两类已知限制：多数实现只对含 <code>clash</code> 的 UA 返回该响应头；sing-box 官方以「不在客户端解析代理分享格式」为由不支持订阅头，因此 sing-box 系客户端即便接了订阅也不会显示用量。</p>
+
+<p style="margin-top:24px"><a href="06-ops.html">← 上一步</a>　·　<a href="index.html">回到总览</a></p>
 
 </main>
 <footer class="foot"><div class="wrap">
-本手册与 <a href="../index.html">方案总览</a> · <a href="../vps-shortlist.html">服务器采购</a> 配套。命令在 Debian 12/13、Ubuntu 22.04/24.04 上验证；配置已用 sing-box 1.14.3 校验。仅限本人自用科研学习，遵守所在地法律法规与服务条款。
+<p class="foot-nav">方案总览 <a href="../index.html">index.html</a> · 部署手册 <a href="index.html">deploy/index.html</a> · SSH 加固 <a href="../quality/index.html">quality/index.html</a> · 问题记录 <a href="../issue/index.html">issue/index.html</a> · 服务器采购 <a href="../vps-shortlist.html">vps-shortlist.html</a></p>
+<p>命令在 Debian 12/13、Ubuntu 22.04/24.04 上验证；配置已用 sing-box 1.14.3 校验。仅限本人自用科研学习，遵守所在地法律法规与服务条款。</p>
 </div></footer>
 <script>
 document.querySelectorAll('pre').forEach(function(pre){

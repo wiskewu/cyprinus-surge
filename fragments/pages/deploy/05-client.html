@@ -1,116 +1,76 @@
 <h1>5 · 客户端</h1>
-<p class="lede">目标：拿到属于这台设备的那一份配置，导入客户端并跑起来。凭据由服务器按设备发放，一台设备一份；客户端机器不需要 <code>client.env</code>、不需要密钥包，也不需要仓库里的脚本。</p>
+<p class="lede">在客户端机器上拿到属于自己的那份配置，用 sing-box 命令行或平台客户端跑起来，并完成验收。凭据由服务器按设备发放，一台一份；客户端不需要 <code>client.env</code>、不需要密钥包，也不需要仓库里的脚本。</p>
 
-<h2 id="get">取配置</h2>
-<p>配置在服务器上渲染与打包，客户端只负责接收、校验、导入。</p>
-<pre><code># 服务器：名单里没有这台时先建凭据，再打包
-sudo bash bin/deploy/device.sh add laptop
-sudo bash bin/deploy/device.sh export laptop
+<h2>目标</h2>
+<p>完成后应达到三个状态：配置来自服务器按设备渲染的产物；本机以 TUN 方式接管流量，或至少有可用的本地代理端口；<code>bin/deploy/client/verify.sh</code> 逐项通过。</p>
 
-# 客户端：先校验再解包（-P 是 SSH 端口；export 会打出填好端口、用户与地址的完整命令）
-scp -P 你的SSH端口 root@服务器IP:/etc/sing-box/clients/dist/laptop-*.tar.gz* /tmp/
-cd /tmp &amp;&amp; sha256sum -c laptop-*.tar.gz.sha256 &amp;&amp; tar -xzf laptop-*.tar.gz</code></pre>
-<p>在 <code>~/.ssh/config</code> 里配好 <code>Host vps / HostName 服务器IP / User root / Port 你的SSH端口</code> 之后，上面那行可以写成 <code>scp vps:/etc/sing-box/clients/dist/laptop-*.tar.gz* /tmp/</code>。macOS 没有 <code>sha256sum</code>，用 <code>shasum -a 256 -c laptop-*.tar.gz.sha256</code>。</p>
-<p>解出来的文件名形如 <code>sing-box-client-laptop-desktop.json</code>：中间是设备名，末尾是平台。包里只有这一台设备的配置与 <code>SHA256SUMS</code>。</p>
+<h2>准备工作</h2>
+
+<h3>拿到本机的那一份包</h3>
+<p>服务器为每台设备渲染一份 JSON，并按设备打包，包内附 <code>SHA256SUMS</code>。客户端只接收、校验、运行，不参与渲染。</p>
 <div class="tw">
 <table>
-<thead><tr><th>平台</th><th>产物</th><th>入站</th><th>适合</th></tr></thead>
+<thead><tr><th>平台取值</th><th>产物</th><th>入站</th><th>适合</th></tr></thead>
 <tbody>
-<tr><td><code>desktop</code></td><td><code>-desktop.json</code></td><td>tun + mixed:2080</td><td>Windows / macOS / Linux，命令行也能直接验收</td></tr>
+<tr><td><code>desktop</code></td><td><code>-desktop.json</code></td><td>tun + mixed:2080</td><td>Windows / macOS / Linux，命令行可直接验收</td></tr>
 <tr><td><code>android</code></td><td><code>-android.json</code></td><td>tun</td><td>sing-box 官方 App</td></tr>
 <tr><td><code>ios</code></td><td><code>-ios.json</code></td><td>tun</td><td>SFM 等 iOS 客户端</td></tr>
 </tbody>
 </table>
 </div>
-<p>平台在 <code>add</code> 时决定：<code>sudo bash bin/deploy/device.sh add phone android</code>。同一台机器要用两个平台，就按两个名字建两条凭据，各自能单独吊销。</p>
+<p>平台在服务器执行 <code>device.sh add</code> 时确定。同一台机器要用两个平台，按两个名字建两条凭据，各自可单独吊销。</p>
 
-<h2 id="import">导入</h2>
-<div class="tw">
-<table>
-<thead><tr><th>平台</th><th>客户端</th><th>注意</th></tr></thead>
-<tbody>
-<tr><td>Windows</td><td>GUI.for.SingBox / sing-box 命令行</td><td>开 TUN 需要管理员</td></tr>
-<tr><td>macOS</td><td>SFM</td><td>首次启动要授权系统扩展，见下方<a href="#macos">只留一个客户端</a></td></tr>
-<tr><td>Android</td><td>sing-box 官方 App</td><td>用 <code>-android.json</code></td></tr>
-<tr><td>iOS</td><td>sing-box 系客户端</td><td>用 <code>-ios.json</code></td></tr>
-</tbody>
-</table>
-</div>
-<div class="note"><b>GUI 客户端导入的是副本。</b>服务器重新导出后必须<b>重新导入</b>，直接改手里那个 JSON 对已经导入的配置无效。SFM 的副本在 <code>~/Library/Group Containers/P8XK3KHB48.io.nekohasekai.sfamt/configs/</code>。</div>
-<p>桌面那份配置的本地端口是 <code>127.0.0.1:2080</code>，验收脚本默认就用它。图形客户端自带端口设置时以界面为准，验收时显式传 <code>--proxy</code>。</p>
-
-<h2 id="gui-sfm">GUI.for.SingBox 的订阅与规则</h2>
-<p>GUI.for.SingBox 不把整份配置当订阅：它的订阅只吃 sing-box 的 <code>outbounds</code> 节点数组，路由、DNS、入站都由「配置」页自己生成。两者填错任一处，内核启动即失败。</p>
-
-<h3>订阅填节点，不填配置</h3>
-<p>订阅内容只放真实节点，也就是设备 JSON 的 <code>outbounds</code> 里 <code>type</code> 为 <code>vless</code> 与 <code>hysteria2</code> 的两项。整份配置也能被它读进来，但 <code>urltest</code>、<code>direct</code> 会被 <code>excludeProtocol</code> 丢掉，等于什么都没留下：</p>
-<pre><code>[
-  { "type": "vless", "tag": "vps-reality", "server": "hy2.example.top", "server_port": 443,
-    "uuid": "……", "flow": "xtls-rprx-vision",
-    "tls": { "enabled": true, "server_name": "www.apple.com",
-             "utls": { "enabled": true, "fingerprint": "chrome" },
-             "reality": { "enabled": true, "public_key": "……", "short_id": "……" } } },
-  { "type": "hysteria2", "tag": "vps-hy2", "server": "hy2.example.top", "server_port": 8443,
-    "server_ports": ["8443:8447"], "password": "……",
-    "obfs": { "type": "salamander", "password": "……" },
-    "tls": { "enabled": true, "server_name": "hy2.example.top" } }
-]</code></pre>
-<p>两段内容从设备 JSON 原样拷过来即可，不要改字段名。订阅导入后点「更新」，节点数应为 2。</p>
-
-<h3>规则页三处必须填全</h3>
-<div class="tw">
-<table>
-<thead><tr><th>位置</th><th>必须填</th><th>漏了会怎样</th></tr></thead>
-<tbody>
-<tr><td>出站的分组</td><td>组里加入订阅节点，或填包含关键词；另需一个 <code>direct</code> 出站</td><td>生成 <code>"outbounds": []</code>，内核报 <code>initialize outbound[N]: missing tags</code></td></tr>
-<tr><td>DNS 规则</td><td>每条规则都选「服务器」</td><td>生成缺 <code>server</code> 的规则，内核报 <code>parse dns rule[N]: missing server field</code></td></tr>
-<tr><td>路由规则</td><td>每条 route 规则的出站必须指向存在的出站</td><td>指向已删除的分组时，启动报 <code>dependency[X] not found for outbound[Y]</code>；不指出站则该条不生效，服务器直连规则会失效</td></tr>
-</tbody>
-</table>
-</div>
-<div class="bad"><b>GUI 不校验这些空值。</b>组为空、DNS 规则没选服务器、路由指向已删的出站，界面都能保存并生成 JSON，只有启动内核时才报错。改完规则先用 <code>sing-box check</code> 验一遍再启动。</div>
-
-<h3>用源文件手写时的四个易错点</h3>
-<ol>
-<li>组里写了成员 tag 却忘了把成员出站本身写进 <code>outbounds</code>：内核在连接阶段报 <code>dependency[proxy] not found</code>。</li>
-<li>DNS 规则照抄 <code>{"action": "route", "rule_set": ["geosite-cn"]}</code>：1.12 起 <code>route</code> 动作必须带 <code>server</code>。</li>
-<li>路由规则照抄 <code>{"action": "route", "ip_cidr": ["…/32"]}</code>：不报错，但这条不再指向 <code>direct</code>，服务器 IP 会被送进隧道，SSH 立刻被断。</li>
-<li>节点名里的分隔符在 GBK 环境下可能变字：<code>vps · 4.5G</code> 被转成 <code>vps 路 4.5G</code>，组与成员 tag 就对不上了。跨工具复制时把名字改成纯 ASCII，例如 <code>vps-4.5G</code>。</li>
-</ol>
-
-<h2 id="ncli">验收</h2>
-<p>图形客户端把核心装在扩展或 App 里，本机没有 <code>sing-box</code> 可执行文件。免 CLI 子集只借客户端已经开好的本地端口：</p>
-<pre><code>SERVER_IP=你的服务器IP bash bin/deploy/client/verify.sh --no-cli --proxy socks5h://127.0.0.1:2080</code></pre>
-<div class="tw">
-<table>
-<thead><tr><th>检查项</th><th>免 CLI 子集</th><th>完整验收</th></tr></thead>
-<tbody>
-<tr><td>代理可用与境外出口</td><td>有</td><td>有</td></tr>
-<tr><td>分流：国内站点是否直连</td><td>有</td><td>有</td></tr>
-<tr><td>AI 站点可达性</td><td>有</td><td>有</td></tr>
-<tr><td>出口是否稳定</td><td>有</td><td>有</td></tr>
-<tr><td>延迟分解</td><td>跳过，需要读配置</td><td>有</td></tr>
-<tr><td>握手质量</td><td>跳过，需要 <code>SERVER_IP</code> 与 <code>mtr</code></td><td>有</td></tr>
-</tbody>
-</table>
-</div>
-<div class="note"><b>这是子集，不是完整验收。</b>跳过项与 <code>SERVER_IP</code> 缺失都会明确打印，不会被当成通过。整机都走隧道时「国内直连」一项会判失败，那是环境决定的，不代表客户端有问题。</div>
-
-<h2 id="rules">规则集缓存</h2>
-<p>分流依赖远程规则集，配置里已写入 <code>experimental.cache_file</code>：下载与编译结果落盘，重启不再整份重下；规则集自身的 <code>update_interval</code> 是 3 天，到期由 sing-box 自行刷新。</p>
-<p>发给客户端的配置里，缓存路径是相对路径 <code>cache.db</code>，由客户端解析到自己的运行目录。要固定位置，在服务器渲染前给 <code>SING_BOX_CACHE_FILE</code> 指一个客户端上存在的路径。</p>
-<div class="note"><b>写法有版本要求。</b>1.13 起顶层 <code>cache_file</code> 被移除，必须写在 <code>experimental.cache_file</code> 里且为对象形式 <code>{"enabled": true, "path": "..."}</code>；写成字符串会被 sing-box 拒绝启动。服务器模板已按新写法生成，客户端不用改。</div>
-
-<h2>配置里已经处理好的两件事</h2>
+<h3>Windows 的额外准备</h3>
 <ul>
-<li><b>服务器 IP 直连。</b>开着 TUN 时，连服务器的流量同样会被送进隧道，从隧道出口绕回这台 VPS，表现为「<code>nc</code> 能通但 <code>ssh</code> 立刻被关」。服务器渲染时按 <code>SERVER_IP</code> 写死了这条规则，客户端不用动。</li>
-<li><b>接口绑定。</b>多网卡或虚拟网卡的 Windows 若在日志里看到 <code>not valid in its context</code>，说明这台机器需要显式绑网卡。把这个情况告诉服务器端，重渲染该设备时带 <code>AUTO_DETECT_INTERFACE=false DEFAULT_INTERFACE=网卡名</code>，再重新导出。只关探测不绑网卡会让直连打环，两者必须一起给。</li>
+<li>sing-box 官方 Windows 包，解压到固定目录，例如 <code>C:\sing-box</code></li>
+<li><code>wintun.dll</code> 与 <code>sing-box.exe</code> 放在同一目录，TUN 入站需要它在运行时加载</li>
+<li>以管理员身份运行，TUN 创建虚拟网卡需要提权</li>
+<li>工作目录设为配置所在目录，配置里的 <code>cache.db</code> 是相对路径</li>
 </ul>
 
-<h2 id="macos">macOS 只留一个客户端</h2>
-<p>两台代理客户端同时接管流量时，症状无法归因：断流、DNS 泄漏、TUN 抢路由三者互相掩盖。macOS 上统一用 SFM，其余客户端全部退出并停用系统代理。</p>
+<h2>实施步骤</h2>
 
-<h3>操作清单</h3>
+<h3>服务器：建凭据并打包</h3>
+<pre><code># 名单里没有这台时先建凭据
+sudo bash bin/deploy/device.sh add laptop
+
+# 渲染该设备配置并打包，产物在 /etc/sing-box/clients/dist/
+sudo bash bin/deploy/device.sh export laptop</code></pre>
+<p><code>export</code> 会打印可直接复制的分发命令，包含端口、用户与地址。</p>
+
+<h3>客户端：校验与解包</h3>
+<pre><code>scp -P 你的SSH端口 root@服务器IP:/etc/sing-box/clients/dist/laptop-*.tar.gz* /tmp/
+cd /tmp &amp;&amp; sha256sum -c laptop-*.tar.gz.sha256 &amp;&amp; tar -xzf laptop-*.tar.gz</code></pre>
+<p>在 <code>~/.ssh/config</code> 里配好 <code>Host</code> 别名后，第一行可简写为 <code>scp vps:/etc/sing-box/clients/dist/laptop-*.tar.gz* /tmp/</code>。macOS 没有 <code>sha256sum</code>，用 <code>shasum -a 256 -c laptop-*.tar.gz.sha256</code>。</p>
+<p>解出的文件名形如 <code>sing-box-client-laptop-desktop.json</code>，中间是设备名，末尾是平台。包里只有这一台设备的配置与校验和。</p>
+
+<h3>Windows：命令行运行</h3>
+<p>把配置放到 <code>C:\sing-box\config.json</code>，在管理员 PowerShell 里前台运行：</p>
+<pre><code>cd C:\sing-box
+.\sing-box.exe check -c config.json      # 先校验，不通过不要启动
+.\sing-box.exe run -c config.json</code></pre>
+<p>前台运行便于观察日志。确认可用之后再交给任务计划常驻：</p>
+<pre><code>$dir = "C:\sing-box"
+$act = New-ScheduledTaskAction -Execute "$dir\sing-box.exe" -Argument "run -c $dir\config.json" -WorkingDirectory $dir
+$trg = New-ScheduledTaskTrigger -AtStartup
+$trg.Delay = "PT20S"
+$set = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
+       -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) `
+       -ExecutionTimeLimit ([TimeSpan]::Zero)
+$prn = New-ScheduledTaskPrincipal -UserId "SYSTEM" -RunLevel Highest
+Register-ScheduledTask -TaskName "sing-box" -Action $act -Trigger $trg -Settings $set -Principal $prn</code></pre>
+<p>三个参数不能省：<code>-WorkingDirectory</code> 决定 <code>cache.db</code> 落点，<code>Delay</code> 等网络就绪，<code>ExecutionTimeLimit</code> 默认 3 天会把任务停掉。需要日志与崩溃重启时，改用 nssm 或 WinSW 包装成服务：</p>
+<pre><code>nssm install sing-box C:\sing-box\sing-box.exe
+nssm set sing-box AppParameters run -c C:\sing-box\config.json
+nssm set sing-box AppDirectory  C:\sing-box
+nssm set sing-box Start SERVICE_AUTO_START
+nssm set sing-box AppExit Default Restart
+nssm set sing-box AppStdout C:\sing-box\logs\stdout.log
+nssm set sing-box AppStderr C:\sing-box\logs\stderr.log
+nssm start sing-box</code></pre>
+
+<h3>macOS：只留一个客户端</h3>
+<p>两台代理客户端同时接管流量时，症状无法归因：断流、DNS 泄漏、TUN 抢路由三者互相掩盖。统一用 SFM，其余客户端全部退出并停用系统代理。</p>
 <pre><code># 1. 关掉其他客户端的接管，退出 App（含菜单栏图标）
 #    Clash Verge：设置里关「系统代理」，关「TUN 模式」，再退出
 
@@ -129,34 +89,94 @@ route -n get default | grep -E 'interface|gateway'
 # 5. 确认默认路由进了 SFM 的 utun，且能出网
 route -n get default | grep interface
 curl -s -o /dev/null -w '%{http_code}\n' https://www.gstatic.com/generate_204</code></pre>
+<div class="note"><b>桌面客户端导入的是副本。</b>服务器重新导出后必须重新导入，直接改手里那份 JSON 对已经运行的配置无效。SFM 的副本在 <code>~/Library/Group Containers/P8XK3KHB48.io.nekohasekai.sfamt/configs/</code>。</div>
 
-<h3>症状对照</h3>
+<h3>Android 与 iOS：导入</h3>
+<p>Android 用 sing-box 官方 App 导入 <code>-android.json</code>，iOS 用 SFM 导入 <code>-ios.json</code>，两者只有 TUN 入站。手机上没有 <code>sha256sum</code>，校验可在电脑上完成后再传。</p>
+
+<h2>检查与验证</h2>
+<p>桌面配置自带本地端口 <code>127.0.0.1:2080</code>，验收脚本默认就用它；客户端换端口时显式传 <code>--proxy</code>。</p>
+<pre><code>SERVER_IP=你的服务器IP bash bin/deploy/client/verify.sh --no-cli --proxy socks5h://127.0.0.1:2080</code></pre>
 <div class="tw">
 <table>
-<thead><tr><th>现象</th><th>原因</th><th>处理</th></tr></thead>
+<thead><tr><th>检查项</th><th>免 CLI 子集</th><th>完整验收</th></tr></thead>
 <tbody>
-<tr><td>时通时断，抓包看到两个 utun</td><td>两个客户端都在跑 TUN</td><td>退出其中一个，只留 SFM</td></tr>
-<tr><td>浏览器走代理，命令行不走</td><td>只有系统代理没有 TUN</td><td>SFM 里打开 TUN，或按<a href="#import">导入</a>一节确认配置起了 TUN 入站</td></tr>
-<tr><td>国内站点很慢或走境外</td><td>规则集没加载，全部走代理</td><td>看<a href="#rules">规则集缓存</a>一节的缓存文件是否生成</td></tr>
-<tr><td>SSH 连服务器被立刻断开</td><td>服务器 IP 未直连，流量绕回本机</td><td>重新导出该设备的配置，不要手改 JSON</td></tr>
+<tr><td>代理可用与境外出口</td><td>有</td><td>有</td></tr>
+<tr><td>分流：国内站点是否直连</td><td>有</td><td>有</td></tr>
+<tr><td>AI 站点可达性</td><td>有</td><td>有</td></tr>
+<tr><td>出口是否稳定</td><td>有</td><td>有</td></tr>
+<tr><td>延迟分解</td><td>跳过，需要读配置</td><td>有</td></tr>
+<tr><td>握手质量</td><td>跳过，需要 <code>SERVER_IP</code> 与 <code>mtr</code></td><td>有</td></tr>
 </tbody>
 </table>
 </div>
-<div class="note">SFM 没有命令行核心，验收用<a href="#ncli">验收</a>一节的免 CLI 子集，代理地址填 SFM 界面里的混合端口。</div>
+<p>免 CLI 子集是子集而非完整验收：跳过项与 <code>SERVER_IP</code> 缺失都会明确打印，不会被当成通过。整机都走隧道时「国内直连」一项会判失败，那是环境决定的，不代表配置有问题。各项输出含义见<a href="troubleshooting.html">排查手册</a>。</p>
+<p>两个配置层面的判据也在这里核对：</p>
+<ul>
+<li><b>规则集缓存已落盘。</b>运行目录下应出现 <code>cache.db</code>，重启不再整份重下。</li>
+<li><b>服务器 IP 直连生效。</b>TUN 运行时 <code>ssh</code> 到服务器不应被断；断开说明 <code>route.rules</code> 第一条缺失，重新导出该设备配置。</li>
+</ul>
 
-<h2>换凭据与退回上一版</h2>
+<h2>下一步</h2>
+<p>验收通过后进入<a href="06-ops.html">第 6 页</a>做备份与观测；需要第二入口时先完成<a href="04-hy2.html">第 4 页</a>，再重新导出本机配置。</p>
+
+<h2>回退与卸载</h2>
 <div class="tw">
 <table>
 <thead><tr><th>场景</th><th>服务器</th><th>客户端</th></tr></thead>
 <tbody>
 <tr><td>凭据泄露或定期轮换</td><td><code>bin/deploy/device.sh rotate laptop</code>，再 <code>export</code></td><td>重新导入新包，旧包立即失效</td></tr>
-<tr><td>设备退役</td><td><code>bin/deploy/device.sh revoke laptop</code></td><td>删掉机器上的 JSON 与已导入的副本</td></tr>
-<tr><td>新配置跑不起来</td><td>不动</td><td>重新导入手里上一版的包；旧包只在凭据未轮换时还能用</td></tr>
+<tr><td>设备退役</td><td><code>bin/deploy/device.sh revoke laptop</code></td><td>删除机器上的 JSON 与已导入的副本</td></tr>
+<tr><td>新配置跑不起来</td><td>不动</td><td>重新导入手里上一版的包；旧包只在凭据未轮换时可用</td></tr>
+<tr><td>Stop 客户端</td><td>不动</td><td>Windows 前台运行按 <code>Ctrl+C</code>；任务计划用 <code>Stop-ScheduledTask -TaskName sing-box</code>；服务用 <code>nssm stop sing-box</code></td></tr>
 </tbody>
 </table>
 </div>
-<p>轮换与吊销的完整流程见<a href="06-ops.html">第 6 页</a>，设备名单的维护见<a href="03-server.html#devices">第 3 页</a>。</p>
+<p>轮换与吊销的完整流程见<a href="06-ops.html">第 6 页</a>，设备名单维护见<a href="03-server.html#devices">第 3 页</a>。</p>
 
-<p>导入失败、国内站点打不开、要独立 AI 出口 → <a href="troubleshooting.html">排查手册</a>。</p>
+<h2>命令手册</h2>
+<pre><code># 服务器：建立凭据并导出
+sudo bash bin/deploy/device.sh add laptop [desktop|android|ios]
+sudo bash bin/deploy/device.sh export laptop
+
+# 客户端：校验、解包、运行
+sha256sum -c laptop-*.tar.gz.sha256 &amp;&amp; tar -xzf laptop-*.tar.gz
+cd C:sing-box &amp;&amp; .sing-box.exe check -c config.json
+.sing-box.exe run -c config.json
+
+# 客户端：验收
+SERVER_IP=你的服务器IP bash bin/deploy/client/verify.sh --no-cli --proxy socks5h://127.0.0.1:2080</code></pre>
+
+<h2>参数说明</h2>
+<div class="tw">
+<table>
+<thead><tr><th>项</th><th>取值</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code>verify.sh --no-cli</code></td><td>开关</td><td>只用本地端口，不起 sing-box 实例</td></tr>
+<tr><td><code>verify.sh --proxy</code></td><td><code>socks5h://127.0.0.1:端口</code></td><td>客户端实际监听端口，默认 2080</td></tr>
+<tr><td><code>SERVER_IP</code></td><td>服务器 IP</td><td>用于比对出口与握手质量，服务器上 <code>grep SERVER_IP /etc/sing-box/client.env</code> 可取</td></tr>
+<tr><td><code>VLESS_PORT</code></td><td>默认 443</td><td>REALITY 入口端口</td></tr>
+<tr><td><code>HY2_ONLY=1</code></td><td>开关</td><td>派生只走 Hysteria2 的配置并起临时实例，需要本机有 sing-box</td></tr>
+<tr><td><code>CONFIG</code></td><td>路径</td><td><code>HY2_ONLY</code> 读取的配置，指向设备 JSON</td></tr>
+<tr><td><code>experimental.cache_file.path</code></td><td><code>cache.db</code></td><td>相对运行目录；要固定位置在服务器渲染前给 <code>SING_BOX_CACHE_FILE</code></td></tr>
+</tbody>
+</table>
+</div>
+<div class="note"><b>缓存写法有版本要求。</b>1.13 起顶层 <code>cache_file</code> 被移除，必须写在 <code>experimental.cache_file</code> 里且为对象形式 <code>{"enabled": true, "path": "..."}</code>，写成字符串会被拒绝启动。服务器模板已按新写法生成。</div>
+
+<h2>常见错误与排查</h2>
+<div class="tw">
+<table>
+<thead><tr><th>现象</th><th>原因</th><th>处理</th></tr></thead>
+<tbody>
+<tr><td>启动即报 <code>connectex: The requested address is not valid in its context</code></td><td>企业终端策略禁止直连公共 DNS 的 443 与 853</td><td>见<a href="troubleshooting.html#corp-doh">排查手册的企业管控一节</a></td></tr>
+<tr><td><code>ssh</code> 到服务器立刻被断</td><td>服务器 IP 未直连，流量被 TUN 绕回本机</td><td>重新导出该设备配置，不要手改 JSON；或在渲染时确认 <code>SERVER_IP</code> 已写入</td></tr>
+<tr><td>国内站点很慢或走境外</td><td>规则集未加载，全部走代理</td><td>确认运行目录下 <code>cache.db</code> 已生成，再看连接列表的 chains</td></tr>
+<tr><td>端口不一致，验收第一项就失败</td><td>客户端自己改了监听端口</td><td>验收时传 <code>--proxy socks5h://127.0.0.1:实际端口</code></td></tr>
+<tr><td>日志出现 <code>not valid in its context</code> 且非企业管控</td><td>多网卡或虚拟网卡的 Windows 上接口绑定失败</td><td>让服务器重渲染该设备时带 <code>AUTO_DETECT_INTERFACE=false DEFAULT_INTERFACE=网卡名</code>，再导出</td></tr>
+<tr><td>缓存文件出现在 <code>System32</code></td><td>启动时的工作目录不是配置目录</td><td>任务计划补 <code>-WorkingDirectory</code>，nssm 补 <code>AppDirectory</code></td></tr>
+</tbody>
+</table>
+</div>
 
 <p style="margin-top:24px"><a href="04-hy2.html">← 上一步</a>　·　<a href="06-ops.html">下一步 →</a></p>

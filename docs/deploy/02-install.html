@@ -62,6 +62,8 @@ details{margin:10px 0;border:1px solid var(--line);border-radius:var(--r);backgr
 details>summary{cursor:pointer;padding:10px 14px;font-weight:600;font-size:14px;color:var(--acc)}
 details[open]>summary{border-bottom:1px solid var(--line)}
 details .body{padding:4px 14px 14px}
+.foot-nav{margin:0 0 6px;display:flex;flex-wrap:wrap;gap:4px 10px}
+.foot p{margin:0 0 6px}
 .foot{border-top:1px solid var(--line);background:#fff;padding:20px 0 40px;font-size:13px;color:var(--ink3)}
 @media(max-width:640px){h1{font-size:22px}.kv{grid-template-columns:1fr}}
 </style>
@@ -71,72 +73,46 @@ details .body{padding:4px 14px 14px}
 <nav class="nav"><div class="wrap"><a href="index.html">0 · 总览与准备</a><a href="01-init.html">1 · 系统初始化</a><a href="02-install.html" aria-current="page">2 · 安装与密钥</a><a href="03-server.html">3 · 服务端配置</a><a href="04-hy2.html">4 · 可选 Hysteria2</a><a href="05-client.html">5 · 客户端</a><a href="06-ops.html">6 · 验收与备份</a><a href="onekey.html">一键</a><a href="07-subscription.html">7 · 订阅与用量</a><a href="troubleshooting.html">排查</a></div></nav>
 <main class="wrap">
 <h1>2 · 安装与密钥</h1>
-<p class="lede">目标：装好固定版本的 sing-box，生成本节点的参数与设备名单。执行者是有服务器 root 权限的人；做完后 <code>/etc/sing-box</code> 下应出现三个文件。</p>
+<p class="lede">装好固定版本的 sing-box，生成本节点的参数与设备名单。执行者是有服务器 root 权限的人；做完后 <code>/etc/sing-box</code> 下应出现三个文件。</p>
 
-<h2>前提</h2>
+<h2>目标</h2>
+<p>本步只做两件事：把 sing-box 二进制与 systemd 单元装到位；生成服务端参数、客户端渲染参数与设备名单。配置渲染与服务启动留给<a href="03-server.html">第 3 页</a>。</p>
+
+<h2>准备工作</h2>
 <ul>
-<li>已跑完<a href="01-init.html">第 1 步</a>：密码登录已关，公钥能登录</li>
-<li>服务器能访问 <code>github.com</code> 下载 sing-box；不能访问就先把二进制传到服务器，见下文「离线安装」</li>
+<li>已完成<a href="01-init.html">第 1 页</a>：密码登录已关，公钥能登录</li>
+<li>服务器能访问 <code>github.com</code> 下载 sing-box；不能访问就先把二进制传到服务器，见<a href="#offline">离线安装</a></li>
 <li>两条命令都需要 root</li>
+<li>准备好伪装站点域名与入口域名的取舍，取值见<a href="#params">参数说明</a></li>
 </ul>
 
-<h2>执行</h2>
-<pre><code>cd /root/deploy
+<h2>实施步骤</h2>
+
+<h3>安装二进制并生成密钥</h3>
+<pre><code>cd /root
 sudo bash bin/deploy/one/install-singbox.sh
 sudo bash bin/deploy/one/secrets.sh</code></pre>
-<p><code>bin/deploy/one/secrets.sh</code> 逐项提问，回车取方括号里的默认值：</p>
+<p><code>secrets.sh</code> 逐项提问，回车取方括号里的默认值：</p>
 <div class="tw">
 <table>
 <thead><tr><th>提问</th><th>默认</th><th>怎么填</th></tr></thead>
 <tbody>
 <tr><td><code>伪装站点 REALITY_DEST</code></td><td><code>www.apple.com</code></td><td>必须支持 TLS 1.3 与 HTTP/2。它同时是 REALITY 的回源目标，选错会让客户端握手失败</td></tr>
 <tr><td><code>入口域名 DOMAIN</code></td><td>留空</td><td>只有要用 Hysteria2 才填。留空时客户端连公网 IP，证书流程整段跳过</td></tr>
-<tr><td><code>启用 Hysteria2？</code></td><td><code>Y</code></td><td>仅在填了域名时出现。选 <code>n</code> 就只开 REALITY 单入口</td></tr>
-<tr><td><code>第一台设备的名字</code></td><td><code>main</code></td><td>写进 <code>devices.list</code>。只允许字母、数字与 <code>. _ -</code></td></tr>
+<tr><td><code>启用 Hysteria2？</code></td><td><code>Y</code></td><td>仅在填了域名时出现，选 <code>n</code> 就只开 REALITY 单入口</td></tr>
+<tr><td><code>第一台设备的名字</code></td><td><code>main</code></td><td>写进 <code>devices.list</code>，只允许字母、数字与 <code>. _ -</code></td></tr>
 </tbody>
 </table>
 </div>
 
-<h2>成功的样子</h2>
-<pre><code>[+] 已安装：sing-box version 1.14.3
-[+] 已生成：/etc/sing-box/deploy.env / /etc/sing-box/client.env / /etc/sing-box/devices.list
-[+] 完成：22 4061 / 443/tcp / 8443-8447/udp 已放行
-
-完成：1 个步骤成功，0 个失败</code></pre>
-<p>版本号随 <code>SING_BOX_VERSION</code> 变。核对文件：</p>
-<pre><code>ls -l /etc/sing-box</code></pre>
-<p>应看到 <code>deploy.env</code>、<code>client.env</code>、<code>devices.list</code> 三个文件。权限随后续步骤变化，属正常：</p>
-<div class="tw">
-<table>
-<thead><tr><th>阶段</th><th>目录</th><th>文件</th><th>原因</th></tr></thead>
-<tbody>
-<tr><td>刚生成密钥</td><td><code>700 root:root</code></td><td><code>600</code></td><td>只有 root 需要读</td></tr>
-<tr><td>降权后</td><td><code>750 root:sing-box</code></td><td><code>config.json</code> 组内可读</td><td>进程以 <code>sing-box</code> 身份跑，要能读到配置</td></tr>
-</tbody>
-</table>
-</div>
-<p>用 <code>stat -c '%a %U:%G %n' /etc/sing-box /etc/sing-box/*.env</code> 核对，比记住数字可靠。</p>
-
-<h2>产物</h2>
-<div class="tw">
-<table>
-<thead><tr><th>文件</th><th>内容</th><th>去向</th></tr></thead>
-<tbody>
-<tr><td><code>/etc/sing-box/deploy.env</code></td><td>服务端参数，含 REALITY 私钥</td><td>只留服务器，不进仓库、不进备份的明文包</td></tr>
-<tr><td><code>/etc/sing-box/client.env</code></td><td>渲染客户端配置要用的参数</td><td>第 5 步在客户端机器上用</td></tr>
-<tr><td><code>/etc/sing-box/devices.list</code></td><td>设备名、凭据、平台，一台一行</td><td>只留服务器。加设备用 <code>bin/deploy/device.sh</code>，见<a href="03-server.html#devices">第 3 页</a></td></tr>
-</tbody>
-</table>
-</div>
-
-<h2>换版本与离线安装</h2>
+<h3 id="offline">换版本与离线安装</h3>
 <pre><code>sudo SING_BOX_VERSION=1.15.0 bash bin/deploy/one/install-singbox.sh
 sudo SING_BOX_PKG=/root/sing-box.tar.gz bash bin/deploy/one/install-singbox.sh</code></pre>
-<div class="warn"><b>重装只换二进制，不动已加固的单元。</b><code>install-singbox.sh</code> 发现单元以 <code>sing-box</code> 运行时原样保留，<code>/var/lib/sing-box</code> 与 <code>/etc/sing-box</code> 的属主按单元的实际运行用户重新归位。要退回 root 全权限运行用 <code>bin/harden/harden.sh --revert</code>。</div>
-<div class="note"><b>单元与运行目录属主必须一致。</b>旧版本脚本会把单元改回 <code>User=root</code> 而 <code>/var/lib/sing-box</code> 仍属 <code>sing-box</code>：root 的能力集里没有 <code>CAP_DAC_OVERRIDE</code>，<code>750</code> 目录的 <code>o</code> 位没有 <code>x</code>，重启表现为 <code>chdir /var/lib/sing-box: permission denied</code>。现在 <code>install</code> / <code>system</code> / <code>server</code> 三步都调用 <code>ensure_run_dir</code>，按单元的实际用户<b>递归</b>归位，<code>cache.db</code> 这类上一次运行留下的文件也在内。</div>
+<div class="warn"><b>重装只换二进制，不动已加固的单元。</b>脚本发现单元以 <code>sing-box</code> 用户运行时原样保留，<code>/var/lib/sing-box</code> 与 <code>/etc/sing-box</code> 的属主按单元的实际运行用户重新归位。要退回 root 全权限运行用 <code>bin/harden/harden.sh --uninstall</code>。</div>
+<div class="note"><b>单元与运行目录属主必须一致。</b>若单元是 <code>User=root</code> 而 <code>/var/lib/sing-box</code> 仍属 <code>sing-box</code>，root 的能力集里没有 <code>CAP_DAC_OVERRIDE</code>，<code>750</code> 目录的 <code>o</code> 位没有 <code>x</code>，重启会报 <code>chdir /var/lib/sing-box: permission denied</code>。现在 <code>install</code>、<code>system</code>、<code>server</code> 三步都按单元的实际用户递归归位，运行时留下的 <code>cache.db</code> 也在内。</div>
 
-<h2>重跑与换密钥</h2>
-<p>重跑保留三样东西：<code>devices.list</code>（设备凭据）、REALITY 密钥对与 <code>short_id</code>、Hysteria2 的混淆密码。这三样都嵌在已导出的客户端配置里，换了就让所有客户端当场失效。</p>
+<h3>重跑与换密钥</h3>
+<p>重跑保留三样东西：<code>devices.list</code> 里的设备凭据、REALITY 密钥对与 <code>short_id</code>、Hysteria2 的混淆密码。三者都嵌在已导出的客户端配置里，换了就让所有客户端当场失效。</p>
 <pre><code># 重跑：只补缺的字段，客户端配置继续有效
 sudo bash bin/deploy/one/secrets.sh --overwrite
 sudo bash deploy.sh --only secrets --overwrite --yes
@@ -145,14 +121,87 @@ sudo bash deploy.sh --only secrets --overwrite --yes
 sudo bash bin/deploy/one/secrets.sh --rotate-secrets
 sudo bash deploy.sh --only secrets --rotate-secrets --yes
 sudo bash bin/deploy/device.sh export 每台设备名      # 逐台重新导出并分发</code></pre>
-<div class="note"><b>动作走参数，取值走环境变量。</b><code>--overwrite</code> 与 <code>--rotate-secrets</code> 是动作，写在命令行；端口、域名、Token 这些取值用环境变量或交互输入。交互模式下 <code>secrets</code> 每次都会问一句密钥是否沿用，回答 <code>n</code> 后还要再确认一次「确认换新？」，两次都答对才换；回车或误敲都按沿用处理。</div>
-<div class="bad"><b>换新之后，没重新导出的客户端全部连不上。</b>现象是客户端 REALITY 校验失败，服务端日志为 <code>REALITY: processed invalid connection</code>。只想换单台设备的凭据用 <code>device.sh rotate</code>，不动 REALITY 密钥。</div>
+<div class="note"><b>动作走参数，取值走环境变量。</b><code>--overwrite</code> 与 <code>--rotate-secrets</code> 是动作，写在命令行；端口、域名、Token 这些取值用环境变量或交互输入。交互模式下 <code>secrets</code> 每次都会问密钥是否沿用，回答 <code>n</code> 后还要再确认一次，两次都答对才换；回车或误敲都按沿用处理。</div>
+
+<h2>检查与验证</h2>
+<pre><code>[+] 已安装：sing-box version 1.14.3
+[+] 已生成：/etc/sing-box/deploy.env / /etc/sing-box/client.env / /etc/sing-box/devices.list
+[+] 完成：22 4061 / 443/tcp / 8443-8447/udp 已放行
+
+完成：1 个步骤成功，0 个失败</code></pre>
+<p>版本号随 <code>SING_BOX_VERSION</code> 变。核对文件与权限：</p>
+<pre><code>ls -l /etc/sing-box
+stat -c '%a %U:%G %n' /etc/sing-box /etc/sing-box/*.env</code></pre>
+<div class="tw">
+<table>
+<thead><tr><th>阶段</th><th>目录</th><th>文件</th><th>原因</th></tr></thead>
+<tbody>
+<tr><td>刚生成密钥</td><td><code>700 root:root</code></td><td><code>600</code></td><td>只有 root 需要读</td></tr>
+<tr><td>降权后</td><td><code>750 root:sing-box</code></td><td><code>config.json</code> 组内可读</td><td>进程以 <code>sing-box</code> 身份运行，需要读到配置</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>下一步</h2>
+<p>进入<a href="03-server.html">第 3 页</a>渲染服务端配置并自检。要启用 Hysteria2 第二入口，先完成<a href="04-hy2.html">第 4 页</a>的证书再回到第 3 页。</p>
+
+<h2>回退与卸载</h2>
+<div class="tw">
+<table>
+<thead><tr><th>场景</th><th>动作</th></tr></thead>
+<tbody>
+<tr><td>重装或换版本</td><td><code>SING_BOX_VERSION=… bash bin/deploy/one/install-singbox.sh</code>，随后补跑<a href="03-server.html">第 3 页</a>的加固步骤</td></tr>
+<tr><td>密钥误换新，客户端大面积失效</td><td>重新对每台设备执行 <code>device.sh export</code> 并分发；无法恢复旧密钥</td></tr>
+<tr><td>整体清除</td><td><code>bash bin/deploy/deploy.sh --uninstall --purge --yes</code>，删除二进制、单元、<code>/etc/sing-box</code> 与证书</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>命令手册</h2>
+<pre><code>sudo bash bin/deploy/one/install-singbox.sh          # 装内置版本的二进制与单元
+sudo bash bin/deploy/one/secrets.sh                  # 生成 deploy.env / client.env / devices.list
+sudo bash bin/deploy/one/secrets.sh --overwrite      # 重跑，补齐缺失字段
+sudo bash bin/deploy/one/secrets.sh --rotate-secrets # 换新客户端可见密钥
+ls -l /etc/sing-box                                  # 核对产物
+sing-box version                                     # 核对版本</code></pre>
+
+<h2>参数说明</h2>
+<div id="params"></div>
+<div class="tw">
+<table>
+<thead><tr><th>项</th><th>默认</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code>SING_BOX_VERSION</code></td><td>脚本内置版本</td><td>指定安装版本，随发布更新</td></tr>
+<tr><td><code>SING_BOX_PKG</code></td><td>空</td><td>本地压缩包路径，用于离线安装</td></tr>
+<tr><td><code>REALITY_DEST</code></td><td><code>www.apple.com</code></td><td>伪装站点，需支持 TLS 1.3 与 HTTP/2</td></tr>
+<tr><td><code>DOMAIN</code></td><td>空</td><td>Hysteria2 入口域名，留空则跳过证书</td></tr>
+<tr><td><code>ENABLE_HY2</code></td><td><code>0</code></td><td>是否启用第二入口</td></tr>
+<tr><td><code>--overwrite</code></td><td>无</td><td>重跑时补齐缺失字段，保留已有凭据</td></tr>
+<tr><td><code>--rotate-secrets</code></td><td>无</td><td>换新 REALITY 密钥对、<code>short_id</code> 与混淆密码</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>常见错误与排查</h2>
+<div class="tw">
+<table>
+<thead><tr><th>现象</th><th>原因</th><th>处理</th></tr></thead>
+<tbody>
+<tr><td>下载失败或长时间无响应</td><td>服务器访问不了 <code>github.com</code></td><td>本机下载后传上去，用 <code>SING_BOX_PKG</code> 离线安装</td></tr>
+<tr><td>装完提示版本不符</td><td><code>SING_BOX_VERSION</code> 指向了不存在的发布</td><td>去掉该变量用脚本内置版本，或改成有效版本号</td></tr>
+<tr><td>重装后服务起不来，报 <code>chdir … permission denied</code></td><td>单元与运行目录属主不一致</td><td>按<a href="../quality/index.html">SSH 加固手册</a>的方式重新加固，或 <code>bin/deploy/check/selfcheck.sh --fix-dac</code></td></tr>
+<tr><td>换新密钥后客户端全部连不上</td><td>客户端仍用旧 <code>public_key</code> 与 <code>short_id</code></td><td>逐台 <code>device.sh export</code> 重新分发；服务端日志同时出现 <code>processed invalid connection</code></td></tr>
+<tr><td><code>devices.list</code> 被清空</td><td>误删或误用 <code>--purge</code></td><td>用备份恢复；没有备份时只能逐台 <code>add</code> 重建凭据并重新分发</td></tr>
+</tbody>
+</table>
+</div>
 
 <p style="margin-top:24px"><a href="01-init.html">← 上一步</a>　·　<a href="03-server.html">下一步 →</a></p>
 
 </main>
 <footer class="foot"><div class="wrap">
-本手册与 <a href="../index.html">方案总览</a> · <a href="../vps-shortlist.html">服务器采购</a> 配套。命令在 Debian 12/13、Ubuntu 22.04/24.04 上验证；配置已用 sing-box 1.14.3 校验。仅限本人自用科研学习，遵守所在地法律法规与服务条款。
+<p class="foot-nav">方案总览 <a href="../index.html">index.html</a> · 部署手册 <a href="index.html">deploy/index.html</a> · SSH 加固 <a href="../quality/index.html">quality/index.html</a> · 问题记录 <a href="../issue/index.html">issue/index.html</a> · 服务器采购 <a href="../vps-shortlist.html">vps-shortlist.html</a></p>
+<p>命令在 Debian 12/13、Ubuntu 22.04/24.04 上验证；配置已用 sing-box 1.14.3 校验。仅限本人自用科研学习，遵守所在地法律法规与服务条款。</p>
 </div></footer>
 <script>
 document.querySelectorAll('pre').forEach(function(pre){

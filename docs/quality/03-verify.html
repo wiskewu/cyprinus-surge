@@ -66,6 +66,8 @@ details .body{padding:4px 14px 14px}
 .fig .bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 14px;border-bottom:1px solid var(--line);font-size:13px;color:var(--ink3);background:#fbfcfd}
 .fig .bar b{color:var(--ink);font-weight:600}
 .fig iframe{display:block;width:100%;height:640px;border:0}
+.foot-nav{margin:0 0 6px;display:flex;flex-wrap:wrap;gap:4px 10px}
+.foot p{margin:0 0 6px}
 .foot{border-top:1px solid var(--line);background:#fff;padding:20px 0 40px;font-size:13px;color:var(--ink3)}
 @media(max-width:640px){h1{font-size:22px}.kv{grid-template-columns:1fr}.fig iframe{height:520px}}
 </style>
@@ -75,12 +77,22 @@ details .body{padding:4px 14px 14px}
 <nav class="nav"><div class="wrap"><a href="index.html">0 · 总览</a><a href="01-client.html">1 · 客户端配置</a><a href="02-server.html">2 · 服务端加固</a><a href="03-verify.html" aria-current="page">3 · 验收与排障</a><a href="04-reference.html">4 · 参数与取舍</a></div></nav>
 <main class="wrap">
 <h1>验收与排障</h1>
-<p class="lede">主读者：加固完成后要独立确认结果的人。本页给出验收脚本的输出含义，以及每个失败项对应的处理顺序。</p>
+<p class="lede">加固完成后独立确认结果：脚本在客户端运行，只读，不动任何一端。本页给出输出含义、失败项对照与失联前的自救顺序。</p>
 
-<h2>验收</h2>
+<h2>目标</h2>
+<p>用一次远程连接确认四件事：本机准备就绪、密钥能登录、密码被拒、服务端生效值与运行态防护符合预期。任一项失败时能定位到具体环节。</p>
+
+<h2>准备工作</h2>
+<ul>
+<li>已完成<a href="01-client.html">客户端配置</a>与<a href="02-server.html">服务端加固</a></li>
+<li>本机存在 Ed25519 私钥，<code>~/.ssh/config</code> 里有对应别名</li>
+<li>当前会话保持打开，用于失联时执行回滚</li>
+</ul>
+
+<h2>实施步骤</h2>
 <pre><code>bash bin/harden/audit.sh --alias vps
 bash bin/harden/audit.sh --host 203.0.113.10 --port 4061</code></pre>
-<p>脚本在客户端运行，只读，不改动任何一端。全部检查合并为一次远程连接，因为 <code>ufw limit</code> 对同一来源有速率限制，多次连接会把验收自己限住。</p>
+<p>全部检查合并为一次远程连接，因为 <code>ufw limit</code> 对同一来源有速率限制，多次连接会把验收自己限住。</p>
 <pre><code>== 1. 本机准备 ==
   ✓ 本机存在 Ed25519 私钥：256 SHA256:…
   ✓ /root/.ssh/config 有 Host vps
@@ -104,42 +116,61 @@ bash bin/harden/audit.sh --host 203.0.113.10 --port 4061</code></pre>
 通过 13 项，失败 0 项</code></pre>
 <p><code>permitrootlogin</code> 显示 <code>without-password</code> 是 <code>prohibit-password</code> 的别名，含义相同。通过项数随服务端 sshd 的关键字与公钥数量变化，示例是 13 项；只看失败项。</p>
 
-<h2>失败项对照</h2>
-<div class="tw">
-<table>
-<thead><tr><th>现象</th><th>原因</th><th>处理</th></tr></thead>
-<tbody>
-<tr><td>第 2 项失败，公钥登录不通</td><td>公钥未装、用户名或端口不符、密钥权限过宽</td><td>先解决这一项，后面的检查都以它为前提。<code>ssh -v</code> 看实际尝试的身份</td></tr>
-<tr><td>第 3 项失败，仍提示密码</td><td>某个排序更靠前的 drop-in 设了 <code>PasswordAuthentication yes</code></td><td><code>grep -r PasswordAuthentication /etc/ssh/sshd_config*</code>，改掉靠前的那一行后 <code>systemctl reload ssh</code></td></tr>
-<tr><td>第 4 项读不到 <code>sshd -T</code></td><td>登录用户不是 root，且没有免密 sudo</td><td>用 root 密钥登录，或给该用户配置 <code>NOPASSWD</code> 的只读命令</td></tr>
-<tr><td>第 5 项提示「全局 ALLOW 规则覆盖」</td><td>同端口还有一条不限来源的 <code>ufw allow</code></td><td><code>ufw --force delete allow &lt;端口&gt;/tcp</code>，保留 <code>LIMIT</code> 那一条</td></tr>
-<tr><td>连接超时，ssh 无响应</td><td>短时间内新连接过多，触发 <code>ufw limit</code></td><td>等 30 秒重试。规则按来源限制 6 次/30 秒</td></tr>
-<tr><td>与服务器完全失联</td><td>密码已关闭且密钥不可用</td><td>走云控制台 VNC，执行 <code>sudo bash bin/harden/harden.sh --uninstall</code></td></tr>
-</tbody>
-</table>
-</div>
-
-<h2>锁死之前的自救顺序</h2>
-<ol class="steps">
-<li>不要关闭当前已经登录的会话。当前会话不受新配置影响，可以继续修。</li>
-<li>在另一个终端验证密钥登录：<code>ssh -o BatchMode=yes &lt;别名&gt; true</code>。</li>
-<li>失败时在当前会话里执行 <code>sudo bash bin/harden/harden.sh --uninstall</code>，恢复密码登录。</li>
-<li>修好公钥问题后重新执行加固，并再次用另一个终端验证。</li>
-</ol>
-<div class="note"><b>会话断开策略。</b><code>ClientAliveInterval 300</code> 配 <code>ClientAliveCountMax 2</code>，空闲约 10 分钟断开。批量操作请放进 <code>tmux</code>，否则会在中途掉线。</div>
-
-<h2>日常核对</h2>
+<h2>检查与验证</h2>
+<p>脚本退出码 <code>0</code> 且无失败项即通过。日常核对也可以手工执行这几条：</p>
 <pre><code>sshd -T | grep -iE '^(passwordauthentication|permitrootlogin|maxauthtries|maxstartups)'
 ufw status numbered | grep 4061
 fail2ban-client status sshd
 lastb | head -20</code></pre>
-<p><code>lastb</code> 列出失败登录；配合 fail2ban 的封禁记录可以交叉验证，确认没有持续的定向尝试。</p>
+<p><code>lastb</code> 列出失败登录，配合 fail2ban 的封禁记录可以交叉验证，确认没有持续的定向尝试。</p>
+
+<h2>下一步</h2>
+<p>需要调整默认值、评估可选双因子，或了解哪些加固项被明确放弃时，见<a href="04-reference.html">参数与取舍</a>。</p>
+
+<h2>回退与卸载</h2>
+<p>验收不通过且无法当场修复时按下节的自救顺序处理，最后一步都是回滚：</p>
+<pre><code>sudo bash bin/harden/harden.sh --uninstall    # 在仍可用的会话里执行</code></pre>
+
+<h2>命令手册</h2>
+<pre><code>bash bin/harden/audit.sh --alias 别名          # 用 ~/.ssh/config 里的别名验收
+bash bin/harden/audit.sh --host 地址 --port 端口  # 直接指定目标
+bash bin/harden/harden.sh --uninstall          # 回滚服务端加固</code></pre>
+
+<h2>参数说明</h2>
+<div class="tw">
+<table>
+<thead><tr><th>参数</th><th>默认</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code>--alias</code></td><td><code>vps</code></td><td>读取 <code>~/.ssh/config</code> 中的该名字</td></tr>
+<tr><td><code>--host</code> 与 <code>--port</code></td><td>无</td><td>不走配置文件时直接指定目标</td></tr>
+<tr><td>退出码</td><td>无</td><td><code>0</code> 全过，非 <code>0</code> 表示存在失败项</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>常见错误与排查</h2>
+<div class="tw">
+<table>
+<thead><tr><th>现象</th><th>原因</th><th>处理</th></tr></thead>
+<tbody>
+<tr><td>第 2 项失败，公钥登录不通</td><td>公钥未装、用户名或端口不符、密钥权限过宽</td><td>先解决这一项，后面的检查都以它为前提；<code>ssh -v</code> 看实际尝试的身份</td></tr>
+<tr><td>第 3 项失败，仍提示密码</td><td>某个排序更靠前的 drop-in 设了 <code>PasswordAuthentication yes</code></td><td><code>grep -r PasswordAuthentication /etc/ssh/sshd_config*</code>，改掉靠前那一行后 <code>systemctl reload ssh</code></td></tr>
+<tr><td>第 4 项读不到 <code>sshd -T</code></td><td>登录用户不是 root，且没有免密 sudo</td><td>用 root 密钥登录，或给该用户配置 <code>NOPASSWD</code> 的只读命令</td></tr>
+<tr><td>第 5 项提示「全局 ALLOW 规则覆盖」</td><td>同端口还有一条不限来源的 <code>ufw allow</code></td><td><code>ufw --force delete allow &lt;端口&gt;/tcp</code>，保留 <code>LIMIT</code> 那一条</td></tr>
+<tr><td>连接超时，ssh 无响应</td><td>短时间内新连接过多，触发 <code>ufw limit</code></td><td>等 30 秒重试，规则按来源限制 6 次/30 秒</td></tr>
+<tr><td>与服务器完全失联</td><td>密码已关闭且密钥不可用</td><td>走云控制台 VNC，执行 <code>sudo bash bin/harden/harden.sh --uninstall</code></td></tr>
+</tbody>
+</table>
+</div>
+<p><b>锁死之前的自救顺序。</b>第一，不要关闭当前已登录的会话，它不受新配置影响，可以继续修；第二，在另一个终端验证密钥登录 <code>ssh -o BatchMode=yes 别名 true</code>；第三，失败时在当前会话里执行回滚，恢复密码登录；第四，修好公钥问题后重新加固，并再次用另一个终端验证。</p>
+<div class="note"><b>会话断开策略。</b><code>ClientAliveInterval 300</code> 配 <code>ClientAliveCountMax 2</code>，空闲约 10 分钟断开。批量操作请放进 <code>tmux</code>，否则会在中途掉线。</div>
 
 <p style="margin-top:24px"><a href="02-server.html">← 服务端加固</a>　·　<a href="04-reference.html">参数与取舍 →</a></p>
 
 </main>
 <footer class="foot"><div class="wrap">
-本手册与 <a href="../deploy/index.html">节点部署手册</a> · <a href="../index.html">方案总览</a> 配套。服务端命令在 Debian 12/13、Ubuntu 22.04/24.04 上验证；脚本只调用系统自带的 OpenSSH、ufw 与 fail2ban。仅限本人自用科研学习，遵守所在地法律法规与服务条款。
+<p class="foot-nav">方案总览 <a href="../index.html">index.html</a> · 部署手册 <a href="../deploy/index.html">deploy/index.html</a> · SSH 加固 <a href="index.html">quality/index.html</a> · 问题记录 <a href="../issue/index.html">issue/index.html</a> · 服务器采购 <a href="../vps-shortlist.html">vps-shortlist.html</a></p>
+<p>服务端命令在 Debian 12/13、Ubuntu 22.04/24.04 上验证；脚本只调用系统自带的 OpenSSH、ufw 与 fail2ban。仅限本人自用科研学习，遵守所在地法律法规与服务条款。</p>
 </div></footer>
 <script>
 document.querySelectorAll('pre').forEach(function(pre){

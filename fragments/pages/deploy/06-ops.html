@@ -1,47 +1,62 @@
-<h1>6 · 验收与备份</h1>
-<p class="lede">目标：确认节点真的可用，并留下能恢复的备份。验收命令在客户端机器执行，备份与日常检查在服务器执行。</p>
+<h1>6 · 验收、备份与运维</h1>
+<p class="lede">确认节点真的可用，留下能恢复的备份，并建立可观测与凭据轮换的日常机制。验收命令在客户端机器执行，备份与观测在服务器执行。</p>
 
-<h2>验收（客户端机器）</h2>
-<p>客户端手上只有服务器发来的那份 JSON，没有 <code>client.env</code>。验收脚本真正读的只有 <code>SERVER_IP</code> 与 <code>VLESS_PORT</code>，直接给变量：</p>
+<h2>目标</h2>
+<p>本页做完应达到：客户端验收全过；服务器有一份加密备份且口令离线另存；探针按 5 分钟记录服务与出口状态；凭据可按需轮换并重新分发。</p>
+
+<h2>准备工作</h2>
+<ul>
+<li>客户端已完成<a href="05-client.html">第 5 页</a>，手上只有那份 JSON</li>
+<li>服务器可写 <code>/root/backups</code>，并已安装 <code>gpg</code> 或 <code>openssl</code></li>
+<li>告警要推到手机时，先确定通道类型与凭据，取值见<a href="#params">参数说明</a></li>
+</ul>
+
+<h2>实施步骤</h2>
+
+<h3>客户端验收</h3>
+<p>验收脚本真正读的只有 <code>SERVER_IP</code> 与 <code>VLESS_PORT</code>，直接给变量即可：</p>
 <pre><code>SERVER_IP=你的服务器IP VLESS_PORT=443 bash bin/deploy/client/verify.sh
 
-# 用 GUI.for.SingBox 且端口不同时，两个变量一起给
-SERVER_IP=你的服务器IP PROXY=socks5h://127.0.0.1:20122 bash bin/deploy/client/verify.sh
+# 客户端端口不是 2080 时显式指定
+SERVER_IP=你的服务器IP PROXY=socks5h://127.0.0.1:端口 bash bin/deploy/client/verify.sh
 
 # 只验 Hysteria2 出站：脚本自己派生配置、起临时实例、跑完清理（需要本机有 sing-box）
-HY2_ONLY=1 CONFIG=./client.json SERVER_IP=你的服务器IP VLESS_PORT=443 \
+HY2_ONLY=1 CONFIG=./sing-box-client-laptop-desktop.json SERVER_IP=你的服务器IP \
   bash bin/deploy/client/verify.sh
 
-# 没有 sing-box CLI：只生成一份只走 hy2 的配置，导入图形客户端后再验收
-HY2_ONLY=emit CONFIG=./client.json HY2_OUT=./hy2-only.json \
-  bash bin/deploy/client/verify.sh
-# 导入后：PROXY=socks5h://127.0.0.1:<客户端端口> SERVER_IP=你的服务器IP \
-#   bash bin/deploy/client/verify.sh</code></pre>
-<p>没 env 文件时脚本会打一行提示后继续（<code>VLESS_PORT</code> 默认 443）；<code>SERVER_IP</code> 也不给才会报错退出。<code>SERVER_IP</code> 不是凭据，全设备通用，回服务器看一眼就知道：</p>
-<pre><code>grep SERVER_IP /etc/sing-box/client.env     # 只是取 IP，不是拷走凭据
+# 没有 sing-box 可执行文件：只生成一份只走 hy2 的配置，导入客户端后再验收
+HY2_ONLY=emit CONFIG=./sing-box-client-laptop-desktop.json HY2_OUT=./hy2-only.json \
+  bash bin/deploy/client/verify.sh</code></pre>
+<p><code>VLESS_PORT</code> 默认 443，<code>SERVER_IP</code> 不给才会报错退出。它不是凭据，全设备通用，回服务器看一眼就知道：</p>
+<pre><code>grep SERVER_IP /etc/sing-box/client.env     # 只取 IP，不是拷走凭据
 sudo bash bin/deploy/device.sh list                   # 确认这台在名单里</code></pre>
-<div class="warn"><b>手机那份配置跑不了这个脚本。</b><code>-android.json</code> / <code>-ios.json</code> 只有 TUN，没有本地 <code>2080</code> 端口，第一项就 exit 2。手机只能在 App 里直接开浏览器自查（国内站点、Google、ChatGPT 各开一个）；要用回环脚本就把桌面那份导进来测。</div>
+<div class="warn"><b>手机那份配置跑不了这个脚本。</b><code>-android.json</code> 与 <code>-ios.json</code> 只有 TUN，没有本地 <code>2080</code> 端口，第一项就退出码 2。手机只能在 App 里开浏览器自查，国内站点、Google、ChatGPT 各开一个；要用回环脚本就把桌面那份导进来测。</div>
 
-<h2>备份（服务器）</h2>
-<pre><code>cd /root/deploy
-bash bin/deploy/ops/backup.sh backup     # 备份到 /root/backups/
-bash bin/deploy/ops/backup.sh list
-bash bin/deploy/ops/backup.sh restore /root/backups/sing-box-日期.tgz</code></pre>
-<p>备份含私钥，等同机器凭据，别放网盘或仓库。<code>/etc/sing-box</code> 整个目录都会进包，所以 <b><code>devices.list</code> 与 <code>clients/*.json</code> 也在里面</b>，一份备份等于全部设备的凭据，泄露就得挨个 <code>device.sh rotate</code>。</p>
+<h3>导出与分发</h3>
+<p>分发不只发一个 JSON：包里带校验和，收端先校验再解包，避免传输截断。</p>
+<pre><code># 服务器：渲染 + 打包 + 出校验和，产物在 /etc/sing-box/clients/dist/
+sudo bash bin/deploy/device.sh export laptop
 
-<h2>日常三条</h2>
-<pre><code>vnstat -m                              # 本月流量（套餐 1TB/月，超了限速 1Mbps）
-journalctl -u sing-box -n 50 --no-pager
-bash bin/deploy/check/server.sh</code></pre>
+# 客户端：先校验再解包
+scp -P 你的SSH端口 root@服务器IP:/etc/sing-box/clients/dist/laptop-*.tar.gz* /tmp/
+cd /tmp &amp;&amp; sha256sum -c laptop-*.tar.gz.sha256 &amp;&amp; tar -xzf laptop-*.tar.gz</code></pre>
+<p>包内只有这一台设备的配置与 <code>SHA256SUMS</code>，不含其他设备的凭据，也不含 <code>client.env</code>。<code>clients/dist/</code> 下保留历史版本，文件名带 UTC 时间戳：</p>
+<pre><code>ls -1 /etc/sing-box/clients/dist/laptop-*.tar.gz | sort | tail -3</code></pre>
 
-<h2 id="monitor">观测：定时探针 <span class="tag">可选</span></h2>
-<p>节点出问题时的两类问题（「服务还在不在」与「出口有没有被风控」）靠猜不准，用 <code>bin/deploy/ops/monitor.sh</code> 记成时序。</p>
+<h3>备份与加密</h3>
+<p>备份默认加密：优先 <code>gpg --symmetric</code>，没有 gpg 时退回 <code>openssl enc</code>，两者都缺失时脚本拒绝生成明文包。</p>
+<pre><code>sudo bash bin/deploy/ops/backup.sh key      # 首次：生成备份口令，打印一次
+sudo bash bin/deploy/ops/backup.sh backup   # 加密备份
+sudo bash bin/deploy/ops/backup.sh list     # 列出，标注明文还是加密
+sudo bash bin/deploy/ops/backup.sh restore /root/backups/sing-box-xxx.tgz.gpg</code></pre>
+<p>备份含私钥，等同机器凭据，不要放网盘或仓库。<code>/etc/sing-box</code> 整个目录都会进包，所以 <code>devices.list</code> 与 <code>clients/*.json</code> 也在里面，一份备份等于全部设备的凭据。</p>
+
+<h3 id="monitor">观测：定时探针</h3>
+<p>节点出问题分两类：服务还在不在，出口有没有被风控。靠猜不准，用探针记成时序。</p>
 <pre><code>sudo bash bin/deploy/ops/monitor.sh              # 一键：装 5 分钟探针并立刻跑一次
 sudo bash bin/deploy/ops/monitor.sh --probe      # 只跑一次探针
 sudo bash bin/deploy/ops/monitor.sh --status     # 看最近 20 条记录与端口状态
 sudo bash bin/deploy/ops/monitor.sh --uninstall</code></pre>
-
-<h3>探针记了什么</h3>
 <div class="tw">
 <table>
 <thead><tr><th>字段</th><th>含义</th><th>怎么用</th></tr></thead>
@@ -49,46 +64,14 @@ sudo bash bin/deploy/ops/monitor.sh --uninstall</code></pre>
 <tr><td><code>ts</code></td><td>UTC 时间戳</td><td>对齐服务商故障与晚高峰</td></tr>
 <tr><td><code>service</code> / <code>tcp</code> / <code>udp</code></td><td>sing-box 状态、<code>VLESS_PORT</code> 是否监听、启用 Hy2 时 <code>HY2_PORT/udp</code> 是否监听</td><td>先排除「进程挂了」</td></tr>
 <tr><td><code>egress</code></td><td>服务器直连 <code>api.ipify.org</code> 拿到的公网 IP</td><td>IP 变了说明迁移或云厂商调度，客户端要重发配置</td></tr>
-<tr><td><code>ai_code</code> / <code>ai_loc</code></td><td><code>chatgpt.com/cdn-cgi/trace</code> 的状态码与出口地区</td><td>出现 403 就是出口被风控，该换 AI 出口</td></tr>
-<tr><td><code>loss_pct</code> / <code>rtt_avg_ms</code></td><td>到 <code>1.1.1.1</code> 的丢包率与平均 RTT</td><td>丢包长期 &gt;2% 时，Hy2 的体验会明显劣于 REALITY</td></tr>
+<tr><td><code>ai_code</code> / <code>ai_loc</code></td><td><code>chatgpt.com/cdn-cgi/trace</code> 的状态码与出口地区</td><td>出现 403 或 429 说明出口被风控，该换 AI 出口</td></tr>
+<tr><td><code>loss_pct</code> / <code>rtt_avg_ms</code></td><td>到 <code>1.1.1.1</code> 的丢包率与平均 RTT</td><td>丢包长期高于 2% 时，Hy2 体验会明显劣于 REALITY</td></tr>
 </tbody>
 </table>
 </div>
-<p>记录落在 <code>/var/lib/sing-box-monitor/probe.log</code>，只保留最近 5000 行。定时器是 <code>sing-box-probe.timer</code>，每 5 分钟一次。</p>
+<p>记录落在 <code>/var/lib/sing-box-monitor/probe.log</code>，只保留最近 5000 行；定时器是 <code>sing-box-probe.timer</code>，每 5 分钟一次。</p>
 
-<h2>导出与回滚</h2>
-<p>分发一次不只发一个 JSON：包里带上校验和，收端先校验再导入，避免传输截断。</p>
-<pre><code># 服务器：渲染 + 打包 + 出校验和，产物在 /etc/sing-box/clients/dist/
-sudo bash bin/deploy/device.sh export laptop
-
-# 客户端：先校验再解包（-P 是 SSH 端口，用户与地址按服务器实际的填）
-scp -P 你的SSH端口 root@服务器IP:/etc/sing-box/clients/dist/laptop-*.tar.gz* /tmp/
-cd /tmp &amp;&amp; sha256sum -c laptop-*.tar.gz.sha256 &amp;&amp; tar -xzf laptop-*.tar.gz</code></pre>
-<p>包内只有这一台设备的配置和 <code>SHA256SUMS</code>，不含其他设备的凭据，也不含 <code>client.env</code>。</p>
-<p>客户端不解包后立即删除旧包：<code>clients/dist/</code> 下每台设备都留着历史版本，文件名带 UTC 时间戳，按名字倒序就是版本序。</p>
-<pre><code>ls -1 /etc/sing-box/clients/dist/laptop-*.tar.gz | sort | tail -3</code></pre>
-<div class="tip"><b>回退分两种情况。</b>凭据没轮换时，客户端重新导入上一版包即可；已经 <code>rotate</code> 过，旧包里的凭据在服务端已作废，回退要重新 <code>export</code> 当前版本，不能拿旧包顶。</div>
-
-<h2>备份与加密</h2>
-<p>备份默认加密：优先 <code>gpg --symmetric</code>，没有 gpg 时退回 <code>openssl enc</code>。两者都缺失时脚本拒绝生成明文包。</p>
-<pre><code>sudo bash bin/deploy/ops/backup.sh key      # 首次：生成备份口令，打印一次
-sudo bash bin/deploy/ops/backup.sh backup   # 加密备份
-sudo bash bin/deploy/ops/backup.sh list     # 列出，标注明文还是加密
-sudo bash bin/deploy/ops/backup.sh restore /root/backups/sing-box-xxx.tgz.gpg
-sudo bash bin/deploy/ops/backup.sh backup --insecure   # 明确要明文时才用</code></pre>
-<div class="tw">
-<table>
-<thead><tr><th>项</th><th>值</th><th>说明</th></tr></thead>
-<tbody>
-<tr><td>口令文件</td><td><code>/root/.backup-passphrase</code></td><td>权限 600，可用 <code>BACKUP_PASSPHRASE_FILE</code> 改</td></tr>
-<tr><td>产物</td><td><code>sing-box-&lt;时间&gt;.tgz.gpg</code> 或 <code>.enc</code></td><td>扩展名区分加密方式，恢复时自动识别</td></tr>
-<tr><td>备份范围</td><td><code>/etc/sing-box</code> 与 systemd 单元</td><td>客户端配置在 <code>/etc/sing-box/clients</code>，随目录一起备份</td></tr>
-</tbody>
-</table>
-</div>
-<div class="bad"><b>口令与备份必须分开存放。</b>口令丢失时加密包无法恢复：它们互为唯一打开条件，放在同一处等于没加密。</div>
-
-<h2>凭据轮换</h2>
+<h3>凭据轮换</h3>
 <p>轮换会立刻让旧客户端配置失效，脚本在动作前要求确认，非交互环境必须显式给 <code>--yes</code>。</p>
 <pre><code>sudo bash bin/deploy/rotate.sh short-id        # 换 REALITY short_id
 sudo bash bin/deploy/rotate.sh obfs            # 换 Hysteria2 obfs 密码，需 ENABLE_HY2=1
@@ -97,11 +80,81 @@ sudo bash bin/deploy/rotate.sh devices         # 换全部设备
 sudo bash bin/deploy/rotate.sh all             # 三项依次执行
 sudo bash bin/deploy/rotate.sh all --dry-run   # 只打印计划</code></pre>
 <p>每次轮换都会重渲染服务端配置并重启 sing-box。收尾三步由脚本打印：重渲染客户端、让对方删除旧配置后重新导入、清理旧凭据所在的备份与聊天记录。</p>
-<div class="warn"><b>轮换不是吊销。</b>只把凭据换掉，旧设备上的配置仍能读到旧凭据；确认作废要同时删除对应设备行或用 <code>bin/deploy/device.sh revoke</code>。</div>
+<div class="warn"><b>轮换不是吊销。</b>只把凭据换掉，旧设备上的配置仍能读到旧凭据；确认作废要同时删除对应设备行，或用 <code>bin/deploy/device.sh revoke</code>。</div>
 
-<h2>升级 / 回滚</h2>
-<pre><code>sudo SING_BOX_VERSION=1.15.0 bash bin/deploy/one/install-singbox.sh
-bash bin/deploy/one/server.sh &amp;&amp; bash bin/deploy/check/server.sh
-# 回滚把版本号换回去，重跑同样两条</code></pre>
+<h2>检查与验证</h2>
+<pre><code>vnstat -m                              # 本月流量（超配额后限速 1Mbps）
+journalctl -u sing-box -n 50 --no-pager
+bash bin/deploy/check/server.sh
+sudo bash bin/deploy/ops/monitor.sh --status
+sudo bash bin/deploy/ops/backup.sh list</code></pre>
+<p>验收通过的标准是脚本退出码 <code>0</code> 且七项全为通过；探针应能持续产出记录，<code>--status</code> 里服务与端口均为正常。备份核对三点：文件带 <code>.gpg</code> 或 <code>.enc</code> 后缀、<code>list</code> 标注为加密、口令文件存在且权限 600。</p>
+
+<h2>下一步</h2>
+<p>日常维护按本页的检查清单执行。需要调整告警通道与阈值时见<a href="07-subscription.html">第 7 页</a>；节点异常的处置见<a href="troubleshooting.html">排查手册</a>。</p>
+
+<h2>回退与卸载</h2>
+<div class="tw">
+<table>
+<thead><tr><th>场景</th><th>动作</th></tr></thead>
+<tbody>
+<tr><td>配置被改坏</td><td><code>sudo bash bin/deploy/ops/backup.sh restore /root/backups/最新包</code>，脚本恢复后重启 sing-box</td></tr>
+<tr><td>新版本不稳</td><td><code>SING_BOX_VERSION=旧版本 bash bin/deploy/one/install-singbox.sh</code>，再跑 <code>server.sh</code> 与 <code>check/server.sh</code></td></tr>
+<tr><td>关闭探针</td><td><code>sudo bash bin/deploy/ops/monitor.sh --uninstall</code>，删除定时器与记录</td></tr>
+<tr><td>客户端要退回上一版</td><td>凭据未轮换时重新导入上一版包；已 <code>rotate</code> 过则旧包无效，必须重新 <code>export</code></td></tr>
+<tr><td>整机退役</td><td><code>bash bin/deploy/deploy.sh --uninstall --purge --yes</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>命令手册</h2>
+<div class="tw">
+<table>
+<thead><tr><th>动作</th><th>命令</th></tr></thead>
+<tbody>
+<tr><td>验收</td><td><code>SERVER_IP=你的服务器IP bash bin/deploy/client/verify.sh --no-cli --proxy socks5h://127.0.0.1:2080</code></td></tr>
+<tr><td>导出设备包</td><td><code>sudo bash bin/deploy/device.sh export 名字</code></td></tr>
+<tr><td>备份与恢复</td><td><code>sudo bash bin/deploy/ops/backup.sh backup|list|restore 文件</code></td></tr>
+<tr><td>探针</td><td><code>sudo bash bin/deploy/ops/monitor.sh [--probe|--status|--uninstall]</code></td></tr>
+<tr><td>轮换</td><td><code>sudo bash bin/deploy/rotate.sh short-id|obfs|device 名字|devices|all</code></td></tr>
+<tr><td>服务状态</td><td><code>systemctl status sing-box</code>、<code>journalctl -u sing-box -n 50 --no-pager</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>参数说明</h2>
+<div id="params"></div>
+<div class="tw">
+<table>
+<thead><tr><th>变量</th><th>默认</th><th>作用</th></tr></thead>
+<tbody>
+<tr><td><code>SERVER_IP</code></td><td>无</td><td>验收比对出口与握手质量用</td></tr>
+<tr><td><code>VLESS_PORT</code></td><td><code>443</code></td><td>REALITY 入口端口</td></tr>
+<tr><td><code>PROXY</code></td><td><code>socks5h://127.0.0.1:2080</code></td><td>客户端实际监听端口</td></tr>
+<tr><td><code>MONTHLY_QUOTA</code></td><td><code>1T</code></td><td>月流量配额，用于节点名显示与告警占比</td></tr>
+<tr><td><code>ALERT_TRAFFIC_PCT</code></td><td><code>80</code></td><td>流量占比告警阈值</td></tr>
+<tr><td><code>ALERT_CERT_DAYS</code></td><td><code>14</code></td><td>证书剩余天数告警阈值</td></tr>
+<tr><td><code>ALERT_COOLDOWN_H</code></td><td><code>6</code></td><td>同一告警的冷却时间</td></tr>
+<tr><td><code>BACKUP_PASSPHRASE_FILE</code></td><td><code>/root/.backup-passphrase</code></td><td>备份口令文件，权限 600</td></tr>
+<tr><td><code>--insecure</code></td><td>关</td><td>备份时跳过加密，仅在明确要明文时使用</td></tr>
+<tr><td><code>--dry-run</code></td><td>关</td><td>轮换时只打印计划，不改动任何文件</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>常见错误与排查</h2>
+<div class="tw">
+<table>
+<thead><tr><th>现象</th><th>原因</th><th>处理</th></tr></thead>
+<tbody>
+<tr><td>恢复备份时提示口令错误</td><td>口令文件被替换，或备份由另一台机器的口令加密</td><td>找回原口令文件；找不到则加密包无法恢复，只能重建节点</td></tr>
+<tr><td>备份产物是明文 <code>.tgz</code></td><td>用了 <code>--insecure</code>，或机器上既无 gpg 也无 openssl</td><td>装 gpg 后重新备份；明文包按泄露处理</td></tr>
+<tr><td>探针没有记录</td><td>定时器未启用，或记录目录不可写</td><td><code>systemctl status sing-box-probe.timer</code>，再 <code>monitor.sh --probe</code> 手动跑一次看报错</td></tr>
+<tr><td>告警一直没到手机</td><td>未配置任何通道，或凭据错误</td><td>先 <code>monitor.sh --alert-test</code> 发测试消息，确认通道可达</td></tr>
+<tr><td>轮换后忘记重新分发</td><td>客户端仍用旧凭据</td><td>逐台 <code>device.sh export</code> 并重新导入；服务端日志会出现 <code>processed invalid connection</code></td></tr>
+<tr><td>手机验收第一项就失败</td><td>移动端配置只有 TUN，没有本地端口</td><td>改用桌面那份配置做回环验收，或在手机浏览器里自查</td></tr>
+</tbody>
+</table>
+</div>
 
 <p style="margin-top:24px"><a href="05-client.html">← 上一步</a>　·　<a href="index.html">回到总览</a></p>

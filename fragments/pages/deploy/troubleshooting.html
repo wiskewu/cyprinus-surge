@@ -1,7 +1,13 @@
 <h1>排查手册</h1>
-<p class="lede">症状 → 原因 → 动作。这里的示例一律用占位符，不写真实地址。</p>
+<p class="lede">按症状检索的排障手册。示例一律用占位符，不写真实地址。</p>
 
-<h2>返回码与失败行为实测</h2>
+<h2>目标</h2>
+<p>部署与使用过程中出现异常时，按本页顺序定位：先用「命令手册」取事实，再到「常见错误与排查」里对照症状。每一项都给出可执行的判定动作，读完应当能判断是自己配置的问题、线路的问题，还是环境的问题。</p>
+<p>三个入口先记住：服务端自检 <code>bin/deploy/check/server.sh</code>、客户端验收 <code>bin/deploy/client/verify.sh</code>、加固验收 <code>bin/harden/audit.sh</code>。三者的输出含义都在本页说明。</p>
+
+<h2>命令手册</h2>
+
+<h3>返回码与失败行为实测</h3>
 <p>下列结果在 Debian 13 上实测，脚本里依赖这些判定的地方都按此为准。</p>
 <div class="tw">
 <table>
@@ -20,95 +26,31 @@
 </div>
 <div class="bad"><b><code>sshd -T</code> 不是运行态检查。</b>它解析配置文件，服务没重启、甚至没起来，照样返回新值。判断「策略真的生效」只有两条路：看 reload 的退出码，或者新开一个连接实测。</div>
 
-<h2>国内站点全部打不开，境外却正常</h2>
-<p>两种已知原因，看日志区分。</p>
-
-<h3>① <code>route.auto_detect_interface</code> 取值和平台有关</h3>
-<div class="tw">
-<table>
-<thead><tr><th>场景</th><th>取值</th><th>原因</th></tr></thead>
-<tbody>
-<tr><td>Android / iOS（TUN + auto_route）</td><td><b>true</b>（默认）</td><td>直连出站必须绑到物理网卡，否则国内流量会绕回 TUN，表现为「国内无法直连」</td></tr>
-<tr><td>Windows / macOS 桌面</td><td>先 true；报错再改 false</td><td>多网卡 / 驱动环境下接口绑定可能返回 10049，日志里是 <code>not valid in its context</code></td></tr>
-<tr><td>只用 mixed / 系统代理（无 TUN）</td><td>无所谓</td><td>没有路由改写，不需要绑定</td></tr>
-</tbody>
-</table>
-</div>
-<p>桌面要覆盖成 false，在服务器重渲染这台设备时给变量，再重新导出：<code>AUTO_DETECT_INTERFACE=false DEFAULT_INTERFACE=网卡名 sudo -E bash bin/deploy/device.sh export laptop</code>。只关探测不绑网卡会让直连打环，两个变量必须一起给。</p>
-
-
-<p>Windows 多宿主 / 网卡驱动环境下，直连的 socket 会被绑到无效的本地地址，解析国内域名直接失败：</p>
-<pre><code>dial tcp &lt;你的本地 DNS&gt;:443: connectex: The requested address is not valid in its context</code></pre>
-<p>把它改成 <code>false</code> 即可。实测同一份配置只改这一个值：<code>true</code> → 请求失败、DNS <code>lookup failed</code>；<code>false</code> → DNS <code>NOERROR</code>、HTTP 200。</p>
-
-
-<h3>② 同时开了两个代理客户端</h3>
-<p>比如 Clash Verge 与 GUI.for.SingBox 同时运行：两边抢 DNS、抢系统代理、抢路由。症状同上，但还会看到 DNS 被改写成假地址（<code>198.18.x.x</code> 之类）。</p>
-<p><b>处理：同一时间只留一个</b>，退出另一个后重启留下的那个。</p>
-
-<h2>启动报 <code>detour to an empty direct outbound makes no sense</code></h2>
-<p>sing-box 1.12+ 不允许 DNS 服务器的 <code>detour</code> 指向一个「空」direct 出站，也就是 <code>{"type":"direct","tag":"direct"}</code> 这种不带任何选项的直连：</p>
-<pre><code>FATAL start service: start dns-transport: start dns/https[dns-cn]:
-      detour to an empty direct outbound makes no sense</code></pre>
-<p>两种改法，语义不同：</p>
-<ul>
-<li><b>删掉</b>该 DNS 服务器的 <code>"detour": "direct"</code> → 跟随默认出站（通常是代理），解析要等隧道建好</li>
-<li><b>给 direct 出站加任一选项</b>让它不再"空"，例如 <code>"domain_resolver": { "server": "dns-cn" }</code> → 国内域名仍走直连解析</li>
-</ul>
-<p>本方案用第二种：国内域名直连解析，不依赖隧道。<code>bin/deploy/client/render.sh</code> 生成的配置已经带上。</p>
-<div class="warn"><b><code>sing-box check</code> 查不出这个错。</b>check 不初始化 DNS 传输，所以「能导入 / 能过 check」不代表能启动，必须以真正启动一次为准。</div>
-
-<h2>GUI 报 <code>missing tags</code> 或 <code>duplicate outbound tag</code></h2>
-<div class="tw">
-<table>
-<thead><tr><th>报错</th><th>原因</th><th>动作</th></tr></thead>
-<tbody>
-<tr><td><code>initialize outbound[N]: missing tags</code></td><td>某个 <code>urltest</code> / <code>selector</code> 分组的 <code>outbounds</code> 是空的</td><td>节点没被登记进分组。用 GUI 的「编辑节点」手动加一次，或改用命令行跑完整配置</td></tr>
-<tr><td><code>parse dns rule[N]: missing server field</code></td><td>DNS 规则没选服务器。1.12 起 <code>action: route</code> 的 DNS 规则必须带 <code>server</code></td><td>GUI 的「配置 → DNS」里给每条规则选一台服务器；手写时补 <code>"server": "dns-cn"</code> 这类字段</td></tr>
-<tr><td><code>start outbound: dependency[X] not found for outbound[Y]</code></td><td>分组里写的成员 tag 在 <code>outbounds</code> 中不存在</td><td>删过节点、或手写时只写了组成员没写成员出站。对齐 tag，或把成员出站补进 <code>outbounds</code></td></tr>
-<tr><td>路由规则加了却不起作用</td><td>规则带了 <code>action: route</code> 却没选 <code>outbound</code></td><td>这种规则不会报错，只在命中后沿用最终出站。服务器直连规则漏了出站，表现就是 SSH 被绕进隧道</td></tr>
-<tr><td><code>duplicate outbound/endpoint tag: direct</code></td><td>订阅文件（或配置）里放了自己的 <code>direct</code> / <code>block</code></td><td>订阅里只放<b>节点</b>（vless / vmess / trojan / hysteria2…），不要放 direct / block / dns</td></tr>
-</tbody>
-</table>
-</div>
-<p>注意：GUI.for.SingBox 生成的 <code>config.json</code> 是<b>生成物</b>，手改会被覆盖；要改就改订阅文件或 GUI 设置。GUI 的「订阅」只接受 <b>outbounds 数组</b>，不接受整份配置。</p>
-
-<h2>服务端自检输出怎么读</h2>
-<p class="lede"><code>bin/deploy/check/server.sh</code>，只读，不改动任何东西。</p>
+<h3>服务端自检输出怎么读</h3>
+<p><code>bin/deploy/check/server.sh</code> 只读，不改动任何东西。</p>
 <div class="tw">
 <table>
 <thead><tr><th>项</th><th>不通过意味着</th><th>动作</th></tr></thead>
 <tbody>
 <tr><td>sing-box 运行中 / 端口在监听</td><td>进程没起来，或端口被占</td><td><code>ss -tlnp | grep 443</code>、<code>journalctl -u sing-box -n 50</code></td></tr>
 <tr><td>配置已落盘</td><td><code>bin/deploy/one/server.sh</code> 没跑成功</td><td>重跑 <code>bash bin/deploy/one/server.sh</code></td></tr>
-<tr><td>日志无 error</td><td>配置被拒 / 证书读不到 / 端口绑定失败</td><td>只看本次启动之后的日志，上一轮的 FATAL 不算；对照下方「起不来的原因」</td></tr>
+<tr><td>日志无 error</td><td>配置被拒 / 证书读不到 / 端口绑定失败</td><td>只看本次启动之后的日志，上一轮的 FATAL 不算；对照下方「起不来的常见原因」</td></tr>
 <tr><td>拥塞控制 / NTP</td><td>内核模块没加载 / 时间漂移</td><td><code>modprobe tcp_bbr &amp;&amp; sysctl --system</code>；<code>systemctl restart systemd-timesyncd</code></td></tr>
 <tr><td>出站 IPv4 = SERVER_IP</td><td>多出口或走 NAT</td><td>确认 <code>deploy.env</code> 里的 IP 是对外的那个</td></tr>
 <tr><td>伪装站点 TLS1.3 / H2 / 证书可信</td><td>伪装站点选错，客户端会连不上</td><td>换 <code>REALITY_DEST</code>（<code>www.microsoft.com</code> 等）</td></tr>
 </tbody>
 </table>
 </div>
+<p>起不来的常见原因：证书读不到（<code>ENABLE_HY2=1</code> 但没证书）、端口被占（<code>address already in use</code>）、变量缺失（重跑 <code>bin/deploy/one/secrets.sh</code>）、<code>short_id</code> 不是偶数长度 hex。</p>
 
-<h3>起不来的常见原因</h3>
-<ol>
-<li>证书读不到：<code>ENABLE_HY2=1</code> 但没证书 → 跑第 4 步，或把它改成 0</li>
-<li>端口被占：<code>address already in use</code> → 停掉占 443 的服务</li>
-<li>变量缺失：<code>变量 X 未设置</code> → 重跑 <code>bin/deploy/one/secrets.sh</code> 或补上</li>
-<li><code>short_id</code> 不是偶数长度 hex</li>
-</ol>
-
-<h2 id="reality-noise">日志里的 <code>REALITY: processed invalid connection</code></h2>
-<p><b>不是故障。</b>REALITY 对任何拿不到正确凭据的 TLS 连接都会记这一行，并把它转发给伪装站点。扫描器、浏览器直接访问服务器 IP、参数写错的客户端，都会产生它。</p>
-<p>判断：看来源。不是自己的宽带地址 → 忽略；是自己的地址且客户端连不上 → 参数不匹配，对比这 6 项：服务器地址、端口、SNI、UUID、REALITY 公钥、short_id（外加 <code>flow</code> 必须一致）。</p>
-
-<h2>客户端验收输出怎么读</h2>
-<p class="lede"><code>bin/deploy/client/verify.sh</code>，七项按编号输出，退出码 0 全过 / 1 有失败项 / 2 代理没起来。</p>
+<h3>客户端验收输出怎么读</h3>
+<p><code>bin/deploy/client/verify.sh</code> 七项按编号输出，退出码 <code>0</code> 全过 / <code>1</code> 有失败项 / <code>2</code> 代理没起来。</p>
 <div class="tw">
 <table>
 <thead><tr><th>项</th><th>期望</th><th>不通过说明</th></tr></thead>
 <tbody>
 <tr><td>0 代理可用</td><td>出口 = <code>SERVER_IP</code></td><td>客户端没起来 / 端口不对 / 配置报错</td></tr>
-<tr><td>1 国内站点直连</td><td>绕过代理与走代理的 <b>ttfb</b> 接近</td><td>差很多 = 被绕进隧道；直接失败 = 直连 DNS 解析有问题（见本页第一节）</td></tr>
+<tr><td>1 国内站点直连</td><td>绕过代理与走代理的 <b>ttfb</b> 接近</td><td>差很多 = 被绕进隧道；直接失败 = 直连 DNS 解析有问题</td></tr>
 <tr><td>2 延迟分解</td><td>复用 ttfb &lt; 0.5s，冷启动 &lt; 1.2s</td><td><code>TLS 完成</code> 偏大 = 丢包重传或晚高峰；<code>首包再 X</code> 偏大 = 目标站点或出口问题</td></tr>
 <tr><td>3 DNS 接管</td><td>不自动判定</td><td>mixed 模式下命令行测不准，用浏览器开 dnsleaktest.com 复验；同时开两个客户端会抢 DNS</td></tr>
 <tr><td>4 AI 站点</td><td>chatgpt 200/301/302</td><td>401/403/429 = 连上了但被风控，标为提示而非失败；<code>000</code> 才是连不上</td></tr>
@@ -119,111 +61,174 @@
 </div>
 <p>走代理时 <code>time_connect</code> 只是到本地中转端口的耗时，没有诊断价值；看 <code>TLS 完成</code> 和 <code>ttfb</code>。</p>
 
-<h2>确认某条连接走了哪个出站</h2>
-<p>最直接的是客户端的「连接」列表：sing-box 的 Clash API 会给每条连接一个 <code>chains</code> 字段，<code>["direct"]</code> = 直连，<code>["proxy"]</code> = 走节点。</p>
+<h3>确认某条连接走了哪个出站</h3>
+<p>sing-box 的 Clash API 给每条连接一个 <code>chains</code> 字段，<code>["direct"]</code> 是直连，<code>["proxy"]</code> 是走节点。</p>
 <pre><code># 从客户端配置里读控制端口与密钥，再查连接列表
 S=$(grep -o '"secret":"[^"]*"' config.json | cut -d'"' -f4)
 C=$(grep -o '"external_controller":"[^"]*"' config.json | cut -d'"' -f4)
 curl -s -H "Authorization: Bearer $S" "http://$C/connections" | grep -o '"chains":\[[^]]*\]' | sort | uniq -c</code></pre>
 <p>既有 direct 又有 proxy 才算分流正常；全是 proxy 说明国内直连规则没生效。</p>
 
-<h2>移动端闪退：<code>NoSuchElementException</code>（App 自身 bug）</h2>
-<pre><code>java.util.NoSuchElementException
-  at java.util.LinkedList.removeFirst(LinkedList.java:282)
-  at io.nekohasekai.sfa.compose.screen.log.LogViewModel.togglePause(...)</code></pre>
-<p>崩在 <b>日志页面点「暂停」</b>的时候（日志列表为空）。这是 sing-box Android 客户端（SFA）的界面 bug，与应用配置无关。规避：不要在日志为空时点暂停；或升级 App。</p>
+<h2>常见错误与排查</h2>
 
-<h2>解析失败：<code>lookup 某域名: (exchange6: EOF | exchange4: EOF)</code></h2>
-<p><code>exchange6</code> / <code>exchange4</code> 是 sing-box 对同一个域名分别走 IPv6 / IPv4 的两次 DNS 查询。<code>EOF</code> 表示<b>DNS 连接被关闭</b>，常见原因：</p>
-<ul>
-<li>查询走的是「经代理」的 DNS（<code>dns-remote</code>），而那一刻隧道还没建好或握手失败</li>
-<li>代理刚重连，旧连接被关掉</li>
-</ul>
-<p>当前配置下：<b>国内域名走直连 DNS</b>（不依赖隧道），只有海外域名才需要隧道。如果海外域名偶尔 EOF，先确认隧道已就绪再重试。</p>
-
-<h2>启动告警</h2>
-<ul>
-<li><code>implicit default HTTP client using default outbound for remote rule-sets is deprecated</code><br>
-1.14 起不再隐式用默认出站下载规则集（1.16 会移除）。<b>当前模板已修</b>：配置里显式写了顶层 <code>http_clients</code> 与 <code>route.default_http_client</code>，重新渲染一次客户端配置即可，告警会消失。仍看到这条，说明 JSON 是旧版模板生成的。</li>
-<li><code>REALITY: processed invalid connection</code>，含义与处理见本页<a href="#reality-noise">同名小节</a>。</li>
-</ul>
-
-<h2>刚重启就看结论，三个坑</h2>
-<p>重启之后立刻自检，读到的往往还不是新进程的状态。下列结果在 Debian 13 上实测。</p>
-
-<h3>1 重启竞态：退出码 0 不等于就绪</h3>
-<pre><code>systemctl restart sing-box
-systemctl is-active sing-box     # active：服务已拉起
-ss -tln | grep ':443 '           # 可能还是空：监听尚未建立</code></pre>
-<p>实测连续三轮都是「<code>active</code> 但 443 未监听」，从 restart 返回到端口可用约 240 ms；要下载规则集或加载证书时更长。</p>
-<div class="bad"><b>日志要按启动时间切。</b>直接 <code>journalctl -u sing-box -n 300</code> 会把上一轮失败留下的 <code>FATAL</code> 一起读出来，看起来像当前版本起不来。按本次启动看：<br>
-<code>journalctl -u sing-box --since "$(systemctl show -p ActiveEnterTimestamp --value sing-box)"</code><br>
-服务端自检脚本已经这么做。</div>
-
-<h3>2 端口就绪：等监听，不要等进程</h3>
-<pre><code># 最多等 10 秒，直到端口真的在监听
-for i in $(seq 1 100); do
-  ss -tln | grep -q ':443 ' && { echo 就绪; break; }
-  sleep 0.1
-done</code></pre>
-<p>判定端口都走这个写法，比 <code>sleep 3</code> 稳：慢机器上够用，快机器上不浪费。UDP 用 <code>ss -uln</code>。</p>
-
-<h3>3 <code>CAP_DAC_OVERRIDE</code>：root 不绕过文件权限</h3>
-<p>能力集里去掉 <code>CAP_DAC_OVERRIDE</code> 之后，uid 0 只是一个普通用户：目录属主是 <code>sing-box</code>、权限 <code>750</code> 时，root 落在「其他人」，没有 <code>x</code> 就进不去。复现：</p>
-<pre><code>install -d -m 750 -o sing-box -g sing-box /tmp/dac2
-echo hi &gt; /tmp/dac2/f &amp;&amp; chown sing-box:sing-box /tmp/dac2/f &amp;&amp; chmod 640 /tmp/dac2/f
-cat /tmp/dac2/f                                   # hi
-capsh --drop=all -- -c 'cat /tmp/dac2/f'          # Permission denied</code></pre>
-<p>这是降权后「配置读不到」的根因之一，处理见<a href="03-server.html">第 3 页</a>的沙箱一节：目录属主跟随单元 <code>User</code>，或者 <code>bin/deploy/check/selfcheck.sh --fix-dac</code> 修正。</p>
-
-<h2>故障手册</h2>
+<h3>国内站点全部打不开，境外却正常</h3>
+<p>两种已知原因，看日志区分。</p>
+<p><b>其一，<code>route.auto_detect_interface</code> 取值和平台有关。</b></p>
 <div class="tw">
 <table>
-<thead><tr><th>现象</th><th>动作</th></tr></thead>
+<thead><tr><th>场景</th><th>取值</th><th>原因</th></tr></thead>
 <tbody>
-<tr><td>三端同时连不上</td><td><code>systemctl status sing-box</code> → <code>journalctl -n 50</code> → <code>bash bin/deploy/check/server.sh</code></td></tr>
-<tr><td>客户端 <code>reality verification failed</code>，服务端日志 <code>REALITY: processed invalid connection</code></td><td>客户端配置里的 <code>public_key</code> / <code>short_id</code> 与服务器当前的不一致：<code>secrets</code> 被覆盖重跑过，密钥对已轮换</td><td>对比 <code>grep REALITY_PUBLIC_KEY /etc/sing-box/deploy.env</code> 与客户端 JSON 的 <code>tls.reality.public_key</code>；不一致就 <code>bash bin/deploy/device.sh export &lt;设备&gt;</code> 重新导出并分发。新版脚本重跑 <code>secrets</code> 默认保留旧密钥</td></tr>
-<tr><td>REALITY 通、Hysteria2 不通</td><td>UDP 被限速/阻断，或端口跳跃规则没加（<code>bin/deploy/one/port-hop.sh</code>）；只用 REALITY 也可</td></tr>
-<tr><td>Hysteria2 通、REALITY 不通</td><td>换 <code>VLESS_PORT</code> 或 <code>REALITY_DEST</code>，重跑 <code>bin/deploy/one/server.sh</code>，客户端重渲染</td></tr>
-<tr><td>能连但 ChatGPT 报错/无限验证</td><td>AI 出口被风控，换出口（<code>AI_MODE=dedicated</code>）</td></tr>
-<tr><td>一切正常但很慢</td><td>晚高峰用 mtr 看丢包；考虑迁移机房</td></tr>
-<tr><td>国内站点变慢</td><td>规则集没更新或 <code>sniff</code> 未生效；看连接列表的 chains</td></tr>
-<tr><td>突然全部失效且时间异常</td><td>NTP 漂移：<code>timedatectl set-ntp true</code> + 重启 timesyncd</td></tr>
-<tr><td>流量超了变慢</td><td>限速到 1Mbps（不是停机），<code>vnstat -m</code> 确认</td></tr>
-<tr><td>SSH 能连上但立刻 <code>Connection reset</code>（换端口就好）</td><td>端口路径上有 <b>RST 注入</b>（对 22 端口最常见）或服务商的「22 端口保护」。测法：<code>curl --interface en0 -sS telnet://&lt;IP&gt;:22</code> 与 <code>…:其他端口</code> 对比，一个 <code>reset</code>、一个能打出 <code>SSH-2.0-…</code> banner，就是它。解法：sshd 换个高位端口，客户端 <code>Port</code> 同步改</td></tr>
-<tr><td>SSH 端口连不上</td><td>先确认不是云厂商安全组挡的（<a href="01-init.html">第二层防火墙</a>）：控制台里也要放行你的 SSH 端口。然后从控制台执行 <code>ufw allow 你的端口/tcp &amp;&amp; ufw reload</code>，再跑 <code>bin/deploy/one/system.sh</code>；探测不到监听端口时带 <code>SSH_PORT=你的端口</code></td></tr>
-<tr><td>ufw 里出现了 22，而 sshd 不在 22</td><td>早期版本的 <code>deploy.env</code> 写死了 <code>SSH_PORT=22</code>，被防火墙步骤当成额外端口放行。重新跑 <code>bin/deploy/one/system.sh</code>：只保留实际监听的端口，删掉旧规则，并把 <code>deploy.env</code> 的该行改写成真实端口</td></tr>
-<tr><td>能连上但 <code>ssh</code> / 隧道立刻被断（<code>Connection closed by UNKNOWN port 65535</code>）</td><td>典型是<b>TUN 打环</b>：配置里 <code>auto_detect_interface=false</code>，出站没绑物理网卡，<code>direct</code> 出站又按默认路由走回 tun。加上 <code>"auto_detect_interface": true</code>，或用 <code>DEFAULT_INTERFACE=&lt;物理网卡&gt;</code> 重渲染（写进 <code>route.default_interface</code>）。注意：GUI 客户端导入的是副本，改文件不重导入不生效</td></tr>
-<tr><td>系统步骤第 6 项报「未生效：可能没有 Include」</td><td>镜像的 <code>sshd_config</code> 没 <code>Include sshd_config.d</code>，脚本写的 drop-in 就是死文件（新版脚本会自动补一条 Include 并回读验证）。手工版的记法：<code>head -3 /etc/ssh/sshd_config</code> 看有没有 Include，再 <code>sshd -T | grep -i ^passwordauthentication</code> 看当前生效值，把靠前的那个 <code>yes</code> 改掉即可。见 <a href="01-init.html">第 1 页</a></td></tr>
-<tr><td>443 通但 8443 超时（或反过来）</td><td>几乎肯定是云厂商安全组只放行了部分端口。两层都要配</td></tr>
-<tr><td>连新服务器 SSH 卡在 <code>kex_exchange_identification</code></td><td><b>你本机的 TUN 把 SSH 也给代理了。</b>见下方「本机 TUN 捕获 SSH」</td></tr>
-<tr><td>测出来延迟/丢包漂亮，实际用很差</td><td>测量机器自己的 TUN 会污染结果，见下方「测量视角」</td></tr>
+<tr><td>Android / iOS（TUN + auto_route）</td><td><b>true</b>（默认）</td><td>直连出站必须绑到物理网卡，否则国内流量会绕回 TUN，表现为「国内无法直连」</td></tr>
+<tr><td>Windows / macOS 桌面</td><td>先 true；报错再改 false</td><td>多网卡 / 驱动环境下接口绑定可能返回 10049，日志里是 <code>not valid in its context</code></td></tr>
+<tr><td>只用 mixed / 系统代理（无 TUN）</td><td>无所谓</td><td>没有路由改写，不需要绑定</td></tr>
+</tbody>
+</table>
+</div>
+<p>桌面要覆盖成 false，在服务器重渲染这台设备时给变量，再重新导出：<code>AUTO_DETECT_INTERFACE=false DEFAULT_INTERFACE=网卡名 sudo -E bash bin/deploy/device.sh export laptop</code>。只关探测不绑网卡会让直连打环，两个变量必须一起给。实测同一份配置只改这一个值：<code>true</code> 时请求失败、DNS <code>lookup failed</code>；<code>false</code> 时 DNS <code>NOERROR</code>、HTTP 200。</p>
+<p><b>其二，同时开了两个代理客户端。</b>比如 Clash Verge 与本方案的 sing-box 同时运行，两边抢 DNS、抢系统代理、抢路由，还会看到 DNS 被改写成假地址 <code>198.18.x.x</code> 之类。处理办法是同一时间只留一个，退出另一个后重启留下的那个。</p>
+
+<h3>启动报 <code>detour to an empty direct outbound makes no sense</code></h3>
+<p>sing-box 1.12+ 不允许 DNS 服务器的 <code>detour</code> 指向一个「空」direct 出站，也就是 <code>{"type":"direct","tag":"direct"}</code> 这种不带任何选项的直连：</p>
+<pre><code>FATAL start service: start dns-transport: start dns/https[dns-cn]:
+      detour to an empty direct outbound makes no sense</code></pre>
+<p>两种改法，语义不同：</p>
+<ul>
+<li><b>删掉</b>该 DNS 服务器的 <code>"detour": "direct"</code> → 跟随默认出站，解析要等隧道建好</li>
+<li><b>给 direct 出站加任一选项</b>让它不再是空出站，例如 <code>"domain_resolver": { "server": "dns-cn" }</code> → 国内域名仍走直连解析</li>
+</ul>
+<p>本方案用第二种。<code>bin/deploy/client/render.sh</code> 生成的配置已经带上。</p>
+<div class="warn"><b><code>sing-box check</code> 查不出这个错。</b>check 不初始化 DNS 传输，所以「能过 check」不代表能启动，必须以真正启动一次为准。</div>
+
+<h3>启动报 <code>missing tags</code>、<code>missing server field</code>、<code>dependency not found</code></h3>
+<p>三类报错都出自同一原因：出站或 DNS 结构不完整。手写或拼装配置时最容易踩到。</p>
+<div class="tw">
+<table>
+<thead><tr><th>报错</th><th>原因</th><th>动作</th></tr></thead>
+<tbody>
+<tr><td><code>initialize outbound[N]: missing tags</code></td><td>某个 <code>urltest</code> / <code>selector</code> 分组的 <code>outbounds</code> 是空数组</td><td>给分组补上真实节点标签；只有一个节点时直接删掉分组，让路由指向该节点</td></tr>
+<tr><td><code>parse dns rule[N]: missing server field</code></td><td>DNS 规则缺 <code>server</code>。1.12 起 <code>action: route</code> 的 DNS 规则必须带服务器</td><td>每条 DNS 规则补 <code>"server": "dns-cn"</code> 这类字段，或删掉该条规则</td></tr>
+<tr><td><code>start outbound: dependency[X] not found for outbound[Y]</code></td><td>分组里写的成员 tag 在 <code>outbounds</code> 中不存在</td><td>对齐标签，或把成员出站补进 <code>outbounds</code></td></tr>
+<tr><td><code>duplicate outbound/endpoint tag: direct</code></td><td>配置里出现两个同名出站，常见于把完整的 <code>direct</code> / <code>block</code> 又写了一遍</td><td>只保留一份；模板已内置这两个出站</td></tr>
+<tr><td>路由规则加了却不起作用</td><td>规则带了 <code>action: route</code> 却没写 <code>outbound</code></td><td>这种规则不报错，命中后沿用最终出站。服务器直连规则漏了出站，表现就是 SSH 被绕进隧道</td></tr>
 </tbody>
 </table>
 </div>
 
-<h2>本机 TUN 捕获 SSH</h2>
-<p>如果你自己电脑上跑着 Clash / sing-box 之类的 TUN（虚拟网卡），<b>连服务器的 SSH 也会被隧道接管</b>，服务器 IP 不在隧道的直连规则里，握手就死在半路。症状是 <code>kex_exchange_identification: Connection closed</code>、<code>Connection closed by UNKNOWN port 65535</code>，或者干脆超时，但服务器明明在跑。</p>
+<h3 id="corp-doh">企业管控机器：启动即 <code>10049</code></h3>
+<p>症状是启动立刻退出，日志里是 <code>dial tcp 某DNS:443: connectex: The requested address is not valid in its context.</code>，而 <code>sing-box check</code> 通过。境内外站点同时不可用，因为节点域名的解析在启动阶段就失败。</p>
+<p>先确认是不是这一类：客户端看到的系统 DNS 是内网地址，网卡上挂着第三方过滤驱动。Windows 上可以这样看：</p>
+<pre><code>Get-DnsClientServerAddress -AddressFamily IPv4 | Where-Object { $_.ServerAddresses }
+Get-NetAdapterBinding | Where-Object { $_.Enabled -and $_.ComponentID -notlike "ms_*" }</code></pre>
+<p>判据是目标端口：绑定网卡时连公共 DNS 的 443 与 853 立即被拒，53 正常，连节点 IP 的 443 也正常。这种情况来自企业终端策略，禁止用 DoH/DoT 绕过内网 DNS，改服务端参数没有用。</p>
+<p><b>方案一，给直连出站指定源地址。</b>在客户端配置里只给 <code>direct</code> 出站加一项，值填本机在当前网络的 IPv4 地址：</p>
+<pre><code>{ "type": "direct", "tag": "direct", "domain_resolver": { "server": "dns-cn" },
+  "inet4_bind_address": "192.168.8.150" }</code></pre>
+<p>触发拦截的是按接口绑定 socket，指定源地址走的是另一条路径，实测放行。填之前先用 <code>ipconfig</code> 确认，换网络后这个值要跟着改。</p>
+<p><b>方案二，国内解析交给系统。</b>把国内 DNS 换成系统解析，由操作系统去问内网 DNS：</p>
+<pre><code>{ "type": "local", "tag": "dns-cn" }</code></pre>
+<p>不再有直连公共 DNS 的 443 出站。系统若启用了 DNS over HTTPS，加密由操作系统承担。</p>
+<p><b>方案三，绑到虚拟网卡。</b>策略绑定在物理网卡上，把出站绑到一块 NAT 出去的虚拟网卡可以避开命中。需要管理员与 Hyper-V，本机未做验证，仅作为前两条都不可行时的备选：</p>
+<pre><code>New-VMSwitch -Name singbox -SwitchType Internal
+New-NetIPAddress -IPAddress 192.168.199.1 -PrefixLength 24 -InterfaceAlias "vEthernet (singbox)"
+New-NetNat -Name singbox-nat -InternalIPInterfaceAddressPrefix 192.168.199.0/24
+# 之后渲染设备配置时指定该网卡
+AUTO_DETECT_INTERFACE=false DEFAULT_INTERFACE="vEthernet (singbox)" sudo bash bin/deploy/device.sh export 设备名</code></pre>
+<p>验收判据与方案一相同：启动不再出现 <code>10049</code>，国内站点仍直连。</p>
+<div class="bad"><b>不要用「关掉接口绑定还开着 TUN」来绕。</b><code>auto_detect_interface</code> 关掉又没给 <code>default_interface</code> 时，直连流量会从隧道出口绕回自己，表现为国内站点变慢或走境外。</div>
+
+<h3 id="reality-noise">日志里的 <code>REALITY: processed invalid connection</code></h3>
+<p><b>不是故障。</b>REALITY 对任何拿不到正确凭据的 TLS 连接都会记这一行，并把它转发给伪装站点。扫描器、浏览器直接访问服务器 IP、参数写错的客户端，都会产生它。</p>
+<p>判断看来源：不是自己的宽带地址就忽略；是自己的地址且客户端连不上，说明参数不匹配，对比这六项：服务器地址、端口、SNI、UUID、REALITY 公钥、short_id，外加 <code>flow</code> 必须一致。</p>
+
+<h3>解析失败：<code>lookup 某域名: (exchange6: EOF | exchange4: EOF)</code></h3>
+<p><code>exchange6</code> 与 <code>exchange4</code> 是 sing-box 对同一个域名分别走 IPv6 与 IPv4 的两次 DNS 查询，<code>EOF</code> 表示 DNS 连接被关闭。常见原因有两个：查询走的是经代理的 <code>dns-remote</code>，而那一刻隧道还没建好或握手失败；或者代理刚重连，旧连接被关掉。</p>
+<p>当前配置下国内域名走直连 DNS，不依赖隧道，只有海外域名才需要隧道。海外域名偶尔 EOF 时，先确认隧道已就绪再重试。</p>
+
+<h3>启动告警</h3>
+<ul>
+<li><code>implicit default HTTP client using default outbound for remote rule-sets is deprecated</code>：1.14 起不再隐式用默认出站下载规则集，1.16 会移除。当前模板已修，配置里显式写了顶层 <code>http_clients</code> 与 <code>route.default_http_client</code>，重新渲染一次客户端配置即可。仍看到这条说明 JSON 是旧版模板生成的。</li>
+<li><code>REALITY: processed invalid connection</code>：含义与处理见<a href="#reality-noise">同名小节</a>。</li>
+</ul>
+
+<h3>移动端闪退：<code>NoSuchElementException</code></h3>
+<pre><code>java.util.NoSuchElementException
+  at java.util.LinkedList.removeFirst(LinkedList.java:282)
+  at io.nekohasekai.sfa.compose.screen.log.LogViewModel.togglePause(...)</code></pre>
+<p>崩在日志页面点「暂停」的时候，且日志列表为空。这是 sing-box Android 客户端（SFA）的界面缺陷，与应用配置无关。规避办法是不要在日志为空时点暂停，或升级 App。</p>
+
+<h3>刚重启就看结论，三个坑</h3>
+<p>重启之后立刻自检，读到的往往还不是新进程的状态。下列结果在 Debian 13 上实测。</p>
+<p><b>重启竞态。</b>连续三轮都是「<code>active</code> 但 443 未监听」，从 restart 返回到端口可用约 240 ms，要下载规则集或加载证书时更长。</p>
+<pre><code>systemctl restart sing-box
+systemctl is-active sing-box     # active：服务已拉起
+ss -tln | grep ':443 '           # 可能还是空：监听尚未建立</code></pre>
+<div class="bad"><b>日志要按启动时间切。</b>直接 <code>journalctl -u sing-box -n 300</code> 会把上一轮失败留下的 <code>FATAL</code> 一起读出来，看起来像当前版本起不来。按本次启动看：<br>
+<code>journalctl -u sing-box --since "$(systemctl show -p ActiveEnterTimestamp --value sing-box)"</code><br>
+服务端自检脚本已经这么做。</div>
+<p><b>端口就绪要等监听，不要等进程。</b>判定端口都用轮询，比 <code>sleep 3</code> 稳：慢机器上够用，快机器上不浪费。UDP 用 <code>ss -uln</code>。</p>
+<pre><code>for i in $(seq 1 100); do
+  ss -tln | grep -q ':443 ' &amp;&amp; { echo 就绪; break; }
+  sleep 0.1
+done</code></pre>
+<p><b><code>CAP_DAC_OVERRIDE</code>：root 不绕过文件权限。</b>能力集里去掉它之后，uid 0 只是一个普通用户：目录属主是 <code>sing-box</code>、权限 <code>750</code> 时，root 落在「其他人」，没有 <code>x</code> 就进不去。复现：</p>
+<pre><code>install -d -m 750 -o sing-box -g sing-box /tmp/dac2
+echo hi &gt; /tmp/dac2/f &amp;&amp; chown sing-box:sing-box /tmp/dac2/f &amp;&amp; chmod 640 /tmp/dac2/f
+cat /tmp/dac2/f                                   # hi
+capsh --drop=all -- -c 'cat /tmp/dac2/f'          # Permission denied</code></pre>
+<p>这是降权后「配置读不到」的根因之一。处理见<a href="03-server.html">第 3 页</a>的沙箱一节：目录属主跟随单元 <code>User</code>，或用 <code>bin/deploy/check/selfcheck.sh --fix-dac</code> 修正。</p>
+
+<h3>本机 TUN 捕获 SSH</h3>
+<p>自己电脑上跑着 TUN 客户端时，连服务器的 SSH 也会被隧道接管，服务器 IP 不在隧道的直连规则里，握手就死在半路。症状是 <code>kex_exchange_identification: Connection closed</code>、<code>Connection closed by UNKNOWN port 65535</code>，或者干脆超时，但服务器明明在跑。</p>
 <div class="bad"><b><code>nc -vz</code> 报「能通」不能当证据。</b>TUN 在本地就把 TCP 握手接住了，连本来没服务监听的端口也会「成功」。判断：<code>route -n get &lt;服务器IP&gt; | grep interface</code>，看到 <code>utunX</code> 就是被接管了。</div>
-<p><b>正确的修法在代理配置里：把服务器自己的 IP 设为直连。</b>规则要加在<b>真正持有 <code>utun</code> 的那个客户端</b>上（先 <code>pgrep -fl 'clash|mihomo|sing-box'</code> 看一眼）；机场客户端通常只把自己的节点加入直连，你自建的 VPS 不在它名单里。（本手册的 <code>bin/deploy/client/render.sh</code> 现在会自动给 sing-box 写这条规则，旧配置重新渲染一次就修好。）</p>
+<p>正确的修法在代理配置里：把服务器自己的 IP 设为直连。规则要加在真正持有 <code>utun</code> 的那个客户端上，先 <code>pgrep -fl 'clash|mihomo|sing-box'</code> 看一眼。本手册的 <code>bin/deploy/client/render.sh</code> 会自动给 sing-box 写这条规则，旧配置重新渲染一次就修好。</p>
 <pre><code># sing-box：route.rules 的第一条
 { "ip_cidr": ["&lt;服务器IP&gt;/32"], "action": "route", "outbound": "direct" }
 
-# Clash / Mihomo / Clash Verge（Verge 用「全局扩展配置 → 规则」的 prepend，别改订阅本體）
+# Clash / Mihomo / Clash Verge（用「全局扩展配置 → 规则」的 prepend，别改订阅本体）
 - IP-CIDR,&lt;服务器IP&gt;/32,DIRECT,no-resolve</code></pre>
-<p>临时手段（不想改代理配置时）：加一条宿主路由绕开隧道，或部署期间先关掉 TUN。</p>
+<p>临时手段是不改代理配置，加一条宿主路由绕开隧道，或部署期间先关掉 TUN。用完删掉：</p>
 <pre><code># macOS
 sudo route -n add -host &lt;服务器IP&gt; &lt;你的局域网网关&gt;
 # Linux
-sudo ip route add &lt;服务器IP&gt; via &lt;局域网网关&gt;</code></pre>
-<p>用完删掉：<code>sudo route -n delete -host &lt;服务器IP&gt;</code>。更简单的办法是部署期间先把 TUN 关掉。</p>
+sudo ip route add &lt;服务器IP&gt; via &lt;局域网网关&gt;
+# 撤销
+sudo route -n delete -host &lt;服务器IP&gt;</code></pre>
 
-<h2>测量视角</h2>
-<div class="warn"><b>本机有 TUN 时，测出来的每一个数字都可能是假的。</b>一个跑着代理客户端的机器会把自己的 <code>curl</code> / <code>nc</code> 也送进隧道里，于是「延迟很低」「端口通」都是隧道内的回环表现，不是真实链路。验收前先确认测试机器上<b>没有</b>任何代理客户端在跑。</div>
-<p>唯一在隧道开启时仍然可靠的信号是 <code>ping</code>，ICMP 通常不被代理接管，所以它能给出到源站（或到 Cloudflare 节点）的真实往返延迟。常用组合：</p>
+<h3>测量视角</h3>
+<div class="warn"><b>本机有 TUN 时，测出来的每一个数字都可能是假的。</b>跑着代理客户端的机器会把自己的 <code>curl</code> / <code>nc</code> 也送进隧道，「延迟很低」「端口通」都是隧道内的回环表现，不是真实链路。验收前先确认测试机器上没有任何代理客户端在跑。</div>
+<p>唯一在隧道开启时仍然可靠的信号是 <code>ping</code>，ICMP 通常不被代理接管，能给出到源站的真实往返延迟。常用组合：</p>
 <pre><code>ping &lt;服务器IP&gt;                      # 真实 RTT（绕过 TUN）
 mtr -r -c 200 &lt;服务器IP&gt;             # 真实丢包与抖动
 curl -o /dev/null -s -w '%{time_starttransfer}\n' https://www.google.com   # 走代理后的 TTFB</code></pre>
-<p>「连得上但只有几 KB/s」这种限速现象，同样要区分两种：<code>scp</code> 传个 10MB 文件很快、但走代理下载极慢 → 是<b>协议被限速</b>，换 IP 没用，得换传输协议（这正是本方案 REALITY 为主的原因）；<code>nc</code> 就直接超时、而境外节点一切正常 → 是<b>IP 被封</b>，换 IP 才有用。</p>
+<p>「连得上但只有几 KB/s」这类限速要区分两种情况：<code>scp</code> 传 10MB 文件很快、走代理下载极慢，是协议被限速，换 IP 没用，得换传输协议；<code>nc</code> 直接超时、而境外节点一切正常，是 IP 被封，换 IP 才有用。</p>
+
+<h3>故障速查表</h3>
+<div class="tw">
+<table>
+<thead><tr><th>现象</th><th>动作</th></tr></thead>
+<tbody>
+<tr><td>三端同时连不上</td><td><code>systemctl status sing-box</code>，再看 <code>journalctl -n 50</code>，最后跑 <code>bash bin/deploy/check/server.sh</code></td></tr>
+<tr><td>客户端 <code>reality verification failed</code>，服务端日志 <code>REALITY: processed invalid connection</code></td><td>客户端配置里的 <code>public_key</code> / <code>short_id</code> 与服务器当前值不一致，通常是 <code>secrets</code> 被覆盖重跑过。对比 <code>grep REALITY_PUBLIC_KEY /etc/sing-box/deploy.env</code> 与客户端 JSON 的 <code>tls.reality.public_key</code>，不一致就 <code>bash bin/deploy/device.sh export &lt;设备&gt;</code> 重新导出分发。新版脚本重跑 <code>secrets</code> 默认保留旧密钥</td></tr>
+<tr><td>REALITY 通、Hysteria2 不通</td><td>UDP 被限速或阻断，或端口跳跃规则没加（<code>bin/deploy/one/port-hop.sh</code>）；只用 REALITY 也可</td></tr>
+<tr><td>Hysteria2 通、REALITY 不通</td><td>换 <code>VLESS_PORT</code> 或 <code>REALITY_DEST</code>，重跑 <code>bin/deploy/one/server.sh</code>，客户端重新导出</td></tr>
+<tr><td>能连但 ChatGPT 报错或无限验证</td><td>AI 出口被风控，换出口（<code>AI_MODE=dedicated</code>）</td></tr>
+<tr><td>一切正常但很慢</td><td>晚高峰用 mtr 看丢包；考虑迁移机房</td></tr>
+<tr><td>国内站点变慢</td><td>规则集没更新或 <code>sniff</code> 未生效；看连接列表的 chains</td></tr>
+<tr><td>突然全部失效且时间异常</td><td>NTP 漂移：<code>timedatectl set-ntp true</code> 并重启 timesyncd</td></tr>
+<tr><td>流量超了变慢</td><td>限速到 1Mbps，不是停机；<code>vnstat -m</code> 确认</td></tr>
+<tr><td>SSH 能连上但立刻 <code>Connection reset</code></td><td>端口路径上有 RST 注入，对 22 端口最常见。测法：<code>curl --interface en0 -sS telnet://&lt;IP&gt;:22</code> 与换端口对比，一个 reset、一个打出 banner 就是它。解法是 sshd 换高位端口，客户端同步改</td></tr>
+<tr><td>SSH 端口连不上</td><td>先排除云厂商安全组：控制台里也要放行。然后从控制台执行 <code>ufw allow 你的端口/tcp &amp;&amp; ufw reload</code>，再跑 <code>bin/deploy/one/system.sh</code>；探测不到监听端口时带 <code>SSH_PORT=你的端口</code></td></tr>
+<tr><td>ufw 里出现了 22，而 sshd 不在 22</td><td>早期版本的 <code>deploy.env</code> 写死了 <code>SSH_PORT=22</code>，被防火墙步骤当成额外端口放行。重跑 <code>bin/deploy/one/system.sh</code> 只保留实际监听端口，删掉旧规则，并把 <code>deploy.env</code> 该行改成真实端口</td></tr>
+<tr><td>能连上但 SSH 立刻被断</td><td>TUN 打环：<code>auto_detect_interface=false</code> 且 <code>direct</code> 出站没绑物理网卡时，直连按默认路由走回 tun。打开自动探测，或用 <code>DEFAULT_INTERFACE=&lt;物理网卡&gt;</code> 重新导出</td></tr>
+<tr><td>系统步骤第 6 项报「未生效：可能没有 Include」</td><td>镜像的 <code>sshd_config</code> 没有 <code>Include sshd_config.d</code>，drop-in 就是死文件，新版脚本会自动补一条并回读验证。手工核对：<code>head -3 /etc/ssh/sshd_config</code> 看有没有 Include，再 <code>sshd -T | grep -i ^passwordauthentication</code> 看生效值，把靠前的 <code>yes</code> 改掉。见 <a href="01-init.html">第 1 页</a></td></tr>
+<tr><td>443 通但 8443 超时，或反过来</td><td>云厂商安全组只放行了部分端口，两层都要配</td></tr>
+<tr><td>连新服务器 SSH 卡在 <code>kex_exchange_identification</code></td><td>本机 TUN 把 SSH 也代理了，见<a href="#corp-doh">本机 TUN 捕获 SSH</a></td></tr>
+<tr><td>延迟与丢包好看，实际用很差</td><td>测量机器自己的 TUN 污染了结果，见「测量视角」</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>下一步</h2>
+<p>定位到具体环节后回到对应页面处理：系统与防火墙见 <a href="01-init.html">第 1 页</a>，服务端配置见 <a href="03-server.html">第 3 页</a>，客户端的运行与验收见 <a href="05-client.html">第 5 页</a>。加固相关问题见 <a href="../quality/index.html">SSH 加固手册</a>。</p>
 
 <p style="margin-top:24px"><a href="index.html">← 回到总览</a></p>

@@ -62,6 +62,8 @@ details{margin:10px 0;border:1px solid var(--line);border-radius:var(--r);backgr
 details>summary{cursor:pointer;padding:10px 14px;font-weight:600;font-size:14px;color:var(--acc)}
 details[open]>summary{border-bottom:1px solid var(--line)}
 details .body{padding:4px 14px 14px}
+.foot-nav{margin:0 0 6px;display:flex;flex-wrap:wrap;gap:4px 10px}
+.foot p{margin:0 0 6px}
 .foot{border-top:1px solid var(--line);background:#fff;padding:20px 0 40px;font-size:13px;color:var(--ink3)}
 @media(max-width:640px){h1{font-size:22px}.kv{grid-template-columns:1fr}}
 </style>
@@ -70,111 +72,124 @@ details .body{padding:4px 14px 14px}
 <header class="top"><div class="wrap"><a class="home" href="index.html">自建节点部署手册</a><span class="crumb">4 · 可选 Hysteria2</span></div></header>
 <nav class="nav"><div class="wrap"><a href="index.html">0 · 总览与准备</a><a href="01-init.html">1 · 系统初始化</a><a href="02-install.html">2 · 安装与密钥</a><a href="03-server.html">3 · 服务端配置</a><a href="04-hy2.html" aria-current="page">4 · 可选 Hysteria2</a><a href="05-client.html">5 · 客户端</a><a href="06-ops.html">6 · 验收与备份</a><a href="onekey.html">一键</a><a href="07-subscription.html">7 · 订阅与用量</a><a href="troubleshooting.html">排查</a></div></nav>
 <main class="wrap">
-<h1>4 · 可选：Hysteria2 第二入口</h1>
-<p class="lede">不做也可以，REALITY 单入口已经能用。需要你有一个域名，DNS 托管在 Cloudflare。</p>
+<h1>4 · Hysteria2 第二入口（可选）</h1>
+<p class="lede">REALITY 单入口已经可用，本页是可选加固：用 Hysteria2 增加一条抗 UDP 干扰的路径。需要有一个域名，DNS 托管在 Cloudflare。</p>
 
-<h2>准备</h2>
-<p>这一步要先备齐三样，缺一样就只能中止：</p>
+<h2>目标</h2>
+<p>完成 ACME 证书签发与 UDP 入口监听，使客户端配置里出现 <code>proxy-hy2</code> 出站，并能通过抓包与验收脚本证明这条链路真的承载流量。</p>
+
+<h2>准备工作</h2>
+<p>三样材料缺一不可，缺一样就只能中止：</p>
 <ol>
-<li><b>入口域名</b>：一条 A 记录指向服务器 IP，代理<b>关闭（灰云）</b>。证书按这个域名签，客户端也连这个域名。</li>
+<li><b>入口域名</b>：一条 A 记录指向服务器 IP，Cloudflare 代理<b>关闭（灰云）</b>。证书按这个域名签，客户端也连这个域名。</li>
 <li><b>Cloudflare API Token</b>：权限选「编辑区域 DNS」，DNS-01 验证要用。</li>
-<li><b>邮箱</b>：证书到期通知地址，acme.sh 注册账号时用。</li>
+<li><b>邮箱</b>：证书到期通知地址，acme.sh 注册账号时使用。</li>
 </ol>
-<p>用 <code>deploy.sh</code> 时，这三样会在开局的材料清单里列出；<code>--yes</code> 且缺料会直接退出 2，不会跑到发证才失败。</p>
+<p>用 <code>deploy.sh</code> 时这三样会在开局的材料清单里列出，<code>--yes</code> 且缺料会直接退出码 2，不会跑到发证阶段才失败。云安全组与 ufw 都要放行 <code>8443-8447/udp</code>。</p>
 
-<h2>执行</h2>
-<pre><code>cd /root/deploy
-bash bin/deploy/one/hy2.sh        # 输入域名 / 邮箱 / Token，自动签发并续期
-bash bin/deploy/one/server.sh  # 服务端开始监听 UDP
+<h2>实施步骤</h2>
+<pre><code>cd /root
+bash bin/deploy/one/hy2.sh          # 输入域名 / 邮箱 / Token，自动签发并续期
+bash bin/deploy/one/server.sh       # 服务端开始监听 UDP
 bash bin/deploy/check/server.sh
 
-# 可选：让客户端的端口跳跃真正可用
+# 可选：让客户端端口跳跃真正可用
 bash bin/deploy/one/port-hop.sh</code></pre>
+<p>完成后回到<a href="05-client.html">第 5 页</a>重新导出该设备的配置，渲染会读到 <code>ENABLE_HY2=1</code>，客户端因此多出一个 <code>proxy-hy2</code> 出站。</p>
 
-<p>完成后要回到客户端重新渲染一次配置（它会读到 <code>ENABLE_HY2=1</code>）。</p>
-
-<h2 id="verify">验证 hy2 真的生效</h2>
-<p>客户端渲染出来的配置会多一个 <code>proxy-hy2</code> 出站，与 <code>proxy</code> 一起挂进 <code>auto</code>。<code>auto</code> 是个 urltest，<code>route.final</code> 指向它，所以「出口是服务器 IP」说明不了任何事，很可能一直是 REALITY 在承载。要证明 hy2 可用，得单独把它拎出来跑。</p>
-
-<h3>1. 服务端在监听</h3>
+<h2>检查与验证</h2>
+<p>客户端配置里多出 <code>proxy-hy2</code>，与 <code>proxy</code> 一起挂进 <code>auto</code>。<code>auto</code> 是 urltest，<code>route.final</code> 指向它，所以「出口是服务器 IP」说明不了任何事，很可能一直是 REALITY 在承载。要证明 hy2 可用，得单独把它拎出来跑。</p>
+<p><b>服务端在监听。</b>hysteria2 走 UDP，<code>ss</code> 要用 <code>-u</code>：</p>
 <pre><code>systemctl is-active sing-box
-ss -ulnp | grep ':8443'          # hysteria2 走 UDP，用 -u
+ss -ulnp | grep ':8443'
 sudo bash bin/deploy/check/server.sh     # 自带「UDP 8443 在监听」一项</code></pre>
-<p>云安全组与 ufw 要放行 <code>8443-8447/udp</code>。只放 8443 时端口跳跃会随机失败，现象是「时通时不通」。</p>
-
-<h3>2. 客户端配置的形状</h3>
+<p><b>客户端配置的形状。</b></p>
 <pre><code>jq -r '.outbounds[] | "\(.tag)\t\(.type)"' client.json
 # proxy      vless
 # proxy-hy2  hysteria2
 # auto       urltest
 # direct     direct
 jq -r '.route.final' client.json          # ENABLE_HY2=1 时应为 auto</code></pre>
-
-<h3>3. 一条命令验证：<code>HY2_ONLY=1</code></h3>
-<p>验收脚本会从你手上的配置派生一份副本：所有指向其它代理出站的引用改写成 <code>proxy-hy2</code>，出站裁到只剩 <code>proxy-hy2</code> 与 <code>direct</code>，入站换成一个本地 mixed 端口，然后前台跑起来验收、跑完自动清理。不改你原来那份配置，也不用 root。</p>
+<p><b>一条命令验证。</b>验收脚本会从手上的配置派生一份副本：所有指向其它代理出站的引用改写成 <code>proxy-hy2</code>，出站裁到只剩 <code>proxy-hy2</code> 与 <code>direct</code>，入站换成本地 mixed 端口，前台跑起来验收、跑完自动清理。不改原配置，也不需要 root。</p>
 <pre><code>HY2_ONLY=1 CONFIG=./sing-box-client-laptop-desktop.json SERVER_IP=你的服务器IP VLESS_PORT=443 \
   bash bin/deploy/client/verify.sh</code></pre>
-<p><code>CONFIG</code> 指服务器发来的那份 JSON，不需要 <code>client.env</code>。</p>
+<p><code>CONFIG</code> 指向服务器发来的那份 JSON，不需要 <code>client.env</code>。退出码沿用脚本约定：<code>0</code> 全过 / <code>1</code> 有失败项 / <code>2</code> 临时实例没起来或本地代理不可用。临时实例的日志留在系统临时目录，失败时脚本会打尾部。</p>
+<p><b>抓包确认走的是哪一个。</b>hy2 是 QUIC over UDP，REALITY 是 TCP 443：</p>
+<pre><code># 客户端
+sudo tcpdump -ni en0 'udp portrange 8443-8447' -c 20
+sudo tcpdump -ni en0 'tcp port 443' -c 20
+
+# 服务端对账
+sudo tcpdump -ni any 'udp portrange 8443-8447' -c 10
+sudo journalctl -u sing-box -n 100 --no-pager | grep -iE 'hysteria|hy2'</code></pre>
+<p>只有区间内的 UDP、没有到服务器的 TCP 443，才是 hy2 在承载。<code>server_ports</code> 生效时，抓到的目的端口会在 8443–8447 之间变化。</p>
+<p><b>urltest 会不会选它。</b><code>auto</code> 每 3 分钟测一次 <code>https://www.gstatic.com/generate_204</code>，<code>tolerance</code> 为 100ms，只有候选比当前快出 100ms 才切换。REALITY 通常先测赢，hy2 长期备而不用，这是主备设计而非配置错误。要让它常驻，把 <code>auto.outbounds</code> 收成只剩 <code>proxy-hy2</code>，或把 <code>route.final</code> 指向 <code>proxy-hy2</code>。</p>
+
+<h2>下一步</h2>
+<p>回到<a href="03-server.html">第 3 页</a>重跑服务端渲染与自检，再到<a href="05-client.html">第 5 页</a>重新导出并分发客户端配置。</p>
+
+<h2>回退与卸载</h2>
+<pre><code># 只关第二入口，保留证书
+sudo bash bin/deploy/deploy.sh --only server --overwrite --yes   # ENABLE_HY2=0 时重跑
+sudo bash bin/deploy/deploy.sh --only porthop --uninstall --yes  # 撤销端口跳跃规则</code></pre>
+<p>关闭后客户端配置里的 <code>proxy-hy2</code> 会消失，需要重新导出分发。证书保留在 <code>/etc/sing-box</code> 下，重新开启无需重签。</p>
+
+<h2>命令手册</h2>
+<pre><code>bash bin/deploy/one/hy2.sh                  # 签发或续期证书并安装到 /etc/sing-box
+bash bin/deploy/one/server.sh               # 重新渲染，开始监听 UDP
+bash bin/deploy/one/port-hop.sh             # 可选：配置端口跳跃
+ss -ulnp | grep ':8443'                     # 核对 UDP 监听
+HY2_ONLY=1 CONFIG=./客户端配置.json SERVER_IP=服务器IP bash bin/deploy/client/verify.sh</code></pre>
+
+<h2>参数说明</h2>
 <div class="tw">
 <table>
-<thead><tr><th>变量</th><th>默认</th><th>作用</th></tr></thead>
+<thead><tr><th>项</th><th>默认</th><th>说明</th></tr></thead>
 <tbody>
-<tr><td><code>HY2_ONLY=1</code></td><td>关</td><td>派生配置 + 起临时实例 + 跑完整验收，需要本机有 sing-box</td></tr>
+<tr><td><code>DOMAIN</code></td><td>空</td><td>入口域名，留空则跳过整段证书流程</td></tr>
+<tr><td><code>CF_TOKEN</code></td><td>空</td><td>Cloudflare API Token，DNS-01 验证用</td></tr>
+<tr><td><code>ACME_EMAIL</code></td><td>空</td><td>证书到期通知地址</td></tr>
+<tr><td><code>ENABLE_HY2</code></td><td><code>0</code></td><td>为 <code>1</code> 时渲染 <code>proxy-hy2</code> 出站并监听 UDP</td></tr>
+<tr><td><code>HY2_ONLY=1</code></td><td>关</td><td>派生配置并起临时实例跑完整验收，需要本机有 sing-box</td></tr>
 <tr><td><code>HY2_ONLY=emit</code></td><td>关</td><td>只生成一份只走 hy2 的配置，不起进程、不联网、不需要 sing-box</td></tr>
-<tr><td><code>CONFIG</code></td><td><code>./client.json</code></td><td>要派生的客户端配置，<code>bin/deploy/device.sh</code> 生成的 <code>*-desktop.json</code> 直接用</td></tr>
-<tr><td><code>HY2_TAG</code></td><td><code>proxy-hy2</code></td><td>出站 tag，改了模板或手写过配置时用</td></tr>
-<tr><td><code>HY2_PROBE_PORT</code></td><td><code>2081</code></td><td>临时 mixed 入站端口，与 GUI 的 2080 错开</td></tr>
-<tr><td><code>SING_BOX_BIN</code></td><td><code>sing-box</code></td><td>要执行的二进制，非 PATH 里的可写绝对路径</td></tr>
+<tr><td><code>CONFIG</code></td><td><code>./client.json</code></td><td>要派生的客户端配置，<code>device.sh</code> 生成的 <code>*-desktop.json</code> 直接用</td></tr>
+<tr><td><code>HY2_TAG</code></td><td><code>proxy-hy2</code></td><td>出站 tag，改了模板或手写过配置时使用</td></tr>
+<tr><td><code>HY2_PROBE_PORT</code></td><td><code>2081</code></td><td>临时 mixed 入站端口，与 2080 错开</td></tr>
+<tr><td><code>SING_BOX_BIN</code></td><td><code>sing-box</code></td><td>要执行的二进制，非 PATH 内时给绝对路径</td></tr>
 <tr><td><code>HY2_OUT</code></td><td><code>hy2-only.json</code></td><td><code>emit</code> 模式的输出文件</td></tr>
 </tbody>
 </table>
 </div>
-<p>退出码沿用脚本的约定：<code>0</code> 全过 / <code>1</code> 有失败项 / <code>2</code> 临时实例没起来或本地代理不可用。临时实例的日志留在系统临时目录里，失败时脚本会把尾部打出来。</p>
-<div class="warn"><b>本机要有 <code>sing-box</code> 且不能与 GUI 抢端口。</b>缺二进制时脚本直接退出并提示装法；GUI 开着 TUN 时先断开，或把 <code>HY2_PROBE_PORT</code> 换成别的空闲端口。派生配置只保留本地 mixed 入站，所以不需要 root。</div>
-
-<h4>装了图形客户端但没有 CLI 时</h4>
-<p>SFM、GUI.for.SingBox 这类客户端把核心装在 App 或系统扩展里，<code>PATH</code> 上没有可执行的 <code>sing-box</code>。用 <code>emit</code> 生成一份只含 hy2 出站的配置，导入客户端即可，不必装第二个核心：</p>
+<p>没有本机 <code>sing-box</code> 时用 <code>emit</code> 生成一份只含 hy2 出站的配置，导入平台客户端即可，不必装第二个核心：</p>
 <pre><code>HY2_ONLY=emit CONFIG=./client.json HY2_OUT=./hy2-only.json \
   bash bin/deploy/client/verify.sh</code></pre>
 <div class="tw">
 <table>
 <thead><tr><th>生成结果</th><th>说明</th></tr></thead>
 <tbody>
-<tr><td>出站只剩 <code>proxy-hy2</code> 与 <code>direct</code></td><td>原来的 <code>auto</code> 与 <code>proxy</code> 被移除，所有引用改指 <code>proxy-hy2</code></td></tr>
+<tr><td>出站只剩 <code>proxy-hy2</code> 与 <code>direct</code></td><td>原来的 <code>auto</code> 与 <code>proxy</code> 被移除，引用改指 <code>proxy-hy2</code></td></tr>
 <tr><td><code>route.final</code> = <code>proxy-hy2</code></td><td>没有代理组可选，导入后必然只走 hy2</td></tr>
 <tr><td><code>dns.servers[].detour</code>、<code>http_clients[].detour</code>、<code>route.rules[].outbound</code></td><td>同样改指 <code>proxy-hy2</code>，不留悬空 tag</td></tr>
-<tr><td><b>入站原样保留</b></td><td>TUN 与本地混合端口都不动，交给客户端自己的隧道管理</td></tr>
+<tr><td>入站原样保留</td><td>TUN 与本地混合端口都不动，交给客户端自己的隧道管理</td></tr>
 </tbody>
 </table>
 </div>
-<p>导入后按客户端分配到的本地端口跑普通验收，所有检查都会经由 hy2：</p>
+<p>导入后按客户端分配的本地端口跑普通验收，所有检查都会经由 hy2：</p>
 <pre><code>PROXY=socks5h://127.0.0.1:&lt;客户端端口&gt; SERVER_IP=&lt;服务器IP&gt; \
   bash bin/deploy/client/verify.sh</code></pre>
-<p><code>emit</code> 只读 <code>CONFIG</code>、不联网，因此不需要 <code>client.env</code>。两种模式的分工：<code>emit</code> 只落到文件，<code>HY2_ONLY=1</code> 自己起进程跑，后者需要本机有 <code>sing-box</code> 二进制，前者不需要。</p>
-<div class="note"><b>图形客户端的 TUN 会抢路由。</b>验收走的是客户端自己的本地端口，与 TUN 是否开启无关；但 TUN 在跑时命令行测出来的延迟会被它接管，看 <code>route -n get 8.8.8.8 | grep interface</code> 确认。</div>
 
-<h3>4. 抓包确认走的是哪一个</h3>
-<pre><code># 客户端：hy2 是 QUIC over UDP；REALITY 是 TCP 443
-sudo tcpdump -ni en0 'udp portrange 8443-8447' -c 20
-sudo tcpdump -ni en0 'tcp port 443' -c 20</code></pre>
-<p>只有区间内的 UDP、没有到服务器的 TCP 443，才是 hy2 在承载。<code>server_ports</code> 生效时，抓到的目的端口会在 8443–8447 之间变化。服务端对账：</p>
-<pre><code>sudo tcpdump -ni any 'udp portrange 8443-8447' -c 10
-sudo journalctl -u sing-box -n 100 --no-pager | grep -iE 'hysteria|hy2'</code></pre>
-
-<h3>5. urltest 选不选它</h3>
-<p><code>auto</code> 每 3 分钟测一次 <code>https://www.gstatic.com/generate_204</code>，<code>tolerance</code> 为 100ms：只有候选比当前快出 100ms 才会切换。REALITY 通常先测赢，hy2 长期备而不用，这不算配置错误，是主备设计。想让它常驻，把 <code>auto.outbounds</code> 收成只剩 <code>proxy-hy2</code>，或把 <code>route.final</code> 指向 <code>proxy-hy2</code>。</p>
-
-<h2>常见失败点</h2>
+<h2>常见错误与排查</h2>
 <div class="tw">
 <table>
 <thead><tr><th>现象</th><th>原因与处理</th></tr></thead>
 <tbody>
 <tr><td>QUIC 握手失败，日志里几乎没有有效信息</td><td>两端 <code>obfs</code> salamander 密码不一致，对比 <code>out-hy2.json.tmpl</code> 与 <code>in-hy2.json.tmpl</code> 渲染出来的值</td></tr>
-<tr><td>TLS 报 SNI / 证书错误</td><td>客户端 <code>tls.server_name</code> 与服务端证书域名不一致</td></tr>
+<tr><td>TLS 报 SNI 或证书错误</td><td>客户端 <code>tls.server_name</code> 与服务端证书域名不一致</td></tr>
 <tr><td>本地抓包有 UDP 出去，服务端抓不到</td><td>UDP 出境被拦，校园网与公司网常见</td></tr>
 <tr><td>8443 通，跳到区间内其它端口就失败</td><td>外层安全组只放了 8443，补 <code>8443-8447/udp</code></td></tr>
-<tr><td>acme.sh 打印 <code>Domains not changed.</code> / <code>Skipping.</code></td><td>不是失败：该域名已有证书且未到续期时间，脚本会直接把已有证书装到 <code>/etc/sing-box</code>。要强制重签加 <code>--force</code>，注意 Let's Encrypt 的同一域名每周签发上限</td></tr>
-<tr><td><code>HY2_ONLY=1</code> 报临时实例没起来</td><td>看脚本打出的日志尾部：多半是 <code>CONFIG</code> 里没有 <code>proxy-hy2</code>，或派生配置 <code>sing-box check</code> 不通过</td></tr>
+<tr><td>acme.sh 打印 <code>Domains not changed.</code> 或 <code>Skipping.</code></td><td>不是失败：该域名已有证书且未到续期时间，脚本会把已有证书装到 <code>/etc/sing-box</code>。要强制重签加 <code>--force</code>，注意同一域名的每周签发上限</td></tr>
+<tr><td><code>HY2_ONLY=1</code> 报临时实例没起来</td><td>看脚本打出的日志尾部：多半是 <code>CONFIG</code> 里没有 <code>proxy-hy2</code>，或派生配置过不了 <code>sing-box check</code></td></tr>
+<tr><td>验收时本机没有 <code>sing-box</code></td><td>改用 <code>HY2_ONLY=emit</code> 生成配置导入客户端，再用客户端端口跑验收</td></tr>
 </tbody>
 </table>
 </div>
@@ -183,7 +198,8 @@ sudo journalctl -u sing-box -n 100 --no-pager | grep -iE 'hysteria|hy2'</code></
 
 </main>
 <footer class="foot"><div class="wrap">
-本手册与 <a href="../index.html">方案总览</a> · <a href="../vps-shortlist.html">服务器采购</a> 配套。命令在 Debian 12/13、Ubuntu 22.04/24.04 上验证；配置已用 sing-box 1.14.3 校验。仅限本人自用科研学习，遵守所在地法律法规与服务条款。
+<p class="foot-nav">方案总览 <a href="../index.html">index.html</a> · 部署手册 <a href="index.html">deploy/index.html</a> · SSH 加固 <a href="../quality/index.html">quality/index.html</a> · 问题记录 <a href="../issue/index.html">issue/index.html</a> · 服务器采购 <a href="../vps-shortlist.html">vps-shortlist.html</a></p>
+<p>命令在 Debian 12/13、Ubuntu 22.04/24.04 上验证；配置已用 sing-box 1.14.3 校验。仅限本人自用科研学习，遵守所在地法律法规与服务条款。</p>
 </div></footer>
 <script>
 document.querySelectorAll('pre').forEach(function(pre){

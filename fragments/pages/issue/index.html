@@ -1,6 +1,18 @@
 <h1>问题记录</h1>
 <p class="lede">真实环境里踩到的坑，连同判据与处置命令一起留档。每条只写可复现的现象、能定位它的命令，以及收拾干净的标准。</p>
 
+<h2>目标</h2>
+<p>把已经定位清楚的问题沉淀成可复用的条目：同类症状出现时，能照着判据快速确认，照着命令一次处置干净，而不是从头试错。</p>
+
+<h2>准备工作</h2>
+<ul>
+<li>现象可复现，且能区分「网络不通」与「应用配置不对」两类原因</li>
+<li>手上有可对照的基线：同一网络下另一台设备、或同一设备的命令行工具</li>
+<li>准备记录三样内容：现象、判据命令、收尾标准</li>
+</ul>
+
+<h2>实施步骤</h2>
+<p>每条记录按同一顺序展开：现象，排查顺序，结论，验收清单，避免复发的做法。命令标注平台与前提。</p>
 <div class="tw">
 <table>
 <thead><tr><th>#</th><th>问题</th><th>一句话结论</th></tr></thead>
@@ -10,11 +22,38 @@
 </table>
 </div>
 
-<h2>记录约定</h2>
-<ul>
-<li>只写判据与命令，不写环境里的地址、账号、网卡名等可识别的值，复现时替换成自己的。</li>
-<li>每个结论都要能落到一条可执行的验证命令上，不接受「重启后好了」这类没有归因的收尾。</li>
-<li>命令标注平台与前提，脚本与手册正文的措辞保持一致。</li>
-</ul>
+<h2>检查与验证</h2>
+<p>每条记录末尾都给出验收清单，全部满足才算收拾干净。以第 1 条为例：系统代理为空、没有残留隧道接口、默认路由回到物理网卡，三条都成立。</p>
+
+<h2>下一步</h2>
+<p>从<a href="macos-tunnel-proxy.html">第 1 条</a>开始读。部署侧的排障在<a href="../deploy/troubleshooting.html">节点部署手册的排查页</a>，SSH 侧的排障在<a href="../quality/03-verify.html">SSH 加固手册的验收页</a>。</p>
+
+<h2>回退与卸载</h2>
+<p>每条记录附带撤销方式，通常是删掉系统代理项、卸载系统扩展，或恢复默认路由。按条目内的命令反向执行即可。</p>
+
+<h2>参数说明</h2>
+<div class="tw">
+<table>
+<thead><tr><th>项</th><th>取值</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>网络服务名</td><td><code>Wi-Fi</code>、<code>Ethernet</code> 等</td><td><code>networksetup -listallnetworkservices</code> 查看，命令里的名字要与之一致</td></tr>
+<tr><td>隧道网卡名</td><td><code>utun0</code> 起</td><td><code>ifconfig</code> 里实际出现的那一个</td></tr>
+<tr><td>扩展标识</td><td><code>teamID bundleID</code></td><td>取自 <code>systemextensionsctl list</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>常见错误与排查</h2>
+<div class="tw">
+<table>
+<thead><tr><th>误区</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>用「重启后好了」作结</td><td>没有归因的结论无法复用，下次还会踩同一个坑</td></tr>
+<tr><td>把 <code>curl</code> 通当作浏览器也通</td><td><code>curl</code> 不读系统代理，两者路径不同</td></tr>
+<tr><td>照抄别人环境里的地址与网卡名</td><td>记录只保留判据，取值一律替换成自己的</td></tr>
+</tbody>
+</table>
+</div>
+<p>记录约定：只写判据与命令，不写环境里可识别的值；每个结论都要能落到一条可执行的验证命令上；命令标注平台与前提，措辞与手册正文保持一致。</p>
 
 <p style="margin-top:24px"><a href="macos-tunnel-proxy.html">1 · 隧道与系统代理残留 →</a></p>

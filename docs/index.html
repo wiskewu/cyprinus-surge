@@ -2491,19 +2491,14 @@ svg[data-animation="trace"] [data-graph-role="automatic-crossover"]:has(> [data-
 <footer class="p-foot">
   <div class="p-shell">
     <p><b>合规声明：</b>本方案仅面向本人自用的科研与学习场景，需遵守所在地法律法规与相关服务条款；不对「无法被识别」做任何保证；不分享账号、不转售节点。文中的 <span class="p-tag community">社区</span> 数据与价格会随时间变化，落地前请按第 1 节的方法在你自己的网络上复测。</p>
-    <p style="margin-top:16px"><b>配套文件</b></p>
+    <p style="margin-top:16px"><b>配套文档</b></p>
     <div class="p-files">
-      <div><b>docs/index.html</b><br>本页 · 单文件方案可视化（内联校验过的架构图，可离线打开）</div>
-      <div><b>docs/deploy/</b><br>部署手册：6 步主流程 + 排查手册 + 12 个可复用脚本</div>
-      <div><b>docs/vps-shortlist.html</b><br>服务器入门采购清单：满足下单门槛的 6 家厂商 / 8 个机型，含支付方式与换 IP 能力</div>
-      <div><b>docs/issue/</b><br>问题记录：真实环境里踩到的坑，含判据、处置命令与验收清单</div>
-      <div><b>docs/方案.md</b><br>完整文字方案：含配置骨架、命令清单、故障手册</div>
-      <div><b>docs/diagrams/01-architecture.html</b><br>图 1 总体架构（可交互、可切主题）</div>
-      <div><b>docs/diagrams/02-ai-request-path.html</b><br>图 2 AI 请求分流链路</div>
-      <div><b>docs/diagrams/03-failover-lifecycle.html</b><br>图 3 降级切换状态机</div>
-      <div><b>docs/diagrams/04-rollout-workflow.html</b><br>图 4 实施与验收流程</div>
-      <div><b>.archify/</b><br>四张图的源 JSON（candidate.json）与校验回执，便于修改后重新生成（本地工具目录，未纳入版本控制）</div>
-      <div><b>.archify/build/</b><br>本页的组装脚本与内容模板（build-index.mjs / template.html，同样未纳入版本控制）</div>
+      <div><a href="deploy/index.html"><b>部署手册</b></a><br>六步主流程、一键脚本、排查手册与按设备分发的客户端配置</div>
+      <div><a href="quality/index.html"><b>SSH 加固手册</b></a><br>仅公钥登录、速率限制与 fail2ban；客户端配置、服务端加固、验收与参数取舍</div>
+      <div><a href="issue/index.html"><b>问题记录</b></a><br>真实环境里踩到的坑，含判据、处置命令与验收清单</div>
+      <div><a href="vps-shortlist.html"><b>服务器采购清单</b></a><br>满足下单门槛的 6 家厂商与 8 个机型，含支付方式与换 IP 能力</div>
+      <div><a href="方案.md"><b>完整文字方案</b></a><br>选型、协议、客户端配置骨架、分流与 DNS、运维与故障手册</div>
+      <div><a href="diagrams/01-architecture.html">图 1 总体架构</a> · <a href="diagrams/02-ai-request-path.html">图 2 AI 分流链路</a> · <a href="diagrams/03-failover-lifecycle.html">图 3 降级切换</a> · <a href="diagrams/04-rollout-workflow.html">图 4 实施与验收</a></div>
     </div>
   </div>
 </footer>

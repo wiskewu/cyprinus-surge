@@ -66,6 +66,8 @@ details .body{padding:4px 14px 14px}
 .fig .bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 14px;border-bottom:1px solid var(--line);font-size:13px;color:var(--ink3);background:#fbfcfd}
 .fig .bar b{color:var(--ink);font-weight:600}
 .fig iframe{display:block;width:100%;height:640px;border:0}
+.foot-nav{margin:0 0 6px;display:flex;flex-wrap:wrap;gap:4px 10px}
+.foot p{margin:0 0 6px}
 .foot{border-top:1px solid var(--line);background:#fff;padding:20px 0 40px;font-size:13px;color:var(--ink3)}
 @media(max-width:640px){h1{font-size:22px}.kv{grid-template-columns:1fr}.fig iframe{height:520px}}
 </style>
@@ -75,9 +77,12 @@ details .body{padding:4px 14px 14px}
 <nav class="nav"><div class="wrap"><a href="index.html">0 · 总览</a><a href="01-client.html">1 · 客户端配置</a><a href="02-server.html">2 · 服务端加固</a><a href="03-verify.html">3 · 验收与排障</a><a href="04-reference.html" aria-current="page">4 · 参数与取舍</a></div></nav>
 <main class="wrap">
 <h1>参数与取舍</h1>
-<p class="lede">主读者：需要修改默认值或评估额外加固项的人。本页是参考页，只给事实、默认值与副作用。</p>
+<p class="lede">参考页：脚本参数的默认值与副作用、<code>ufw limit</code> 的实际行为、fail2ban 规则，以及可选双因子与本手册明确放弃的加固项。</p>
 
-<h2>脚本参数</h2>
+<h2>目标</h2>
+<p>需要修改默认值、评估额外加固，或解释某条规则为何如此时，在这一页找到事实依据，不必回头读脚本。</p>
+
+<h2>参数说明</h2>
 <div class="tw">
 <table>
 <thead><tr><th>脚本</th><th>参数</th><th>默认</th><th>副作用</th></tr></thead>
@@ -88,21 +93,18 @@ details .body{padding:4px 14px 14px}
 <tr><td><code>--uninstall</code></td><td>否</td><td>恢复密码登录与 <code>ufw allow</code></td></tr>
 <tr><td><code>--whitelist IP[,IP]</code></td><td>仅 127.0.0.1 与 ::1</td><td>写入 fail2ban 的 <code>ignoreip</code></td></tr>
 <tr><td><code>--force</code></td><td>否</td><td>跳过「当前会话必须公钥登录」的检查</td></tr>
-<tr><td rowspan="8"><code>bin/harden/client.sh</code></td><td><code>--host</code></td><td>必填</td><td>无</td></tr>
+<tr><td rowspan="5"><code>bin/harden/client.sh</code></td><td><code>--host</code></td><td>必填</td><td>无</td></tr>
 <tr><td><code>--port</code></td><td>先取同地址块的 <code>Port</code>，否则 22</td><td>无</td></tr>
 <tr><td><code>--user</code></td><td><code>root</code></td><td>无</td></tr>
 <tr><td><code>--alias</code></td><td>复用同地址块的名字，都没有时 <code>vps</code></td><td>写入或重写 <code>~/.ssh/config</code> 的 <code>Host</code> 块，重写前备份 <code>config.bak</code></td></tr>
-<tr><td><code>--install-server</code></td><td>否</td><td>向服务器 <code>authorized_keys</code> 追加一行（已存在则跳过）</td></tr>
-<tr><td><code>--prune</code></td><td>否</td><td>删除其它指向同一地址与端口的 <code>Host</code> 块</td></tr>
-<tr><td><code>--dry-run</code></td><td>否</td><td>无，只打印将写入的内容</td></tr>
-<tr><td><code>--yes</code></td><td>否</td><td>不提问，删除类操作按默认执行</td></tr>
+<tr><td><code>--install-server</code> / <code>--prune</code> / <code>--dry-run</code> / <code>--yes</code></td><td>否</td><td>分别追加公钥、删除重复块、只预览、不提问</td></tr>
 <tr><td><code>bin/harden/audit.sh</code></td><td><code>--alias</code> 或 <code>--host</code></td><td>必填其一</td><td>无，只读</td></tr>
 </tbody>
 </table>
 </div>
 <p>三个脚本都幂等，重复执行只补齐缺失的部分。</p>
 
-<h2>ufw limit 的行为</h2>
+<h3><code>ufw limit</code> 的行为</h3>
 <div class="tw">
 <table>
 <thead><tr><th>项</th><th>值</th></tr></thead>
@@ -114,9 +116,9 @@ details .body{padding:4px 14px 14px}
 </tbody>
 </table>
 </div>
-<p>若并发需求高于该阈值，把 <code>ufw limit</code> 换成 <code>ufw allow</code> 并保留 fail2ban，封禁由 fail2ban 承担。</p>
+<p>并发需求高于该阈值时，把 <code>ufw limit</code> 换成 <code>ufw allow</code> 并保留 fail2ban，封禁由 fail2ban 承担。</p>
 
-<h2>fail2ban 规则</h2>
+<h3>fail2ban 规则</h3>
 <pre><code>[DEFAULT]
 ignoreip = 127.0.0.1/8 ::1
 bantime = 1h
@@ -136,10 +138,10 @@ enabled = true</code></pre>
 </tbody>
 </table>
 </div>
-<p>出口 IP 会变化的网络，写进 <code>ignoreip</code> 的那条很快失效，等于没写；改用密钥登录本来也不产生失败尝试。</p>
 
-<h2>可选：双因子</h2>
-<p>TOTP 能在密钥泄露后仍然拦住登录，代价是必须打开 <code>KbdInteractiveAuthentication</code>，而本方案刻意关闭了它。</p>
+<h2>实施步骤</h2>
+<h3>可选：双因子</h3>
+<p>TOTP 能在密钥泄露后仍然拦住登录，代价是必须打开 <code>KbdInteractiveAuthentication</code>，而默认方案刻意关闭了它。</p>
 <div class="tw">
 <table>
 <thead><tr><th>项</th><th>说明</th></tr></thead>
@@ -151,9 +153,24 @@ enabled = true</code></pre>
 </tbody>
 </table>
 </div>
-<p>启用顺序：先在现有会话里改配置，再用另一个终端完整验证一次密码加动态码登录，最后才关闭验证会话。</p>
+<p>启用顺序：先在现有会话里改配置，再用另一个终端完整验证一次密钥加动态码登录，最后才关闭验证会话。</p>
 
-<h2>不建议的加固项</h2>
+<h2>检查与验证</h2>
+<pre><code>ufw status numbered | grep LIMIT
+fail2ban-client status sshd
+fail2ban-client get sshd ignoreip</code></pre>
+<p>三条分别确认：该端口只有 <code>LIMIT</code> 规则、jail 在运行、白名单内容与预期一致。</p>
+
+<h2>下一步</h2>
+<p>回到<a href="index.html">总览</a>查看整体流程，或直接到<a href="03-verify.html">验收与排障</a>确认结果。</p>
+
+<h2>回退与卸载</h2>
+<pre><code># 撤销双因子：删掉 PAM 与 sshd 里的相关行，恢复 KbdInteractiveAuthentication no
+sudo bash bin/harden/harden.sh            # 重新应用默认加固
+sudo bash bin/harden/harden.sh --uninstall  # 或整体回滚，恢复密码登录</code></pre>
+
+<h2>常见错误与排查</h2>
+<h3>不建议启用</h3>
 <div class="tw">
 <table>
 <thead><tr><th>项</th><th>原因</th></tr></thead>
@@ -166,12 +183,24 @@ enabled = true</code></pre>
 </tbody>
 </table>
 </div>
+<h3>常见误配</h3>
+<div class="tw">
+<table>
+<thead><tr><th>现象</th><th>原因</th><th>处理</th></tr></thead>
+<tbody>
+<tr><td>白名单里的地址换了出口后仍被拦</td><td>出口 IP 会变化的网络，写进 <code>ignoreip</code> 的那条很快失效</td><td>删掉该白名单项；改用密钥登录本来也不产生失败尝试</td></tr>
+<tr><td>并发终端偶尔被限速</td><td><code>ufw limit</code> 按来源计数</td><td>提高并发需求时换成 <code>ufw allow</code>，封禁交给 fail2ban</td></tr>
+<tr><td>开启双因子后彻底登不进去</td><td>PAM 顺序写错或时钟漂移</td><td>走云控制台还原配置，再按启用顺序重做</td></tr>
+</tbody>
+</table>
+</div>
 
 <p style="margin-top:24px"><a href="03-verify.html">← 验收与排障</a>　·　<a href="index.html">总览 →</a></p>
 
 </main>
 <footer class="foot"><div class="wrap">
-本手册与 <a href="../deploy/index.html">节点部署手册</a> · <a href="../index.html">方案总览</a> 配套。服务端命令在 Debian 12/13、Ubuntu 22.04/24.04 上验证；脚本只调用系统自带的 OpenSSH、ufw 与 fail2ban。仅限本人自用科研学习，遵守所在地法律法规与服务条款。
+<p class="foot-nav">方案总览 <a href="../index.html">index.html</a> · 部署手册 <a href="../deploy/index.html">deploy/index.html</a> · SSH 加固 <a href="index.html">quality/index.html</a> · 问题记录 <a href="../issue/index.html">issue/index.html</a> · 服务器采购 <a href="../vps-shortlist.html">vps-shortlist.html</a></p>
+<p>服务端命令在 Debian 12/13、Ubuntu 22.04/24.04 上验证；脚本只调用系统自带的 OpenSSH、ufw 与 fail2ban。仅限本人自用科研学习，遵守所在地法律法规与服务条款。</p>
 </div></footer>
 <script>
 document.querySelectorAll('pre').forEach(function(pre){

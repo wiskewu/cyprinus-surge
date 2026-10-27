@@ -1,38 +1,45 @@
-<h1>部署步骤</h1>
-<p class="lede">一台 KVM VPS + sing-box，6 步（第 4 步可选）。除第 5 步外，命令都在服务器上执行。</p>
+<h1>节点部署手册</h1>
+<p class="lede">一台 KVM VPS 加 sing-box，六步完成部署，第四步可选。除客户端相关步骤外，命令都在服务器上执行。</p>
 
-<div class="note"><b>懒人路径：</b>不想逐步执行？<a href="onekey.html">一键脚本 <code>deploy.sh</code></a> 会扫描每一步的状态并让你选「复用 / 覆盖 / 跳过」，也支持一键卸载重装。它的步骤名与本表不同，对照见 <a href="onekey.html#map">一键脚本页</a>。</div>
+<h2>目标</h2>
+<p>交付一台可用的节点：REALITY 主入口在监听，按需追加 Hysteria2 第二入口；客户端拿到的是按设备渲染的独立配置；全程可用脚本重复执行，也可一键卸载。</p>
 
+<h2>准备工作</h2>
+<ul>
+<li>KVM 虚拟化：<code>systemd-detect-virt</code> 输出 <code>kvm</code>，LXC 与 OpenVZ 开不了 TUN</li>
+<li>系统：Debian 12 / 13 或 Ubuntu 22.04 / 24.04</li>
+<li>已经能用密钥登录（机器刚创建时厂商注入公钥；旧机器先 <code>ssh-copy-id</code>）</li>
+<li>云控制台的 VNC 或串口可用，作为失联兜底</li>
+<li>把脚本传上去：<code>scp -r bin root@你的服务器IP:/root/</code></li>
+</ul>
+<p>本手册的六个步骤都不会关闭公网 SSH 端口，只做两件事：放行真实端口（第 1 步自动探测，不假设是 22），关掉密码登录。要彻底关闭端口见 <a href="../quality/index.html">SSH 加固手册</a>，那是可选的第七步，不做也完全可用。</p>
+
+<h2>实施步骤</h2>
 <div class="tw">
 <table>
 <thead><tr><th>#</th><th>做什么</th><th>命令</th><th>产物</th></tr></thead>
 <tbody>
-<tr><td>1</td><td>系统初始化（含 <a href="01-init.html">SSH 加固</a>）</td><td><code>bash bin/deploy/one/system.sh</code></td><td>加固好的系统</td></tr>
-<tr><td>2</td><td>装 sing-box + 生成密钥</td><td><code>bash bin/deploy/one/install-singbox.sh</code><br><code>bash bin/deploy/one/secrets.sh</code></td><td><code>deploy.env</code> / <code>client.env</code> / <code>devices.list</code></td></tr>
-<tr><td>3</td><td>服务端配置 + 自检</td><td><code>bash bin/deploy/one/server.sh</code><br><code>bash bin/deploy/check/server.sh</code></td><td>可连的节点</td></tr>
-<tr><td>4</td><td>Hysteria2 第二入口 <span class="tag">可选</span></td><td><code>bash bin/deploy/one/hy2.sh</code></td><td>证书，<code>ENABLE_HY2=1</code></td></tr>
-<tr><td>5</td><td>导出该设备的配置（服务器）</td><td><code>bash bin/deploy/device.sh export laptop</code></td><td>带校验和的 tar.gz，客户端解包后导入</td></tr>
-<tr><td>6</td><td>验收 + 备份</td><td><code>bash bin/deploy/client/verify.sh</code><br><code>bash bin/deploy/ops/backup.sh</code></td><td>验收记录</td></tr>
+<tr><td>1</td><td><a href="01-init.html">系统初始化</a>，含 SSH 加固</td><td><code>bash bin/deploy/one/system.sh</code></td><td>加固好的系统</td></tr>
+<tr><td>2</td><td><a href="02-install.html">安装 sing-box 并生成密钥</a></td><td><code>bash bin/deploy/one/install-singbox.sh</code><br><code>bash bin/deploy/one/secrets.sh</code></td><td><code>deploy.env</code> / <code>client.env</code> / <code>devices.list</code></td></tr>
+<tr><td>3</td><td><a href="03-server.html">服务端配置、自检与降权</a></td><td><code>bash bin/deploy/one/server.sh</code><br><code>bash bin/deploy/check/server.sh</code><br><code>bash bin/deploy/one/harden.sh</code></td><td>可连的节点，沙箱内运行</td></tr>
+<tr><td>4</td><td><a href="04-hy2.html">Hysteria2 第二入口</a> <span class="tag">可选</span></td><td><code>bash bin/deploy/one/hy2.sh</code></td><td>证书，<code>ENABLE_HY2=1</code></td></tr>
+<tr><td>5</td><td><a href="05-client.html">导出该设备的配置</a></td><td><code>bash bin/deploy/device.sh export laptop</code></td><td>带校验和的 tar.gz</td></tr>
+<tr><td>6</td><td><a href="06-ops.html">验收、备份与观测</a></td><td><code>bash bin/deploy/client/verify.sh</code><br><code>bash bin/deploy/ops/backup.sh</code></td><td>验收记录与加密备份</td></tr>
 </tbody>
 </table>
 </div>
+<div class="note"><b>第 4 步不做也能跑。</b>REALITY 单入口已经够用，它只是多一条抗 UDP 干扰的路，跳过直接进入第 5 步。</div>
+<p>第 2 步会同时建好设备名单 <code>devices.list</code>。多台设备一律用 <code>bin/deploy/device.sh</code> 逐台建凭据，不要让多台共用同一份配置，那样无法单独吊销。见 <a href="03-server.html#devices">第 3 页</a>。</p>
 
-<div class="note"><b>第 4 步不做也能跑。</b>REALITY 单入口已经够用，它只是多一条抗 UDP 干扰的路。跳过它就跳到第 5 步。</div>
+<h2>检查与验证</h2>
+<p>每一步自带检查命令，全部通过再进入下一步。整体验收看三处：服务端自检十项全绿、加固检查三行达标、客户端验收七项全过。具体判据分别在<a href="03-server.html">第 3 页</a>与<a href="06-ops.html">第 6 页</a>。</p>
 
-<p>第 2 步会同时建好设备名单 <code>devices.list</code>。<b>多台设备请用 <code>bin/deploy/device.sh</code></b>（服务端 <code>sudo bash bin/deploy/device.sh add laptop</code>），不要让多台共用同一份配置，那样没法单独吊销一台。见 <a href="03-server.html#devices">第 3 页</a>。</p>
+<h2>下一步</h2>
+<p>不想逐步执行时，用<a href="onekey.html">一键脚本</a>：它扫描每步状态，让你选「复用 / 覆盖 / 跳过」，也支持一键卸载重装。步骤名与本表不同，对照见<a href="onekey.html#map">一键脚本页的映射表</a>。</p>
+<p>遇到问题先看<a href="troubleshooting.html">排查手册</a>：症状、日志含义、字段说明都在那里，不占用主流程。</p>
 
-<h2>开始前确认</h2>
-<ul>
-<li>KVM 虚拟化：<code>systemd-detect-virt</code> 输出 <code>kvm</code>（LXC / OpenVZ 开不了 TUN）</li>
-<li>系统：Debian 12 / 13 或 Ubuntu 22.04 / 24.04</li>
-<li>已经能用密钥 ssh 进来（机器刚创建时厂商注入公钥；旧机器先 <code>ssh-copy-id</code>）</li>
-</ul>
+<h2>回退与卸载</h2>
+<pre><code>sudo bash bin/deploy/deploy.sh --uninstall --purge --yes   # 停服务、删二进制、单元与 /etc/sing-box
+sudo bash bin/harden/harden.sh --uninstall                 # 撤销 SSH 加固，恢复密码登录</code></pre>
 
-<h2>SSH 端口全程开着</h2>
-<p>本手册的 6 步<b>都不会关闭公网 SSH 端口</b>，只做两件事：放行它（第 1 步自动探测真实端口，不假设是 22），以及关掉密码登录。端口什么时候关、要不要关，见 <a href="../quality/index.html">SSH 加固手册</a>，那是可选的第 7 步，不做也完全能用。</p>
-
-<h2>把脚本传上去</h2>
-<pre><code>scp -r bin root@你的服务器IP:/root/</code></pre>
-
-<h2>遇到问题</h2>
-<p>症状、日志含义、字段说明都在 <a href="troubleshooting.html">排查手册</a>，不占用主流程。</p>
+<p style="margin-top:24px"><a href="../index.html">← 方案总览</a>　·　<a href="01-init.html">开始第 1 步 →</a></p>

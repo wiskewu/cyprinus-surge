@@ -1,10 +1,71 @@
-<h1>SSH 加固</h1>
-<p class="lede">主读者：维护单台 VPS 的运维者。本页说明为什么采用「仅公钥登录」这条路线，以及它在本环境里换来了什么、代价是什么。操作步骤见 <a href="01-client.html">客户端配置</a> 与 <a href="02-server.html">服务端加固</a>：先让公钥能登录，再关掉密码。</p>
+<h1>SSH 加固手册</h1>
+<p class="lede">把管理入口收敛为公钥认证的 SSH：密码登录关闭，root 只接受密钥，端口上加速率限制，失败尝试由 fail2ban 封禁。客户端使用系统自带 OpenSSH，不安装第三方组件，不分发证书。</p>
 
-<h2>结论</h2>
-<p>管理入口收敛为一条路径：<b>公钥认证的 SSH</b>。密码登录关闭，root 只接受密钥，端口上加速率限制，失败尝试由 fail2ban 封禁。客户端使用系统自带 OpenSSH，不安装第三方组件，不分发证书。</p>
+<h2>目标</h2>
+<p>做完后应达到：仅用密钥即可登录，密码登录被服务端拒绝，速率限制与封禁规则生效，且能独立验收这三件事。四步走完即可，任何一步都可回滚。</p>
+<div class="tw">
+<table>
+<thead><tr><th>#</th><th>在哪台机器</th><th>做什么</th><th>命令</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>客户端</td><td>生成或复用 Ed25519 密钥</td><td><code>bash bin/harden/client.sh --host &lt;地址&gt; --port &lt;端口&gt; --install-server</code></td></tr>
+<tr><td>2</td><td>客户端</td><td>验证密钥能登录</td><td><code>ssh -o BatchMode=yes &lt;别名&gt; true</code></td></tr>
+<tr><td>3</td><td>服务器</td><td>关密码登录，加速率限制与封禁</td><td><code>sudo bash bin/harden/harden.sh</code></td></tr>
+<tr><td>4</td><td>客户端</td><td>独立验收</td><td><code>bash bin/harden/audit.sh --alias &lt;别名&gt;</code></td></tr>
+</tbody>
+</table>
+</div>
+<div class="bad"><b>第 3 步之前必须完成第 2 步。</b>脚本会检查当前会话是否经公钥认证，读不到证据就拒绝执行。顺序颠倒会让「密钥不可用」与「密码已关闭」同时成立。</div>
 
-<h2>为什么不用 SPA</h2>
+<h2>准备工作</h2>
+<ul>
+<li>云控制台的 VNC 或串口可用，作为最终兜底</li>
+<li>当前 SSH 会话保持打开，另开一个终端用于验证</li>
+<li>明确服务器地址与端口，后续命令都要用</li>
+</ul>
+
+<h2>实施步骤</h2>
+<p>按上表顺序执行，细则分别见<a href="01-client.html">客户端配置</a>与<a href="02-server.html">服务端加固</a>。前者覆盖密钥生成、公钥安装、<code>~/.ssh/config</code> 写法与免密验证；后者覆盖脚本参数、公钥清点与去重、生效值核对。</p>
+
+<h2>检查与验证</h2>
+<p>用<a href="03-verify.html">验收与排障</a>页的独立验收脚本确认结果：它在客户端运行、只读、全部检查合并为一次远程连接。失败项的含义与自救顺序也在同一页。</p>
+
+<h2>下一步</h2>
+<p>需要调整默认值或评估额外加固项时看<a href="04-reference.html">参数与取舍</a>：脚本参数默认值、<code>ufw limit</code> 行为、fail2ban 规则，以及可选的双因子方案与本手册明确放弃的加固项。</p>
+
+<h2>回退与卸载</h2>
+<pre><code>sudo bash bin/harden/harden.sh --uninstall</code></pre>
+<p>该命令删除加固片段，从备份还原被就地改写的文件，恢复密码登录与普通放行规则，然后 reload sshd。回滚后应立刻用密码登录验证一次，再关闭当前会话；处理完问题后重新执行加固。</p>
+
+<h2>命令手册</h2>
+<div class="tw">
+<table>
+<thead><tr><th>动作</th><th>命令</th></tr></thead>
+<tbody>
+<tr><td>配置客户端密钥与别名</td><td><code>bash bin/harden/client.sh --host 地址 --port 端口 --alias 名字 --install-server</code></td></tr>
+<tr><td>应用服务端加固</td><td><code>sudo bash bin/harden/harden.sh</code></td></tr>
+<tr><td>查看现状</td><td><code>sudo bash bin/harden/harden.sh --check</code></td></tr>
+<tr><td>独立验收</td><td><code>bash bin/harden/audit.sh --alias 名字</code></td></tr>
+<tr><td>回滚</td><td><code>sudo bash bin/harden/harden.sh --uninstall</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>参数说明</h2>
+<p>三支脚本的主要参数与默认值：<code>harden.sh</code> 的 <code>--check</code>、<code>--keys</code>、<code>--dedupe</code>、<code>--uninstall</code>、<code>--whitelist</code>、<code>--force</code>；<code>client.sh</code> 的 <code>--host</code>、<code>--port</code>、<code>--user</code>、<code>--alias</code>、<code>--install-server</code>、<code>--prune</code>；<code>audit.sh</code> 的 <code>--alias</code> 或 <code>--host</code>。逐项默认值与副作用见<a href="04-reference.html">参数与取舍</a>。</p>
+
+<h2>常见错误与排查</h2>
+<div class="tw">
+<table>
+<thead><tr><th>现象</th><th>原因</th><th>处理</th></tr></thead>
+<tbody>
+<tr><td>第 3 步拒绝执行</td><td>当前会话不是公钥认证，脚本无法确认密钥可用</td><td>先用 <code>ssh -o BatchMode=yes 别名 true</code> 验证，通过后再执行</td></tr>
+<tr><td>验收第 3 项仍提示密码</td><td>排序更靠前的配置写了 <code>PasswordAuthentication yes</code></td><td>改靠前那一行后 <code>systemctl reload ssh</code>，见<a href="03-verify.html">验收与排障</a></td></tr>
+<tr><td>与服务器完全失联</td><td>密码已关闭且密钥不可用</td><td>走云控制台 VNC，执行 <code>sudo bash bin/harden/harden.sh --uninstall</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>为什么不用 SPA</h3>
 <p>单包授权（SPA）能把端口从扫描结果里藏起来，代价是每台客户端都要跑一个专用程序。实测两条都走不通：</p>
 <div class="tw">
 <table>
@@ -15,45 +76,7 @@
 </tbody>
 </table>
 </div>
-<p>两条路线的共同前提是「客户端能主动发包到服务器的某个非 TCP 端口」。当这个前提不成立时，再精巧的授权协议也无法落地。相比之下，SSH 走 TCP，而 TCP 在该环境下正常。</p>
+<p>两条路线的共同前提是「客户端能主动发包到服务器的某个非 TCP 端口」。这个前提不成立时，再精巧的授权协议也无法落地。相比之下 SSH 走 TCP，而 TCP 在该环境下正常。代价是端口对扫描器可见，用三层补偿：仅公钥、速率限制、失败封禁。</p>
+<p>换来的另两项收益：不分发证书与密钥文件，客户端只做一次 <code>ssh-keygen</code> 与一次公钥安装；不引入守护进程与内核模块，1 GB 内存的机器上不增加常驻负担。</p>
 
-<h2>代价与收益</h2>
-<div class="tw">
-<table>
-<thead><tr><th>取舍</th><th>项</th><th>说明</th></tr></thead>
-<tbody>
-<tr><td>代价</td><td>端口对扫描器可见</td><td>用三层补偿：仅公钥、速率限制、失败封禁</td></tr>
-<tr><td>收益</td><td>不分发证书与密钥文件</td><td>客户端只做一次 <code>ssh-keygen</code> 与一次公钥安装</td></tr>
-<tr><td>收益</td><td>无守护进程、无内核模块</td><td>1 GB 内存的机器上不增加常驻负担</td></tr>
-</tbody>
-</table>
-</div>
-
-<h2>四步</h2>
-<div class="tw">
-<table>
-<thead><tr><th>#</th><th>在哪台机器</th><th>做什么</th><th>命令</th></tr></thead>
-<tbody>
-<tr><td>1</td><td>客户端</td><td>生成或复用 Ed25519 密钥</td><td><code>bash bin/harden/client.sh --host &lt;地址&gt; --port &lt;端口&gt; --install-server</code></td></tr>
-<tr><td>2</td><td>客户端</td><td>验证密钥能登录</td><td><code>ssh -o BatchMode=yes &lt;别名&gt; true</code></td></tr>
-<tr><td>3</td><td>服务器</td><td>关密码登录、加速率限制与封禁</td><td><code>sudo bash bin/harden/harden.sh</code></td></tr>
-<tr><td>4</td><td>客户端</td><td>独立验收</td><td><code>bash bin/harden/audit.sh --alias &lt;别名&gt;</code></td></tr>
-</tbody>
-</table>
-</div>
-<div class="bad"><b>第 3 步之前必须完成第 2 步。</b>脚本会检查当前会话是否经公钥认证，读不到证据就拒绝执行。顺序颠倒会让「密钥不可用」与「密码已关闭」同时成立。</div>
-
-<h2>页面</h2>
-<div class="tw">
-<table>
-<thead><tr><th>页面</th><th>内容</th></tr></thead>
-<tbody>
-<tr><td><a href="01-client.html">客户端配置</a></td><td>密钥生成、公钥安装、服务器名字与 <code>~/.ssh/config</code> 写法、免密验证</td></tr>
-<tr><td><a href="02-server.html">服务端加固</a></td><td>四步的服务端部分，脚本参数、公钥清点与去重、回滚方式、生效值核对</td></tr>
-<tr><td><a href="03-verify.html">验收与排障</a></td><td>独立验收输出、失败项对照、锁死前的自救顺序</td></tr>
-<tr><td><a href="04-reference.html">参数与取舍</a></td><td>脚本参数默认值、<code>ufw limit</code> 行为、fail2ban 规则、可选的双因子</td></tr>
-</tbody>
-</table>
-</div>
-
-<p style="margin-top:24px"><a href="../deploy/index.html">节点部署手册</a>　·　<a href="../index.html">方案总览</a></p>
+<p style="margin-top:24px"><a href="../deploy/index.html">← 节点部署手册</a>　·　<a href="01-client.html">客户端配置 →</a></p>
