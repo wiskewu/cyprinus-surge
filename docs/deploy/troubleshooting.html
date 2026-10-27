@@ -195,12 +195,24 @@ curl -s -H "Authorization: Bearer $S" "http://$C/connections" | grep -o '"chains
 Get-NetAdapterBinding | Where-Object { $_.Enabled -and $_.ComponentID -notlike "ms_*" }</code></pre>
 <p>判据是目标端口：绑定网卡时连公共 DNS 的 443 与 853 立即被拒，53 正常，连节点 IP 的 443 也正常。这种情况来自企业终端策略，禁止用 DoH/DoT 绕过内网 DNS，改服务端参数没有用。</p>
 <p>两种改法都有脚本，不必手改 JSON：</p>
-<pre><code>bash bin/win/convert.sh 客户端配置.json --mode bind    # 方式一
-bash bin/win/convert.sh 客户端配置.json --mode local   # 方式二
-bash bin/win/run.sh 客户端配置-bind.json                # 校验通过后启动</code></pre>
+<pre><code># 方式一：direct 出站指定源地址
+bash bin/win/convert.sh ./data/sing-box-client-laptop-desktop.json \
+  --mode bind \
+  --out ./data/sing-box-client-laptop-desktop--bind.json \
+  --sing-box "C:\sing-box\sing-box.exe"
+
+# 方式二：国内解析交给系统
+bash bin/win/convert.sh ./data/sing-box-client-laptop-desktop.json \
+  --mode local \
+  --out ./data/sing-box-client-laptop-desktop--local.json \
+  --sing-box "C:\sing-box\sing-box.exe"
+
+# 转换后启动，路径取自转换脚本打印的启动命令
+bash bin/win/run.sh ./data/sing-box-client-laptop-desktop--bind.json \
+  --sing-box "C:\sing-box\sing-box.exe"</code></pre>
 <p><b>方式一，给直连出站指定源地址。</b>脚本做的事是给 <code>direct</code> 出站加一项，值填本机在当前网络的 IPv4 地址，等价于手写：</p>
 <pre><code>{ "type": "direct", "tag": "direct", "domain_resolver": { "server": "dns-cn" },
-  "inet4_bind_address": "192.168.8.150" }</code></pre>
+  "inet4_bind_address": "192.168.1.100" }</code></pre>
 <p>触发拦截的是按接口绑定 socket，指定源地址走的是另一条路径，实测放行。填之前先用 <code>ipconfig</code> 确认，换网络后这个值要跟着改。</p>
 <p><b>方式二，国内解析交给系统。</b>把国内 DNS 换成系统解析，由操作系统去问内网 DNS：</p>
 <pre><code>{ "type": "local", "tag": "dns-cn" }</code></pre>

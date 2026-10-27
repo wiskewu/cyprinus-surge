@@ -71,15 +71,27 @@ nssm start sing-box</code></pre>
 
 <h3>管控机：两种改法</h3>
 <p>受管终端禁止直连公共 DNS 的 443 与 853 时，配置里的国内 DoH 会让启动失败，报 <code>connectex: The requested address is not valid in its context</code>。用 <code>bin/win/convert.sh</code> 就地生成两种可用版本，不改动服务器下发的那份：</p>
-<pre><code># 方式一：给 direct 出站指定源地址，源地址默认取默认路由网卡的 IPv4
-bash bin/win/convert.sh 客户端配置.json --mode bind
+<pre><code># 方式一：给 direct 出站指定源地址（源地址默认取默认路由网卡的 IPv4）
+bash bin/win/convert.sh ./data/sing-box-client-laptop-desktop.json \
+  --mode bind \
+  --out ./data/sing-box-client-laptop-desktop--bind.json \
+  --sing-box "C:\sing-box\sing-box.exe"
 
 # 方式二：国内解析交给系统
-bash bin/win/convert.sh 客户端配置.json --mode local
+bash bin/win/convert.sh ./data/sing-box-client-laptop-desktop.json \
+  --mode local \
+  --out ./data/sing-box-client-laptop-desktop--local.json \
+  --sing-box "C:\sing-box\sing-box.exe"
 
-# 指定源地址或输出路径
-bash bin/win/convert.sh 客户端配置.json --mode bind --bind-address 192.168.8.150 --out .\config.json</code></pre>
-<p>产物默认落在源文件旁边，文件名带 <code>-bind</code> 或 <code>-local</code> 后缀。脚本会依次在配置目录、当前目录与 <code>PATH</code> 里找 <code>sing-box</code> 并校验产物；找不到就跳过，用 <code>--sing-box</code> 指定。两种改法的原因与判据见<a href="troubleshooting.html#corp-doh">排查手册</a>。</p>
+# 需要固定源地址时补 --bind-address
+bash bin/win/convert.sh ./data/sing-box-client-laptop-desktop.json \
+  --mode bind --bind-address 192.168.1.100 \
+  --out ./data/sing-box-client-laptop-desktop--bind.json
+
+# 转换后直接启动，脚本输出里已经带好可执行文件路径
+bash bin/win/run.sh ./data/sing-box-client-laptop-desktop--bind.json \
+  --sing-box "C:\sing-box\sing-box.exe"</code></pre>
+<p>不写 <code>--out</code> 时产物落在源文件旁边，文件名带 <code>-bind</code> 或 <code>-local</code> 后缀。给了 <code>--sing-box</code> 时脚本用它校验产物，并把同样的路径带进打印出来的启动命令，下一步可以直接复制执行；不给时依次在配置目录、输出目录、当前目录与 <code>PATH</code> 里查找。两种改法的原因与判据见<a href="troubleshooting.html#corp-doh">排查手册</a>。</p>
 
 <h3>macOS：只留一个客户端</h3>
 <p>两台代理客户端同时接管流量时，症状无法归因：断流、DNS 泄漏、TUN 抢路由三者互相掩盖。统一用 SFM，其余客户端全部退出并停用系统代理。</p>
