@@ -1,8 +1,8 @@
     {
       "type": "urltest",
-      "tag": "${NODE_LABEL}",
+      "tag": "auto",
       "outbounds": ["proxy", "proxy-hy2"],
       "url": "https://www.gstatic.com/generate_204",
-      "interval": "3m",
-      "tolerance": 100
+      "interval": "${URLTEST_INTERVAL}",
+      "tolerance": ${URLTEST_TOLERANCE}
     }

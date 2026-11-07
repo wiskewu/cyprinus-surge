@@ -324,51 +324,6 @@ quota_bytes() {
   esac
 }
 
-# 节点显示名用的用量标签，形如 3.6G/1T；取不到数据时输出空
-quota_label() {
-  local used quota
-  used="$(month_bytes)"
-  [[ -n "${used}" && "${used}" != "0" ]] || return 0
-  quota="$(quota_bytes)"
-  if [[ -n "${quota}" && "${quota}" != "0" ]]; then
-    printf '%s/%s' "$(fmt_bytes "${used}")" "$(fmt_bytes "${quota}")"
-  else
-    printf '%s' "$(fmt_bytes "${used}")"
-  fi
-}
-
-# 最近一条探针记录，但只在它足够新时才返回。
-# 探针停摆时最后一行会一直留在文件里，拿着它下结论等于用过期事实报警。
-probe_last_fresh() {
-  local log="${PROBE_STATE_DIR:-/var/lib/sing-box-monitor}/probe.log" last ts epoch age
-  [[ -r "${log}" ]] || return 0
-  last="$(tail -n 1 "${log}")"
-  [[ -n "${last}" ]] || return 0
-  ts="${last%%,*}"
-  # GNU date 与 BSD date 的写法不同；都失败就退回不过滤，不能因为解析失败就丢记录
-  epoch="$(date -u -d "${ts}" +%s 2>/dev/null || date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "${ts}" +%s 2>/dev/null || printf '')"
-  [[ -n "${epoch}" ]] || {
-    printf '%s' "${last}"
-    return 0
-  }
-  age=$(($(date +%s) - epoch))
-  [[ "${age}" -le $((${PROBE_MAX_AGE_MIN:-15} * 60)) ]] || return 0
-  printf '%s' "${last}"
-}
-
-# 探针异常标记：最近一条探针里服务或端口挂了、AI 出口被风控时返回一个符号。
-# 只用单个符号，避免节点名过长挤占客户端显示。
-probe_mark() {
-  local last
-  last="$(probe_last_fresh)"
-  [[ -n "${last}" ]] || return 0
-  case "${last}" in
-    *',down,'* | *',down'*) printf '⚠' ;;
-    *',403,'* | *',429,'*) printf '⚠' ;;
-    *) printf '' ;;
-  esac
-}
-
 # ---------------------------- 10-system.sh ----------------------------
 # 步骤 10：系统初始化。函数与变量都以 system_ 前缀命名，便于一键脚本内联后不冲突。
 system_TITLE="系统初始化（依赖 / BBR / swap / 时间同步 / SSH 加固 / 防火墙）"

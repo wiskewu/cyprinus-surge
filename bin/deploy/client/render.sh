@@ -97,19 +97,15 @@ validate_common() {
     [[ -n "${AI_SOCKS_SERVER:-}" ]] || die "AI_MODE=dedicated 但 AI_SOCKS_SERVER 为空"
     [[ -n "${AI_SOCKS_USER:-}" ]] || die "AI_MODE=dedicated 但 AI_SOCKS_USER 为空"
   fi
-  # 节点显示名：客户端里看到的就是出站 tag，所以用量信息写进 tag。
-  # 只用「名字 · 用量」两段，异常时追加一个符号，避免挤占客户端列表。
-  local _usage _mark
-  NODE_LABEL="${NODE_LABEL:-vps}"
-  _usage="$(quota_label 2>/dev/null || true)"
-  [[ -n "${_usage}" ]] && NODE_LABEL="${NODE_LABEL} · ${_usage}"
-  _mark="$(probe_mark 2>/dev/null || true)"
-  [[ -n "${_mark}" ]] && NODE_LABEL="${NODE_LABEL} ${_mark}"
-
-  # 路由用的标签与模板里的 tag 必须一致：
-  # 单入口时 reality 出站就是这个标签；双入口时它是 urltest 组的标签，组内成员保持 proxy / proxy-hy2。
-  PROXY_TAG="${NODE_LABEL}"
-  if [[ "${ENABLE_HY2:-0}" == "1" ]]; then REALITY_TAG=proxy; else REALITY_TAG="${NODE_LABEL}"; fi
+  # 出站 tag 用稳定短名，不掺用量与状态：tag 就是 GUI 显示名，掺进去以后
+  # 规则、脚本、clash_api 路径都得跟着处理空格与中文。
+  #   单入口：route 指向 proxy（VLESS）
+  #   双入口：route 指向 manual（selector），manual 默认 proxy，可切到 proxy-hy2 或 auto
+  #   auto 是 urltest，只负责在 proxy / proxy-hy2 之间测速选路
+  if [[ "${ENABLE_HY2:-0}" == "1" ]]; then PROXY_TAG=manual; else PROXY_TAG=proxy; fi
+  # urltest 的迟钝程度：间隔越长、容差越大，越不容易被 HY2 的瞬时测速抢走
+  : "${URLTEST_INTERVAL:=10m}"
+  : "${URLTEST_TOLERANCE:=400}"
   if [[ "${AI_MODE:-main}" == "dedicated" ]]; then AI_OUT_TAG=ai-out; else AI_OUT_TAG="${PROXY_TAG}"; fi
   # 规则集缓存：没有 cache_file 时每次启动都要重新下载 .srs，弱网下冷启动直接失败。
   # 路径优先用 SING_BOX_CACHE_FILE，否则落到用户缓存目录；HOME 也拿不到时放当前目录。
@@ -123,7 +119,7 @@ validate_common() {
     fi
   fi
 
-  export PROXY_TAG REALITY_TAG NODE_LABEL AI_OUT_TAG AUTO_DETECT_INTERFACE DNS_CN DNS_REMOTE CACHE_FILE
+  export PROXY_TAG AI_OUT_TAG AUTO_DETECT_INTERFACE DNS_CN DNS_REMOTE CACHE_FILE URLTEST_INTERVAL URLTEST_TOLERANCE
   # auto_detect_interface=false 的代价：TUN 下 direct 出站的连接会按系统默认路由
   # 又走回 tun（环），表现为「连上立刻被断」。要关它就得给直连出站指定网卡。
   resolve_default_interface
@@ -248,6 +244,9 @@ render_one() {
   if [[ "${ENABLE_HY2:-0}" == "1" ]]; then
     render_vars "${TPL_DIR}/out-urltest.json.tmpl" "${T}/o4.json"
     OBJS+=("${T}/o4.json")
+    # 手动选择层：默认走 VLESS，不再被 urltest 自动抢走；要自动故障转移就切到 auto
+    render_vars "${TPL_DIR}/out-selector.json.tmpl" "${T}/o5.json"
+    OBJS+=("${T}/o5.json")
   fi
   printf '    { "type": "direct", "tag": "direct", "domain_resolver": { "server": "dns-cn" } }' >"${T}/o9.json"
   OBJS+=("${T}/o9.json")

@@ -121,13 +121,13 @@ port_open() {
 }
 
 # 派生配置：只改「引用其它代理出站」的那几处，不能整篇替换字符串——出站自己的
-# tag 也叫 proxy / auto，一起换掉会造出重复 tag，sing-box 直接拒绝启动。
+# tag 也叫 proxy / auto / manual，一起换掉会造出重复 tag，sing-box 直接拒绝启动。
 # $3 = local：入站换成一个本地 mixed 端口，前台跑、不用 root。
 # $3 = keep ：入站原样保留，给图形客户端导入用。
 derive_hy2_config() {
   local cfg="$1" out="$2" inb="$3"
   jq --arg t "${HY2_TAG}" --argjson p "${HY2_PROBE_PORT}" --arg inb "${inb}" '
-    def ref: if . == "auto" or . == "proxy" or . == "ai-out" then $t else . end;
+    def ref: if . == "auto" or . == "manual" or . == "proxy" or . == "ai-out" then $t else . end;
     .route.final = ((.route.final // $t) | ref)
     | (.route.rules? // []) |= map(if has("outbound") then .outbound |= ref else . end)
     | (.route.rule_set? // []) |= map(if has("download_detour") then .download_detour |= ref else . end)
