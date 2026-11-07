@@ -18,3 +18,6 @@ data/
 # 60-verify-client.sh HY2_ONLY=emit 的默认输出
 /hy2-only.json
 
+# macOS Finder 在每个目录里生成的属性文件
+.DS_Store
+
