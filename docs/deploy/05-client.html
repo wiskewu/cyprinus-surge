@@ -215,6 +215,24 @@ curl -s -o /dev/null -w '%{http_code}\n' https://www.gstatic.com/generate_204</c
 </table>
 </div>
 <p>免 CLI 子集是子集而非完整验收：跳过项与 <code>SERVER_IP</code> 缺失都会明确打印，不会被当成通过。整机都走隧道时「国内直连」一项会判失败，那是环境决定的，不代表配置有问题。各项输出含义见<a href="troubleshooting.html">排查手册</a>。</p>
+<h3>出口结构与切换</h3>
+<p>启用 Hysteria2 后，配置里有五个出站，tag 都是稳定短名，不含用量或状态文字：</p>
+<div class="tw">
+<table>
+<thead><tr><th>tag</th><th>type</th><th>作用</th></tr></thead>
+<tbody>
+<tr><td><code>proxy</code></td><td>vless</td><td>REALITY 入口，默认出口</td></tr>
+<tr><td><code>proxy-hy2</code></td><td>hysteria2</td><td>Hysteria2 入口</td></tr>
+<tr><td><code>auto</code></td><td>urltest</td><td>在 proxy 与 proxy-hy2 之间测速选路，间隔 10m、容差 400ms</td></tr>
+<tr><td><code>manual</code></td><td>selector</td><td>最终出口，<code>route.final</code>、DNS 远端解析与分流规则都指向它；默认 <code>proxy</code></td></tr>
+<tr><td><code>direct</code></td><td>direct</td><td>国内直连与「连服务器自己」的流量</td></tr>
+</tbody>
+</table>
+</div>
+<p>在客户端的出站列表里选 <code>manual</code> 这一组，再选成员：<code>proxy</code> 固定走 REALITY，<code>proxy-hy2</code> 固定走 Hysteria2，<code>auto</code> 交回自动测速。选择写进 <code>cache_file</code>，重启保留；重新导出并导入新配置会回到默认值 <code>proxy</code>。</p>
+<pre><code>jq -r '.outbounds[] | "\(.tag)\t\(.type)"' sing-box-client-laptop-desktop.json
+jq -r '.outbounds[] | select(.type=="selector")' sing-box-client-laptop-desktop.json</code></pre>
+<div class="note"><b>为什么不再把用量写进节点名。</b>tag 同时是 GUI 显示名和 API 的键，掺进「vps · 4.4G/1T」这种文字后，规则引用、脚本与 <code>/proxies/&lt;tag&gt;</code> 都要处理空格与中文。用量看服务端的 <code>vnstat</code>，节点名保持短名。</div>
 <p>两个配置层面的判据也在这里核对：</p>
 <ul>
 <li><b>规则集缓存已落盘。</b>运行目录下应出现 <code>cache.db</code>，重启不再整份重下。</li>
@@ -266,6 +284,8 @@ SERVER_IP=你的服务器IP bash bin/deploy/client/verify.sh --no-cli --proxy so
 <tr><td><code>VLESS_PORT</code></td><td>默认 443</td><td>REALITY 入口端口</td></tr>
 <tr><td><code>HY2_ONLY=1</code></td><td>开关</td><td>派生只走 Hysteria2 的配置并起临时实例，需要本机有 sing-box</td></tr>
 <tr><td><code>CONFIG</code></td><td>路径</td><td><code>HY2_ONLY</code> 读取的配置，指向设备 JSON</td></tr>
+<tr><td><code>URLTEST_INTERVAL</code></td><td><code>10m</code></td><td><code>auto</code> 组两次测速的间隔</td></tr>
+<tr><td><code>URLTEST_TOLERANCE</code></td><td><code>400</code></td><td><code>auto</code> 组的切换容差，单位毫秒</td></tr>
 <tr><td><code>experimental.cache_file.path</code></td><td><code>cache.db</code></td><td>相对运行目录；要固定位置在服务器渲染前给 <code>SING_BOX_CACHE_FILE</code></td></tr>
 </tbody>
 </table>

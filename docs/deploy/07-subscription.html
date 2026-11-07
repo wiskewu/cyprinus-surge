@@ -80,22 +80,29 @@ details .body{padding:4px 14px 14px}
 
 <h2>实施步骤</h2>
 
-<h3>用节点名承载用量</h3>
-<p>客户端里能看到的名称就是出站 tag，所以把用量直接写进 tag，不引入订阅服务：</p>
+<h3>为什么不用节点名承载用量</h3>
+<p>出站 tag 就是客户端里看到的节点名，早期版本把「用量 · 配额」拼进去，试着不引入订阅服务就看用量：</p>
 <pre><code>vps · 3.6G/1T         正常
-vps · 3.6G/1T ⚠       最近一次探针发现服务、端口、AI 出口或丢包异常</code></pre>
+vps · 3.6G/1T ⚠       最近一次探针发现异常</code></pre>
+<p>代价在别处：tag 同时是 API 的键，规则引用、脚本与 <code>/proxies/&lt;tag&gt;</code> 都要处理空格与中文，改一次名字要同步改所有引用。现在改为固定短名：</p>
+<pre><code>proxy      vless       REALITY 入口
+proxy-hy2  hysteria2   Hysteria2 入口
+auto       urltest     两者之间测速选路（间隔 10m、容差 400ms）
+manual     selector    最终出口，默认 proxy
+direct     direct      直连</code></pre>
+<p>用量与服务状态在服务端查：</p>
 <div class="tw">
 <table>
-<thead><tr><th>项</th><th>来源</th><th>说明</th></tr></thead>
+<thead><tr><th>想看的</th><th>在哪看</th></tr></thead>
 <tbody>
-<tr><td>用量</td><td><code>vnstat --json m</code></td><td>当月收发合计，配额取 <code>MONTHLY_QUOTA</code>，默认 <code>1T</code></td></tr>
-<tr><td>异常标记</td><td><code>probe.log</code> 最后一行，且不早于 <code>PROBE_MAX_AGE_MIN</code> 分钟</td><td>出现 <code>down</code> 或 AI 出口 <code>fail</code> 时追加一个符号，只用单个字符避免名称过长</td></tr>
-<tr><td>刷新时机</td><td>重新导出设备配置</td><td>名称是快照，客户端不会自己更新；要刷新用量就重新 <code>export</code> 并分发</td></tr>
+<tr><td>当月总用量</td><td><code>vnstat -m</code>，或 <code>bin/deploy/ops/monitor.sh --status</code></td></tr>
+<tr><td>是否超过配额</td><td>探针告警按 <code>MONTHLY_QUOTA</code>（默认 <code>1T</code>）算占比并推送</td></tr>
+<tr><td>当前各设备连接</td><td>服务端 <code>/connections</code>，见<a href="06-ops.html">第 6 页</a></td></tr>
+<tr><td>服务是否异常</td><td><code>probe.log</code> 最近一行，<code>--status</code> 已按表格打印</td></tr>
 </tbody>
 </table>
 </div>
-<pre><code># 服务器：重新渲染并打包，用量与异常标记随之更新
-sudo bash bin/deploy/device.sh export laptop</code></pre>
+<p>想在客户端卡片上显示用量与到期，只能走本页前半部分的订阅头方案，而 sing-box 系 GUI 不认这些头，登记的客户端里只有 Clash 系能显示。</p>
 
 <h3>配置告警</h3>
 <p><code>monitor.sh</code> 在每次探针之后评估阈值，命中即推送。先验证凭据，再交给定时器：</p>
@@ -106,9 +113,9 @@ sudo bash bin/deploy/ops/monitor.sh                  # 装定时器，每 5 分�
 
 <h2>检查与验证</h2>
 <ul>
-<li>客户端导入配置后，节点名应形如 <code>vps · 3.6G/1T</code>，用量与实际 <code>vnstat -m</code> 一致</li>
+<li>客户端导入配置后，出站名应为 <code>proxy</code> / <code>proxy-hy2</code> / <code>auto</code> / <code>manual</code>，不带用量文字</li>
 <li><code>--alert-test</code> 能在手机或邮箱收到消息</li>
-<li>异常时名称后出现 <code>⚠</code>，且 <code>monitor.sh --status</code> 里能看到对应探针记录</li>
+<li>异常时能在 <code>monitor.sh --status</code> 里看到对应探针记录</li>
 </ul>
 
 <h2>下一步</h2>
@@ -120,11 +127,11 @@ sudo bash bin/deploy/ops/monitor.sh                  # 装定时器，每 5 分�
 <table>
 <thead><tr><th>变量</th><th>默认</th><th>含义</th></tr></thead>
 <tbody>
-<tr><td><code>MONTHLY_QUOTA</code></td><td><code>1T</code></td><td>月流量配额，节点名与告警共用</td></tr>
+<tr><td><code>MONTHLY_QUOTA</code></td><td><code>1T</code></td><td>月流量配额，告警按它算占比</td></tr>
 <tr><td><code>ALERT_TRAFFIC_PCT</code></td><td><code>80</code></td><td>当月流量占比阈值</td></tr>
 <tr><td><code>ALERT_CERT_DAYS</code></td><td><code>14</code></td><td>证书剩余天数阈值</td></tr>
 <tr><td><code>ALERT_COOLDOWN_H</code></td><td><code>6</code></td><td>同一告警的冷却小时数</td></tr>
-<tr><td><code>PROBE_MAX_AGE_MIN</code></td><td><code>15</code></td><td>异常标记与告警只认这段时间内的记录</td></tr>
+<tr><td><code>PROBE_MAX_AGE_MIN</code></td><td><code>15</code></td><td>告警只认这段时间内的探针记录</td></tr>
 </tbody>
 </table>
 </div>
@@ -142,7 +149,7 @@ sudo bash bin/deploy/ops/monitor.sh                  # 装定时器，每 5 分�
 </table>
 </div>
 <p>告警量小，配一个通道即可；怕单通道故障时再补一个。</p>
-<div class="note">要调整异常标记的时间窗口，在服务器渲染前给变量：<code>PROBE_MAX_AGE_MIN=30 sudo -E bash bin/deploy/device.sh export laptop</code>。</div>
+<div class="note">要调整告警认多新的记录：<code>PROBE_MAX_AGE_MIN=30</code> 写进 <code>deploy.env</code> 或探针调用环境。</div>
 
 <h2>常见错误与排查</h2>
 <div class="tw">
@@ -150,9 +157,8 @@ sudo bash bin/deploy/ops/monitor.sh                  # 装定时器，每 5 分�
 <thead><tr><th>现象</th><th>原因</th><th>处理</th></tr></thead>
 <tbody>
 <tr><td>告警一直没到手机</td><td>通道未配置，或凭据错误</td><td><code>monitor.sh --alert-test</code> 发测试消息；企业微信机器人有频率上限，连续测试会静默失败</td></tr>
-<tr><td>节点名里的用量不更新</td><td>名称是渲染时的快照</td><td>重新 <code>device.sh export</code> 并让客户端重新导入</td></tr>
-<tr><td>探针停摆后仍报异常</td><td>旧记录超龄仍参与判断</td><td>异常标记与告警只认 <code>PROBE_MAX_AGE_MIN</code> 分钟内的记录，超龄视为无数据；确认定时器在跑</td></tr>
-<tr><td>名称过长被客户端截断</td><td>用量与符号叠加后超出显示宽度</td><td>用 <code>NODE_LABEL</code> 缩短前缀，或调低 <code>MONTHLY_QUOTA</code> 之外的显示精度</td></tr>
+<tr><td>想看用量却只有节点名</td><td>用量不再写进 tag</td><td>服务端跑 <code>vnstat -m</code> 或 <code>monitor.sh --status</code>；客户端不显示用量</td></tr>
+<tr><td>探针停摆后仍在告警</td><td>旧记录超龄仍参与判断</td><td>告警只认 <code>PROBE_MAX_AGE_MIN</code> 分钟内的记录，超龄视为无数据；确认定时器在跑</td></tr>
 </tbody>
 </table>
 </div>

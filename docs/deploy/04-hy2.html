@@ -98,7 +98,7 @@ bash bin/deploy/one/port-hop.sh</code></pre>
 <p>完成后回到<a href="05-client.html">第 5 页</a>重新导出该设备的配置，渲染会读到 <code>ENABLE_HY2=1</code>，客户端因此多出一个 <code>proxy-hy2</code> 出站。</p>
 
 <h2>检查与验证</h2>
-<p>客户端配置里多出 <code>proxy-hy2</code>，与 <code>proxy</code> 一起挂进 <code>auto</code>。<code>auto</code> 是 urltest，<code>route.final</code> 指向它，所以「出口是服务器 IP」说明不了任何事，很可能一直是 REALITY 在承载。要证明 hy2 可用，得单独把它拎出来跑。</p>
+<p>客户端配置里多出 <code>proxy-hy2</code>，与 <code>proxy</code> 一起挂进 <code>auto</code>（urltest）；<code>route.final</code> 指向 <code>manual</code>（selector），它的默认值是 <code>proxy</code>，所以默认仍走 REALITY，「出口是服务器 IP」说明不了任何事。要证明 hy2 可用，得单独把它拎出来跑。</p>
 <p><b>服务端在监听。</b>hysteria2 走 UDP，<code>ss</code> 要用 <code>-u</code>：</p>
 <pre><code>systemctl is-active sing-box
 ss -ulnp | grep ':8443'
@@ -108,8 +108,10 @@ sudo bash bin/deploy/check/server.sh     # 自带「UDP 8443 在监听」一项<
 # proxy      vless
 # proxy-hy2  hysteria2
 # auto       urltest
+# manual     selector
 # direct     direct
-jq -r '.route.final' client.json          # ENABLE_HY2=1 时应为 auto</code></pre>
+jq -r '.route.final' client.json                                  # ENABLE_HY2=1 时为 manual
+jq -r '.outbounds[] | select(.type=="selector")' client.json       # 默认出口与可选成员</code></pre>
 <p><b>一条命令验证。</b>验收脚本会从手上的配置派生一份副本：所有指向其它代理出站的引用改写成 <code>proxy-hy2</code>，出站裁到只剩 <code>proxy-hy2</code> 与 <code>direct</code>，入站换成本地 mixed 端口，前台跑起来验收、跑完自动清理。不改原配置，也不需要 root。</p>
 <pre><code>HY2_ONLY=1 CONFIG=./sing-box-client-laptop-desktop.json SERVER_IP=你的服务器IP VLESS_PORT=443 \
   bash bin/deploy/client/verify.sh</code></pre>
@@ -123,7 +125,18 @@ sudo tcpdump -ni en0 'tcp port 443' -c 20
 sudo tcpdump -ni any 'udp portrange 8443-8447' -c 10
 sudo journalctl -u sing-box -n 100 --no-pager | grep -iE 'hysteria|hy2'</code></pre>
 <p>只有区间内的 UDP、没有到服务器的 TCP 443，才是 hy2 在承载。<code>server_ports</code> 生效时，抓到的目的端口会在 8443–8447 之间变化。</p>
-<p><b>urltest 会不会选它。</b><code>auto</code> 每 3 分钟测一次 <code>https://www.gstatic.com/generate_204</code>，<code>tolerance</code> 为 100ms，只有候选比当前快出 100ms 才切换。REALITY 通常先测赢，hy2 长期备而不用，这是主备设计而非配置错误。要让它常驻，把 <code>auto.outbounds</code> 收成只剩 <code>proxy-hy2</code>，或把 <code>route.final</code> 指向 <code>proxy-hy2</code>。</p>
+<p><b>出口怎么选。</b>配置里有两层：<code>manual</code>（selector）负责最终选择，<code>auto</code>（urltest）只负责测速。默认值是 <code>proxy</code>，不会因为 hy2 某次测得更快就切走。</p>
+<div class="tw">
+<table>
+<thead><tr><th>在客户端里选</th><th>行为</th><th>适用</th></tr></thead>
+<tbody>
+<tr><td><code>proxy</code></td><td>固定走 REALITY，hy2 不参与</td><td>默认，日常最稳</td></tr>
+<tr><td><code>proxy-hy2</code></td><td>固定走 Hysteria2，REALITY 不参与</td><td>验证 hy2、或 REALITY 被干扰时</td></tr>
+<tr><td><code>auto</code></td><td>在两者之间按测速自动切换</td><td>只在前两者都不稳时开</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>auto</code> 每 <code>10m</code> 测一次 <code>https://www.gstatic.com/generate_204</code>，<code>tolerance</code> 为 400ms，候选要比当前快 400ms 才切换。两个值可在渲染时用 <code>URLTEST_INTERVAL</code>、<code>URLTEST_TOLERANCE</code> 覆盖。选择写进 <code>cache_file</code>，重启保留。</p>
 
 <h2>下一步</h2>
 <p>回到<a href="03-server.html">第 3 页</a>重跑服务端渲染与自检，再到<a href="05-client.html">第 5 页</a>重新导出并分发客户端配置。</p>
